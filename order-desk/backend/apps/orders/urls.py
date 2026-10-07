@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.orders.views import (
     DraftOrderDetailView,
+    DraftOrderLineDetailView,
     DraftOrderLinesView,
     DraftOrderListCreateView,
     OrderDetailView,
@@ -19,6 +20,11 @@ draft_urlpatterns = [
     path("", DraftOrderListCreateView.as_view(), name="list"),
     path("<uuid:order_id>/", DraftOrderDetailView.as_view(), name="detail"),
     path("<uuid:order_id>/lines/", DraftOrderLinesView.as_view(), name="lines"),
+    path(
+        "<uuid:order_id>/lines/<uuid:line_id>/",
+        DraftOrderLineDetailView.as_view(),
+        name="line-detail",
+    ),
 ]
 
 urlpatterns = [

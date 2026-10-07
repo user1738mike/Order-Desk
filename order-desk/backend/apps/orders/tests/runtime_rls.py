@@ -429,6 +429,76 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         )
         self._assert_clean()
 
+    def test_requested_line_http_editing_and_revocation_as_runtime_role(self) -> None:
+        order = self.drafts[self.a.pk][DraftOrder]
+        line = self.drafts[self.a.pk][DraftOrderLine]
+        path = (
+            f"/api/v1/workspaces/{self.a.pk}/draft-orders/{order.pk}/lines/{line.pk}/"
+        )
+        header = DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk)
+        for actor in (self.admin, self.reviewer):
+            client, token = self._credential_client(actor)
+            self.assertEqual(client.get(path).status_code, 200)
+            response = client.patch(
+                path,
+                {"unit": str(actor.pk)[:8], "quantity": "2.500"},
+                format="json",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual(response.json()["quantity"], "2.500")
+            before = DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk)
+            self.assertEqual(
+                client.patch(
+                    path, {}, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                200,
+            )
+            self.assertEqual(
+                client.patch(
+                    path,
+                    {"position": line.position},
+                    format="json",
+                    HTTP_X_CSRFTOKEN=token,
+                ).status_code,
+                400,
+            )
+            foreign = self.drafts[self.b.pk][DraftOrderLine]
+            self.assertEqual(
+                client.patch(
+                    path.replace(str(line.pk), str(foreign.pk)),
+                    "{",
+                    content_type="application/json",
+                    HTTP_X_CSRFTOKEN=token,
+                ).status_code,
+                404,
+            )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=actor, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(client.get(path).status_code, 403)
+            self.assertEqual(
+                client.patch(
+                    path, {"unit": "denied"}, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                403,
+            )
+            self.assertEqual(
+                DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk),
+                before,
+            )
+            self._assert_clean()
+        viewer, token = self._credential_client(self.viewer)
+        self.assertEqual(viewer.get(path).status_code, 200)
+        self.assertEqual(
+            viewer.patch(path, {}, format="json", HTTP_X_CSRFTOKEN=token).status_code,
+            403,
+        )
+        self.assertEqual(
+            DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk), header
+        )
+        self._assert_clean()
+
     def test_draft_reads_are_tenant_scoped_without_application_filters(self) -> None:
         for workspace in (self.a, self.b):
             for actor in (self.admin, self.viewer, self.reviewer):

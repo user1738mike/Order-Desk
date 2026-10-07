@@ -17,7 +17,11 @@ from django.test import TransactionTestCase
 
 from apps.accounts.models import User
 from apps.orders.models import DraftOrder, DraftOrderLine
-from apps.orders.services import DraftLinePositionConflict, create_draft_order_line
+from apps.orders.services import (
+    DraftLinePositionConflict,
+    create_draft_order_line,
+    update_draft_order_line,
+)
 from apps.organizations.models import Membership, MembershipRole, Organization
 from apps.organizations.services import create_organization
 
@@ -99,6 +103,20 @@ class DraftOrderConcurrencyTests(TransactionTestCase):
         )
 
     def test_committed_demotion_denies_waiting_writer(self) -> None:
+        self._assert_committed_demotion_denies_waiting_writer()
+
+    def test_committed_demotion_denies_waiting_line_editor(self) -> None:
+        line = DraftOrderLine.objects.create(
+            organization=self.organization,
+            order=self.order,
+            position=1,
+            requested_sku="Original",
+        )
+        self._assert_committed_demotion_denies_waiting_writer(line=line)
+        line.refresh_from_db()
+        self.assertEqual(line.requested_sku, "Original")
+
+    def _assert_committed_demotion_denies_waiting_writer(self, *, line=None) -> None:
         ready = Queue()
         blocker_pid = self._pid()
 
@@ -120,7 +138,16 @@ class DraftOrderConcurrencyTests(TransactionTestCase):
             try:
                 with connection.execute_wrapper(inspect):
                     try:
-                        self._create_line(position=2)
+                        if line is None:
+                            self._create_line(position=2)
+                        else:
+                            update_draft_order_line(
+                                actor=User.objects.get(pk=self.user.pk),
+                                organization_id=self.organization.pk,
+                                order_id=self.order.pk,
+                                line_id=line.pk,
+                                data={"requested_sku": "Changed"},
+                            )
                     except PermissionDenied:
                         result = "denied"
                     else:
@@ -140,7 +167,10 @@ class DraftOrderConcurrencyTests(TransactionTestCase):
                 waiter_pid = ready.get(timeout=10)
                 self._wait_for_block(waiter_pid, blocker_pid)
             self.assertEqual(future.result(timeout=15), "denied")
-        self.assertFalse(DraftOrderLine.objects.filter(order=self.order).exists())
+        self.assertEqual(
+            DraftOrderLine.objects.filter(order=self.order).count(),
+            0 if line is None else 1,
+        )
         self._assert_clean_context()
 
     def test_protected_writer_commits_before_waiting_demotion(self) -> None:

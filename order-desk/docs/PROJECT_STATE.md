@@ -1,6 +1,40 @@
 # Project state
 
-## Active checkpoint: Step 4D.4 requested draft lines verified locally
+## Active checkpoint: Step 4D.5 requested draft-line editing verified locally
+
+Continued from Step 4D.4 with scoped line-detail GET/HEAD and protected JSON
+PATCH for requested SKU/description, quantity and unit. The contract was recorded
+before code in `AI_Order_Desk_Step_04D5_Protected_Draft_Line_Editing.md`.
+Active members read; only current admins/reviewers edit. The service locks the
+organization, refreshes authorization, then locks the scoped parent and line
+before parsing. It merges supplied values into current state, validates the
+model, saves changed fields only and materializes the scalar response in scope.
+Omitted fields and historical catalogue references/snapshots are preserved;
+explicit null quantity remains unresolved. Empty/identical patches preserve
+`updated_at`. Identity/parent/tenant/position/catalogue/timestamps reject input.
+Header fields/timestamps/counts remain unchanged. Shared validation translation
+returns stable 400s after rollback. No schema/dependency/grant/policy changes.
+
+Actual verification on 2026-10-07: 17 focused editing/concurrency tests passed
+in 5.373s; 630 full backend tests passed in 143.096s; 36 restricted-role order/RLS
+checks passed in 33.103s. No skips. Ruff lint/format (140 files), model drift,
+migration state, runtime role, both health probes and whitespace checks passed.
+Tests cover partial/no-op/clearing behavior, merged identity, immutable fields,
+inactive/removed/never-member access, foreign parents/lines, CSRF/media/methods,
+linked inactive catalogue snapshots, model and post-save rollback. Independent
+connections prove disjoint patches retain both changes and committed demotion
+denies a waiting editor, with an observed organization lock wait. Established
+creation and opposite lock-order assertions remain covered by full regression.
+Restricted-role checks exercise real credential sessions and PATCH grants.
+Fixtures stayed in `test_orderdesk`; main checks were metadata/health only.
+Ignored logs: `backend/var/draft_line_editing_focused.log`,
+`draft_line_editing_regression.log`, `draft_line_editing_runtime.log`.
+
+Next proposed increment: protected manual catalogue attachment to a draft line,
+with its snapshot/active-item/update contract documented first. Automatic
+matching remains separate. Changes are locally verified and uncommitted.
+
+## Previous checkpoint: Step 4D.4 requested draft lines verified locally
 
 After Step 4D.3, implemented POST on the existing draft lines route for one
 requested/unmatched line. Its contract was recorded before code in

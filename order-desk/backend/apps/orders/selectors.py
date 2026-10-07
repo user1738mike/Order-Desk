@@ -35,6 +35,14 @@ def draft_lines_for_order(
     ).order_by("position", "id")
 
 
+def get_draft_line(
+    organization_id: UUID, order_id: UUID, line_id: UUID
+) -> DraftOrderLine:
+    return get_object_or_404(
+        draft_lines_for_order(organization_id, order_id), pk=line_id
+    )
+
+
 def _reviews(organization_id: UUID) -> QuerySet[OrderDocumentReview]:
     return OrderDocumentReview.objects.filter(
         organization_id=organization_id,

@@ -25,6 +25,7 @@ from apps.orders.serializers import (
     DraftOrderDetailSerializer,
     DraftOrderLineCreateSerializer,
     DraftOrderLineReadSerializer,
+    DraftOrderLineUpdateSerializer,
     DraftOrderSummarySerializer,
     OrderDocumentCreateSerializer,
     OrderDocumentReviewCreateSerializer,
@@ -147,6 +148,43 @@ class DraftOrderLinesView(DraftOrderWriteView):
                 {"detail": services.DRAFT_LINE_POSITION_CONFLICT}, status=409
             )
         return Response(result, status=201)
+
+
+class DraftOrderLineDetailView(DraftOrderWriteView):
+    http_method_names = ["get", "head", "patch", "options"]
+
+    def get(
+        self, request: Request, workspace_id: UUID, order_id: UUID, line_id: UUID
+    ) -> Response:
+        with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
+            validate_draft_query(request.query_params, allow_page=False)
+            selectors.get_draft_order(scope.organization_id, order_id)
+            line = selectors.get_draft_line(scope.organization_id, order_id, line_id)
+            return Response(DraftOrderLineReadSerializer(line).data)
+
+    def patch(
+        self, request: Request, workspace_id: UUID, order_id: UUID, line_id: UUID
+    ) -> Response:
+        def update_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if (
+                request.content_type.split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise UnsupportedMediaType(request.content_type)
+            serializer = DraftOrderLineUpdateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return serializer.validated_data
+
+        result = services.update_draft_order_line(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            line_id=line_id,
+            data=update_data,
+            materialize=lambda line: DraftOrderLineReadSerializer(line).data,
+        )
+        return Response(result, status=200)
 
 
 @method_decorator(never_cache, name="dispatch")

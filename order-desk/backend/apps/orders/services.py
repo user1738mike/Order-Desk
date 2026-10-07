@@ -32,6 +32,9 @@ from apps.organizations.transactions import tenant_scope
 Materializer = Callable[[Any], Any]
 
 DRAFT_LINE_POSITION_CONFLICT = "This draft already has a line at this position."
+DRAFT_LINE_EDITABLE_FIELDS = frozenset(
+    {"requested_sku", "requested_description", "quantity", "unit"}
+)
 
 
 class DraftLinePositionConflict(Exception):
@@ -91,13 +94,7 @@ def create_draft_order_line(
                 pk=order_id,
             )
             values = data() if callable(data) else data
-            allowed = {
-                "position",
-                "requested_sku",
-                "requested_description",
-                "quantity",
-                "unit",
-            }
+            allowed = DRAFT_LINE_EDITABLE_FIELDS | {"position"}
             unknown = set(values) - allowed
             if unknown:
                 raise ValidationError(
@@ -126,6 +123,46 @@ def create_draft_order_line(
         ):
             raise DraftLinePositionConflict from error
         raise
+
+
+def update_draft_order_line(
+    *,
+    actor,
+    organization_id: UUID,
+    order_id: UUID,
+    line_id: UUID,
+    data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
+    materialize: Materializer | None = None,
+):
+    """Merge a patch into fresh locked state, preserving successful no-ops."""
+    with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
+        _require_writer(context)
+        order = get_object_or_404(
+            DraftOrder.objects.select_for_update().filter(
+                organization_id=context.organization_id
+            ),
+            pk=order_id,
+        )
+        line = get_object_or_404(
+            DraftOrderLine.objects.select_for_update().filter(
+                organization_id=context.organization_id, order_id=order.pk
+            ),
+            pk=line_id,
+        )
+        values = data() if callable(data) else data
+        unknown = set(values) - DRAFT_LINE_EDITABLE_FIELDS
+        if unknown:
+            raise ValidationError(
+                {key: ["Unsupported field."] for key in sorted(unknown)}
+            )
+        original = {field: getattr(line, field) for field in values}
+        for field, value in values.items():
+            setattr(line, field, value)
+        line.full_clean()
+        changed = [field for field in values if getattr(line, field) != original[field]]
+        if changed:
+            line.save(update_fields=[*changed, "updated_at"])
+        return _result(line, materialize)
 
 
 def _locked_order(*, organization_id: UUID, order_id: UUID) -> PurchaseOrder:

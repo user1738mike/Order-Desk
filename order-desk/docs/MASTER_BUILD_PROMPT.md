@@ -1,14 +1,17 @@
 # Master build prompt
 
-Current verified checkpoint: Step 4D.4 protected requested draft-line creation
-is complete locally after Step 4D.3 header creation and its validation repair.
-616 full backend tests, 18 focused line/concurrency tests and 35 restricted-role
+Current verified checkpoint: Step 4D.5 protected requested draft-line editing
+is complete locally after Step 4D.4 requested line creation. Scoped detail
+GET/HEAD and admin/reviewer JSON PATCH preserve omitted fields, no-op timestamps,
+header state and catalogue snapshots. Authorization and scoped locking precede
+parsing; merged model validation and materialization stay in the write scope.
+630 full backend tests, 17 focused editing/concurrency tests and 36 restricted-role
 order/RLS checks passed on 2026-10-07 without skips. Lint/format, model drift,
 migration state, runtime role and health gates passed. Read `PROJECT_STATE.md`
-and `AI_Order_Desk_Step_04D4_Protected_Draft_Lines.md` before continuing.
-Changes remain uncommitted. Next proposed increment: protected editing of
-requested draft-line fields, with the update contract documented first;
-catalogue attachment/matching remain separate. Historical next-step
+and `AI_Order_Desk_Step_04D5_Protected_Draft_Line_Editing.md` before continuing.
+Changes remain uncommitted. Next proposed increment: protected manual catalogue
+attachment to a draft line, with its snapshot/active-item/update contract
+documented first. Automatic matching remains separate. Historical next-step
 instructions below do not supersede this checkpoint.
 
 Historical verified checkpoint: Step4C8 is complete (448 normal tests, 100 runtime

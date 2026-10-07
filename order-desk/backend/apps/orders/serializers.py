@@ -187,6 +187,26 @@ class DraftOrderLineCreateSerializer(StrictInputSerializer):
         return attrs
 
 
+class DraftOrderLineUpdateSerializer(StrictInputSerializer):
+    requested_sku = serializers.CharField(
+        allow_blank=True, required=False, trim_whitespace=False
+    )
+    requested_description = serializers.CharField(
+        allow_blank=True, required=False, trim_whitespace=False
+    )
+    quantity = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+        max_value=MAX_DRAFT_QUANTITY,
+        allow_null=True,
+        required=False,
+    )
+    unit = serializers.CharField(
+        max_length=32, allow_blank=True, required=False, trim_whitespace=False
+    )
+
+
 class PurchaseOrderCreateSerializer(StrictInputSerializer):
     customer_name = serializers.CharField(max_length=255)
     purchase_order_number = serializers.CharField(max_length=64)
