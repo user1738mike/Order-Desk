@@ -1,0 +1,5 @@
+# Workspace-local editor tools and dependencies.
+/.tools/
+/.venv/
+__pycache__/
+.ruff_cache/

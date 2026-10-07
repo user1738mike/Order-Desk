@@ -1,0 +1,774 @@
+{
+    "version":  "2.0.0",
+    "tasks":  [
+                  {
+                      "label":  "init-env",
+                      "type":  "process",
+                      "command":  "${workspaceFolder}/.venv/Scripts/python.exe",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "scripts/init_env.py"
+                               ]
+                  },
+                  {
+                      "label":  "setup-env",
+                      "type":  "process",
+                      "command":  "${workspaceFolder}/.venv/Scripts/python.exe",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "scripts/init_env.py"
+                               ]
+                  },
+                  {
+                      "label":  "docker-build-api",
+                      "type":  "shell",
+                      "command":  "docker compose build api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "docker-db-up",
+                      "type":  "shell",
+                      "command":  "docker compose up -d db; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "docker-dbsetup",
+                      "type":  "shell",
+                      "command":  "docker compose run --rm dbsetup; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "docker-manage-migrate",
+                      "type":  "shell",
+                      "command":  "docker compose run --rm manage python manage.py migrate; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "docker-api-up",
+                      "type":  "shell",
+                      "command":  "docker compose up -d api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "docker-health-checks",
+                      "type":  "shell",
+                      "command":  "$ErrorActionPreference = \u0027Stop\u0027; Invoke-RestMethod http://127.0.0.1:8000/api/v1/health/live/; Invoke-RestMethod http://127.0.0.1:8000/api/v1/health/ready/",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "docker-api-logs",
+                      "type":  "shell",
+                      "command":  "docker compose logs --tail 200 api; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "docker-up-wait",
+                      "type":  "shell",
+                      "command":  "docker compose up -d --wait --wait-timeout 120; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "health-live-ready",
+                      "type":  "shell",
+                      "command":  "$ErrorActionPreference = \u0027Stop\u0027; Invoke-RestMethod http://127.0.0.1:8000/api/v1/health/live/; Invoke-RestMethod http://127.0.0.1:8000/api/v1/health/ready/",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "org-tests",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.organizations",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "full-backend-tests",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "git-status",
+                      "type":  "shell",
+                      "command":  "git status --short; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "prepare-order-step",
+                      "type":  "shell",
+                      "command":  "New-Item -ItemType Directory -Force -Path \u0027.github\u0027; New-Item -ItemType Directory -Force -Path \u0027docs\\adr\u0027; New-Item -ItemType Directory -Force -Path \u0027docs\\steps\u0027; New-Item -ItemType Directory -Force -Path \u0027backend\\apps\\orders\\migrations\u0027; New-Item -ItemType Directory -Force -Path \u0027backend\\apps\\orders\\tests\u0027; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "orders-migrate",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "dependsOrder":  "sequence",
+                      "dependsOn":  [
+                                        "backend-model-drift",
+                                        "backend-migrate"
+                                    ]
+                  },
+                  {
+                      "label":  "orders-test",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.orders",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "orders-full-suite",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "git-status-2",
+                      "type":  "shell",
+                      "command":  "git status --short; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "orders-makemigrations",
+                      "type":  "shell",
+                      "command":  "docker compose run --rm manage python manage.py makemigrations orders; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "orders-app-tests",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.orders",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "database-bootstrap",
+                      "type":  "shell",
+                      "command":  "docker compose run --rm dbsetup",
+                      "args":  [
+
+                               ],
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "orders-tests-keepdb",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.orders",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "orders-tests-resetdb",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.orders",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "orders-tests-dropdb2",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.orders",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "orders-tests-dropdb3",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.orders",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "orders-tests-dropdb",
+                      "type":  "process",
+                      "command":  "docker",
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "test",
+                                   "apps.orders",
+                                   "--settings=config.settings.test",
+                                   "--keepdb",
+                                   "--noinput"
+                               ]
+                  },
+                  {
+                      "label":  "db-role-check",
+                      "type":  "shell",
+                      "command":  "docker compose exec -T db psql -U orderdesk_dev_admin -d orderdesk -c \"SELECT current_user; SELECT rolname, rolcreatedb, rolcreaterole, rolinherit, rolbypassrls, rolreplication FROM pg_roles WHERE rolname IN (\u0027orderdesk_app\u0027,\u0027orderdesk_migrator\u0027); SELECT has_schema_privilege(\u0027orderdesk_app\u0027,\u0027public\u0027,\u0027CREATE\u0027);\"",
+                      "args":  [
+
+                               ],
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "dbsetup-refresh",
+                      "type":  "shell",
+                      "command":  "docker compose run --rm dbsetup",
+                      "args":  [
+
+                               ],
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "db-repair-testdb",
+                      "type":  "process",
+                      "command":  "docker",
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "dbsetup"
+                               ],
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "dbfix2",
+                      "type":  "process",
+                      "command":  "docker",
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "dbsetup"
+                               ],
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "envcheck",
+                      "type":  "process",
+                      "command":  "docker",
+                      "args":  [
+                                   "compose",
+                                   "exec",
+                                   "-T",
+                                   "api",
+                                   "python",
+                                   "manage.py",
+                                   "check_runtime_role"
+                               ],
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "testdb-check",
+                      "type":  "shell",
+                      "command":  "docker compose exec -T db psql -U orderdesk_dev_admin -d postgres -c \"SELECT datname, pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname = \u0027test_orderdesk\u0027;\"",
+                      "args":  [
+
+                               ],
+                      "isBackground":  false,
+                      "problemMatcher":  [
+
+                                         ],
+                      "options":  {
+                                      "shell":  {
+                                                    "executable":  "powershell.exe",
+                                                    "args":  [
+                                                                 "-NoProfile",
+                                                                 "-Command"
+                                                             ]
+                                                },
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  }
+                  },
+                  {
+                      "label":  "backend-lint",
+                      "type":  "process",
+                      "command":  "docker",
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "ruff",
+                                   "check",
+                                   ".",
+                                   "--output-format",
+                                   "concise"
+                               ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "problemMatcher":  {
+                                             "pattern":  {
+                                                             "message":  5,
+                                                             "column":  3,
+                                                             "regexp":  "^(?:/app/)?(.+\\.py):(\\d+):(\\d+): ([A-Z]+\\d+) (.+)$",
+                                                             "line":  2,
+                                                             "code":  4,
+                                                             "file":  1
+                                                         },
+                                             "owner":  "ruff",
+                                             "fileLocation":  [
+                                                                  "relative",
+                                                                  "${workspaceFolder}/order-desk/backend"
+                                                              ]
+                                         }
+                  },
+                  {
+                      "label":  "backend-model-drift",
+                      "type":  "process",
+                      "command":  "docker",
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "makemigrations",
+                                   "--check",
+                                   "--dry-run"
+                               ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "problemMatcher":  [
+
+                                         ]
+                  },
+                  {
+                      "label":  "backend-migrate",
+                      "type":  "process",
+                      "command":  "docker",
+                      "args":  [
+                                   "compose",
+                                   "run",
+                                   "--rm",
+                                   "manage",
+                                   "python",
+                                   "manage.py",
+                                   "migrate",
+                                   "--noinput"
+                               ],
+                      "options":  {
+                                      "cwd":  "${workspaceFolder}/order-desk"
+                                  },
+                      "problemMatcher":  [
+
+                                         ]
+                  }
+              ]
+}

@@ -1,0 +1,33 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python-envs.workspaceSearchPaths": ["./.venv"],
+  "python.autoComplete.extraPaths": ["${workspaceFolder}/order-desk/backend"],
+  "python.analysis.extraPaths": ["${workspaceFolder}/order-desk/backend"],
+  "python.analysis.exclude": ["**/.tools/**", "**/.venv/**", "order-desk-step*/**"],
+  "python.testing.cwd": "${workspaceFolder}/order-desk/backend",
+  "pylint.enabled": false,
+  "flake8.enabled": false,
+  "ruff.path": ["${workspaceFolder}/.venv/Scripts/ruff.exe"],
+  "ruff.nativeServer": "on",
+  "ruff.configuration": "${workspaceFolder}/order-desk/backend/pyproject.toml",
+  "ruff.exclude": [
+    "**/.tools/**",
+    "**/.venv/**",
+    "**/order-desk-step*/**",
+    "C:/Users/HomePC/Desktop/Billion1/backend/**",
+    "**/apps/*/migrations/**"
+  ],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "files.watcherExclude": {
+    "**/.tools/**": true,
+    "**/.venv/**": true,
+    "**/order-desk-step*/**": true
+  },
+  "search.exclude": {
+    "**/.tools/**": true,
+    "**/.venv/**": true,
+    "**/order-desk-step*/**": true
+  }
+}
