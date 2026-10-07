@@ -1,0 +1,8 @@
+# Normalize source text across Windows, Linux, and macOS.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.zip binary

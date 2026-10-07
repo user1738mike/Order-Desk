@@ -1,0 +1,12 @@
+services:
+  manage:
+    volumes:
+      - C:/Users/HomePC/Desktop/Billion1/order-desk-step4c7/backend:/app
+      - C:/Users/HomePC/Desktop/Billion1/order-desk-step4c7/scripts:/verification-project/scripts:ro
+      - C:/Users/HomePC/Desktop/Billion1/order-desk-step4c7/.env.example:/verification-project/.env.example:ro
+  dbsetup:
+    volumes:
+      - C:/Users/HomePC/Desktop/Billion1/order-desk-step4c7/backend:/app
+  rlscheck:
+    volumes:
+      - C:/Users/HomePC/Desktop/Billion1/order-desk-step4c7/backend:/app

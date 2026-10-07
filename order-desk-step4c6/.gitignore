@@ -1,0 +1,31 @@
+# Local configuration and credentials; retain the public template.
+.env
+.env.*
+!.env.example
+
+# JavaScript dependencies and generated output.
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Python environments, caches, and test output.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Future local documents, exports, and backups must not enter Git.
+/var/
+
+# Editor and operating-system files.
+.idea/
+.DS_Store
+Thumbs.db

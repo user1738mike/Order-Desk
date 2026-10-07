@@ -1,0 +1,14 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/../.venv/Scripts/python.exe",
+  "python.autoComplete.extraPaths": ["${workspaceFolder}/backend"],
+  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
+  "python.testing.cwd": "${workspaceFolder}/backend",
+  "pylint.enabled": false,
+  "flake8.enabled": false,
+  "ruff.path": ["${workspaceFolder}/../.venv/Scripts/ruff.exe"],
+  "ruff.nativeServer": "on",
+  "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  }
+}
