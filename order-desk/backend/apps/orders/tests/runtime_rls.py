@@ -352,6 +352,41 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         self.assertEqual(client.get(path).status_code, 403)
         self._assert_clean()
 
+    def test_draft_creation_validation_and_revocation_as_runtime_role(self) -> None:
+        client, token = self._credential_client(self.admin)
+        path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/"
+        original_count = (
+            DraftOrder.objects.using(OWNER_ALIAS).filter(organization=self.a).count()
+        )
+        invalid = client.post(
+            path, {"customer_name": "   "}, format="json", HTTP_X_CSRFTOKEN=token
+        )
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(
+            DraftOrder.objects.using(OWNER_ALIAS).filter(organization=self.a).count(),
+            original_count,
+        )
+        created = client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(created.status_code, 201, created.content)
+        self.assertEqual(created.json()["organization_id"], str(self.a.pk))
+        self.assertEqual(created.json()["initiating_user_id"], str(self.admin.pk))
+        Membership.objects.using(OWNER_ALIAS).filter(
+            pk=self.admin_membership.pk
+        ).update(is_active=False)
+        denied = client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(denied.status_code, 403)
+        for suffix in (
+            "",
+            f"{created.json()['id']}/",
+            f"{created.json()['id']}/lines/",
+        ):
+            self.assertEqual(client.get(path + suffix).status_code, 403)
+        self.assertEqual(
+            DraftOrder.objects.using(OWNER_ALIAS).filter(organization=self.a).count(),
+            original_count + 1,
+        )
+        self._assert_clean()
+
     def test_draft_reads_are_tenant_scoped_without_application_filters(self) -> None:
         for workspace in (self.a, self.b):
             for actor in (self.admin, self.viewer, self.reviewer):

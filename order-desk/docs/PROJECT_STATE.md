@@ -1,5 +1,49 @@
 # Project state
 
+## Step 4D.3 creation bug fixes verified: 2026-10-07
+
+Reproduced the supplied creation suite: 6 tests with one validation error and
+one failed authorization assertion. Whitespace customer names passed the
+serializer unchanged and failed the model's optional-nonblank constraint;
+the draft list/create view lacked the Django-to-DRF validation translation
+used by other order/catalogue views. Added customer name/reference validators
+that reject whitespace-only strings while preserving documented empty strings.
+The API now maps Django validation errors after the service transaction exits:
+field keys are retained, and constraint/unkeyed errors use `non_field_errors`.
+Services remain framework-independent; model validation and rollback remain
+enabled. Regressions verify no save on invalid input and rollback after an
+insert followed by a materialization validation failure.
+
+The apparent inactive-membership failure occurred at the earlier foreign
+workspace assertion: `create_organization(actor=self.user)` explicitly gives
+that user an active administrator membership. Corrected that fixture to use
+a different owner, retaining both original 403 assertions. Production access
+already requires current active membership, account and organization state.
+Request permissions and each tenant transaction independently refresh it;
+session selection is only a preference, and forced RLS checks active state too.
+New regressions cover inactive/deleted/never-member users, inactive accounts
+and organizations, stale session selection, and revocation between initial
+permission and transaction entry across draft, purchase-order and catalogue
+routes. No shared access/RLS policy changes were needed.
+
+Updated one obsolete Step 4D.2 read test: Step 4D.3 now explicitly supports
+POST on the list route. It asserts 201 and tenant/initiator/empty-line state
+there, while preserving 405 checks on detail/line POSTs and other write methods.
+
+Actual verification: 24 focused creation/read tests passed in 7.468s; all
+520 orders/organizations/catalogue tests passed in 101.970s; 34 restricted-role
+order/RLS checks passed in 18.543s, including the new creation/revocation check.
+No skips. Ruff lint/format (138 files), model drift and whitespace checks passed.
+Full suite output is retained locally in ignored
+`backend/var/draft_creation_regression.log`; runtime output is in
+`backend/var/draft_creation_runtime.log`. No migrations or dependency changes.
+
+Related behavior left unchanged: an active viewer's invalid POST body is
+validated before the service checks their write role, so it may return 400
+instead of 403. A valid body remains denied, and inactive/nonmember requests
+are denied by the initial permission before this validation. This affects
+error precedence rather than granting write access.
+
 ## Editor and terminal diagnostics repaired: 2026-10-07
 
 Before starting the next build increment, inspected the live VS Code Python,

@@ -124,8 +124,16 @@ class DraftReadAPITests(TransactionTestCase):
                 response = getattr(self.client, method)(
                     path, {}, format="json", HTTP_X_CSRFTOKEN=token
                 )
-                self.assertEqual(response.status_code, 405)
-        self.assertEqual(DraftOrder.objects.count(), 2)
+                if path == self.url and method == "post":
+                    # Step 4D.3 adds creation only on the list route.
+                    self.assertEqual(response.status_code, 201)
+                    created = DraftOrder.objects.get(pk=response.json()["id"])
+                    self.assertEqual(created.organization_id, self.a.pk)
+                    self.assertEqual(created.initiating_user_id, self.user.pk)
+                    self.assertEqual(created.draft_lines.count(), 0)
+                else:
+                    self.assertEqual(response.status_code, 405)
+        self.assertEqual(DraftOrder.objects.count(), 3)
         self.assertEqual(DraftOrderLine.objects.count(), 2)
         self.assert_clean()
 

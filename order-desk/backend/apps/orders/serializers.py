@@ -142,6 +142,20 @@ class DraftOrderCreateSerializer(StrictInputSerializer):
         max_length=10000, allow_blank=True, required=False, trim_whitespace=False
     )
 
+    def validate_customer_name(self, value: str) -> str:
+        if value and not value.strip():
+            raise serializers.ValidationError(
+                "Provide a nonblank value or an empty string."
+            )
+        return value
+
+    def validate_customer_reference(self, value: str) -> str:
+        if value and not value.strip():
+            raise serializers.ValidationError(
+                "Provide a nonblank value or an empty string."
+            )
+        return value
+
 
 class PurchaseOrderCreateSerializer(StrictInputSerializer):
     customer_name = serializers.CharField(max_length=255)

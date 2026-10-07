@@ -50,6 +50,19 @@ class DraftOrderListCreateView(APIView):
     authentication_classes = (SessionAuthentication,)
     permission_classes = (IsAuthenticated, HasWorkspaceAccess)
 
+    def handle_exception(self, exc):
+        # Translate only after the service has exited and rolled back its scope.
+        if isinstance(exc, DjangoValidationError):
+            if hasattr(exc, "message_dict"):
+                details = {
+                    "non_field_errors" if key == "__all__" else key: messages
+                    for key, messages in exc.message_dict.items()
+                }
+            else:
+                details = {"non_field_errors": exc.messages}
+            exc = ValidationError(details)
+        return super().handle_exception(exc)
+
     def get(self, request: Request, workspace_id: UUID) -> Response:
         with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
             paginator = DraftOrderPagination()
@@ -68,9 +81,9 @@ class DraftOrderListCreateView(APIView):
         result = services.create_draft_order(
             actor=request.user,
             organization_id=workspace_id,
-            materialize=lambda order: DraftOrderCreationSerializer(
-                order, context={"request": request}
-            ).data,
+            materialize=lambda order: (
+                DraftOrderCreationSerializer(order, context={"request": request}).data
+            ),
             **data.validated_data,
         )
         return Response(result, status=201)
