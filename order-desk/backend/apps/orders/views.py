@@ -8,7 +8,7 @@ from django.http import Http404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import UnsupportedMediaType, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -23,6 +23,7 @@ from apps.orders.serializers import (
     DraftOrderCreateSerializer,
     DraftOrderCreationSerializer,
     DraftOrderDetailSerializer,
+    DraftOrderLineCreateSerializer,
     DraftOrderLineReadSerializer,
     DraftOrderSummarySerializer,
     OrderDocumentCreateSerializer,
@@ -39,16 +40,21 @@ from apps.organizations.permissions import HasWorkspaceAccess
 from apps.organizations.transactions import tenant_scope
 
 
+class DraftOrderSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request: Request) -> None:
+        # Match catalogue's transport guard: do not parse DRF input during CSRF.
+        super().enforce_csrf(request._request)
+
+
 @method_decorator(never_cache, name="dispatch")
 class DraftOrderReadView(APIView):
-    authentication_classes = (SessionAuthentication,)
+    authentication_classes = (DraftOrderSessionAuthentication,)
     permission_classes = (IsAuthenticated, HasWorkspaceAccess)
     http_method_names = ["get", "head", "options"]
 
 
-class DraftOrderListCreateView(APIView):
-    authentication_classes = (SessionAuthentication,)
-    permission_classes = (IsAuthenticated, HasWorkspaceAccess)
+class DraftOrderWriteView(DraftOrderReadView):
+    http_method_names = ["get", "head", "post", "options"]
 
     def handle_exception(self, exc):
         # Translate only after the service has exited and rolled back its scope.
@@ -63,6 +69,8 @@ class DraftOrderListCreateView(APIView):
             exc = ValidationError(details)
         return super().handle_exception(exc)
 
+
+class DraftOrderListCreateView(DraftOrderWriteView):
     def get(self, request: Request, workspace_id: UUID) -> Response:
         with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
             paginator = DraftOrderPagination()
@@ -99,7 +107,7 @@ class DraftOrderDetailView(DraftOrderReadView):
             )
 
 
-class DraftOrderLinesView(DraftOrderReadView):
+class DraftOrderLinesView(DraftOrderWriteView):
     def get(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
         with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
             validate_draft_query(request.query_params, allow_page=True)
@@ -113,6 +121,32 @@ class DraftOrderLinesView(DraftOrderReadView):
             return paginator.get_paginated_response(
                 DraftOrderLineReadSerializer(page, many=True).data
             )
+
+    def post(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        def creation_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if (
+                request.content_type.split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise UnsupportedMediaType(request.content_type)
+            serializer = DraftOrderLineCreateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return serializer.validated_data
+
+        try:
+            result = services.create_draft_order_line(
+                actor=request.user,
+                organization_id=workspace_id,
+                order_id=order_id,
+                data=creation_data,
+                materialize=lambda line: DraftOrderLineReadSerializer(line).data,
+            )
+        except services.DraftLinePositionConflict:
+            return Response(
+                {"detail": services.DRAFT_LINE_POSITION_CONFLICT}, status=409
+            )
+        return Response(result, status=201)
 
 
 @method_decorator(never_cache, name="dispatch")

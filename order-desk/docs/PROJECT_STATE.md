@@ -1,5 +1,39 @@
 # Project state
 
+## Active checkpoint: Step 4D.4 requested draft lines verified locally
+
+After Step 4D.3, implemented POST on the existing draft lines route for one
+requested/unmatched line. Its contract was recorded before code in
+`AI_Order_Desk_Step_04D4_Protected_Draft_Lines.md`. Active admins/reviewers
+may create; null quantities and original request fields are preserved.
+Organization-first locking and fresh authorization precede scoped parent
+locking, request parsing, model validation, insertion and scalar response
+materialization. Duplicate positions return stable 409s; only the named native
+uniqueness error is translated. Missing/foreign parents return 404. Catalogue
+references/snapshots and other system fields cannot be supplied. Header intake
+and timestamps are unchanged, while computed counts reflect new lines.
+
+Shared draft CSRF authentication checks the underlying HttpRequest to avoid
+early DRF JSON parsing; new line writes check roles/parent before parsing and
+explicitly enforce JSON media. Draft views share validation-error translation
+and existing never-cache behavior. Existing reads and unsupported methods are
+covered by regression checks. No migration, dependency, policy or grant change.
+
+Actual verification on 2026-10-07: 616 full backend tests passed in 126.157s;
+18 focused line/service/concurrency tests passed in 4.818s; 35 restricted-role
+order/RLS checks passed in 29.916s. No skips. Ruff lint/format (139 files),
+model drift, migration state, restricted runtime role, health and whitespace
+checks passed. Existing duplicate/demotion concurrency assertions now exercise
+the real write service and retain observed lock-wait checks. Both demotion
+orders, post-insert rollback and the final native conflict guard are verified.
+Fixtures stayed in `test_orderdesk`; main checks were metadata/health only.
+Ignored local logs: `backend/var/draft_lines_focused.log`,
+`draft_lines_security.log`, `draft_lines_regression.log`, `draft_lines_runtime.log`.
+
+Next proposed increment: protected editing of requested draft-line fields,
+with its field/update contract documented first. Catalogue attachment and
+matching remain separate work. Changes are locally verified and uncommitted.
+
 ## Step 4D.3 creation bug fixes verified: 2026-10-07
 
 Reproduced the supplied creation suite: 6 tests with one validation error and

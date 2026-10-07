@@ -387,6 +387,48 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         )
         self._assert_clean()
 
+    def test_requested_line_http_creation_conflict_and_revocation(self) -> None:
+        for position, actor in enumerate((self.admin, self.reviewer), 1):
+            client, token = self._credential_client(actor)
+            order = self.drafts[self.a.pk][DraftOrder]
+            path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{order.pk}/lines/"
+            body = {"position": position, "requested_sku": "Original requested SKU"}
+            created = client.post(path, body, format="json", HTTP_X_CSRFTOKEN=token)
+            self.assertEqual(created.status_code, 201, created.content)
+            self.assertIsNone(created.json()["quantity"])
+            self.assertIsNone(created.json()["catalogue_item_id"])
+            self.assertEqual(created.json()["organization_id"], str(self.a.pk))
+            self.assertEqual(
+                client.post(
+                    path, body, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                409,
+            )
+            foreign = self.drafts[self.b.pk][DraftOrder]
+            foreign_path = path.replace(str(order.pk), str(foreign.pk))
+            self.assertEqual(
+                client.post(
+                    foreign_path, body, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                404,
+            )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=actor, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(
+                client.post(
+                    path, body, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                403,
+            )
+            self._assert_clean()
+        viewer, token = self._credential_client(self.viewer)
+        self.assertEqual(
+            viewer.post(path, body, format="json", HTTP_X_CSRFTOKEN=token).status_code,
+            403,
+        )
+        self._assert_clean()
+
     def test_draft_reads_are_tenant_scoped_without_application_filters(self) -> None:
         for workspace in (self.a, self.b):
             for actor in (self.admin, self.viewer, self.reviewer):

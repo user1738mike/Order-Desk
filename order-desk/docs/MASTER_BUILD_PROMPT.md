@@ -1,13 +1,14 @@
 # Master build prompt
 
-Current verified checkpoint: Step 4D.2 read-only draft-order API is complete
-locally: 16 focused checks, 585 normal PostgreSQL tests, 33 order runtime
-checks, and live HTTP list/detail/lines/logout passed on 2026-10-07. System,
-migration, lint/format, runtime role, main-database guard, and health gates
-passed. Read `PROJECT_STATE.md` and
-`AI_Order_Desk_Step_04D2_Read_Only_Order_API.md` before continuing. Changes
-remain uncommitted and no remote is configured. The next proposed increment
-is a separately specified protected draft creation API. Historical next-step
+Current verified checkpoint: Step 4D.4 protected requested draft-line creation
+is complete locally after Step 4D.3 header creation and its validation repair.
+616 full backend tests, 18 focused line/concurrency tests and 35 restricted-role
+order/RLS checks passed on 2026-10-07 without skips. Lint/format, model drift,
+migration state, runtime role and health gates passed. Read `PROJECT_STATE.md`
+and `AI_Order_Desk_Step_04D4_Protected_Draft_Lines.md` before continuing.
+Changes remain uncommitted. Next proposed increment: protected editing of
+requested draft-line fields, with the update contract documented first;
+catalogue attachment/matching remain separate. Historical next-step
 instructions below do not supersede this checkpoint.
 
 Historical verified checkpoint: Step4C8 is complete (448 normal tests, 100 runtime

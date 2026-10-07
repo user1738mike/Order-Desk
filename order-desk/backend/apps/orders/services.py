@@ -5,16 +5,19 @@ one, callers receive a model whose scalar fields are already loaded; fetching
 its relations later does not establish an authorized tenant transaction.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import IntegrityError
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.orders.models import (
     DraftOrder,
+    DraftOrderLine,
     ExtractionReviewStatus,
     OrderDocument,
     OrderDocumentReview,
@@ -27,6 +30,12 @@ from apps.organizations.models import MembershipRole
 from apps.organizations.transactions import tenant_scope
 
 Materializer = Callable[[Any], Any]
+
+DRAFT_LINE_POSITION_CONFLICT = "This draft already has a line at this position."
+
+
+class DraftLinePositionConflict(Exception):
+    """A requested position is already occupied in this draft."""
 
 
 def _result(instance, materialize: Materializer | None):
@@ -59,6 +68,64 @@ def create_draft_order(
         order.full_clean()
         order.save()
         return _result(order, materialize)
+
+
+def create_draft_order_line(
+    *,
+    actor,
+    organization_id: UUID,
+    order_id: UUID,
+    data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
+    materialize: Materializer | None = None,
+):
+    """Authorize and lock before calling input validation; materialize in scope."""
+    try:
+        with tenant_scope(
+            user=actor, workspace_id=organization_id, write=True
+        ) as context:
+            _require_writer(context)
+            order = get_object_or_404(
+                DraftOrder.objects.select_for_update().filter(
+                    organization_id=context.organization_id
+                ),
+                pk=order_id,
+            )
+            values = data() if callable(data) else data
+            allowed = {
+                "position",
+                "requested_sku",
+                "requested_description",
+                "quantity",
+                "unit",
+            }
+            unknown = set(values) - allowed
+            if unknown:
+                raise ValidationError(
+                    {key: ["Unsupported field."] for key in sorted(unknown)}
+                )
+            line = DraftOrderLine(
+                organization_id=context.organization_id, order_id=order.pk, **values
+            )
+            # Validate field types before using a direct caller's position in SQL.
+            line.clean_fields()
+            if DraftOrderLine.objects.filter(
+                order_id=order.pk,
+                organization_id=context.organization_id,
+                position=line.position,
+            ).exists():
+                raise DraftLinePositionConflict
+            line.full_clean()
+            line.save()
+            return _result(line, materialize)
+    except IntegrityError as error:
+        diagnostics = getattr(error.__cause__, "diag", None)
+        if (
+            getattr(error.__cause__, "sqlstate", None) == "23505"
+            and getattr(diagnostics, "constraint_name", None)
+            == "draftline_order_position_unique"
+        ):
+            raise DraftLinePositionConflict from error
+        raise
 
 
 def _locked_order(*, organization_id: UUID, order_id: UUID) -> PurchaseOrder:

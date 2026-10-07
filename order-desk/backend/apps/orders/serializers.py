@@ -7,6 +7,7 @@ from django.urls import reverse
 from rest_framework import serializers
 
 from apps.orders.models import (
+    MAX_DRAFT_QUANTITY,
     DraftOrder,
     DraftOrderLine,
     OrderDocument,
@@ -155,6 +156,35 @@ class DraftOrderCreateSerializer(StrictInputSerializer):
                 "Provide a nonblank value or an empty string."
             )
         return value
+
+
+class DraftOrderLineCreateSerializer(StrictInputSerializer):
+    position = serializers.IntegerField(min_value=1, max_value=2147483647)
+    requested_sku = serializers.CharField(
+        allow_blank=True, required=False, trim_whitespace=False
+    )
+    requested_description = serializers.CharField(
+        allow_blank=True, required=False, trim_whitespace=False
+    )
+    quantity = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+        max_value=MAX_DRAFT_QUANTITY,
+        allow_null=True,
+        required=False,
+    )
+    unit = serializers.CharField(
+        max_length=32, allow_blank=True, required=False, trim_whitespace=False
+    )
+
+    def validate(self, attrs):
+        if not any(
+            attrs.get(field, "").strip()
+            for field in ("requested_sku", "requested_description")
+        ):
+            raise serializers.ValidationError("Provide a requested SKU or description.")
+        return attrs
 
 
 class PurchaseOrderCreateSerializer(StrictInputSerializer):

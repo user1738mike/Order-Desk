@@ -121,8 +121,13 @@ class DraftReadAPITests(TransactionTestCase):
             # Use a valid CSRF token so a rejected method cannot hide a write handler.
             token = self.client.get("/api/v1/auth/csrf/").json()["csrf_token"]
             for method in ("post", "put", "patch", "delete"):
+                data = (
+                    {"position": 2, "requested_description": "New requested line"}
+                    if path == self.lines and method == "post"
+                    else {}
+                )
                 response = getattr(self.client, method)(
-                    path, {}, format="json", HTTP_X_CSRFTOKEN=token
+                    path, data, format="json", HTTP_X_CSRFTOKEN=token
                 )
                 if path == self.url and method == "post":
                     # Step 4D.3 adds creation only on the list route.
@@ -131,10 +136,17 @@ class DraftReadAPITests(TransactionTestCase):
                     self.assertEqual(created.organization_id, self.a.pk)
                     self.assertEqual(created.initiating_user_id, self.user.pk)
                     self.assertEqual(created.draft_lines.count(), 0)
+                elif path == self.lines and method == "post":
+                    # Step 4D.4 adds requested line creation on this route.
+                    self.assertEqual(response.status_code, 201)
+                    created_line = DraftOrderLine.objects.get(pk=response.json()["id"])
+                    self.assertEqual(created_line.organization_id, self.a.pk)
+                    self.assertEqual(created_line.order_id, self.order.pk)
+                    self.assertIsNone(created_line.catalogue_item_id)
                 else:
                     self.assertEqual(response.status_code, 405)
         self.assertEqual(DraftOrder.objects.count(), 3)
-        self.assertEqual(DraftOrderLine.objects.count(), 2)
+        self.assertEqual(DraftOrderLine.objects.count(), 3)
         self.assert_clean()
 
     def test_fixed_pages_order_counts_and_empty_drafts(self):

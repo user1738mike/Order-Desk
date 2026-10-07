@@ -17,9 +17,9 @@ from django.test import TransactionTestCase
 
 from apps.accounts.models import User
 from apps.orders.models import DraftOrder, DraftOrderLine
+from apps.orders.services import DraftLinePositionConflict, create_draft_order_line
 from apps.organizations.models import Membership, MembershipRole, Organization
 from apps.organizations.services import create_organization
-from apps.organizations.transactions import tenant_scope
 
 
 class DraftOrderConcurrencyTests(TransactionTestCase):
@@ -53,17 +53,13 @@ class DraftOrderConcurrencyTests(TransactionTestCase):
 
     def _create_line(self, *, position: int) -> object:
         actor = User.objects.get(pk=self.user.pk)
-        with tenant_scope(
-            user=actor, workspace_id=self.organization.pk, write=True
-        ) as scope:
-            if scope.role not in {MembershipRole.ADMIN, MembershipRole.REVIEWER}:
-                raise PermissionDenied("Draft writer access is required.")
-            return DraftOrderLine.objects.create(
-                organization_id=scope.organization_id,
-                order_id=self.order.pk,
-                position=position,
-                requested_description="Synthetic draft request",
-            ).pk
+        return create_draft_order_line(
+            actor=actor,
+            organization_id=self.organization.pk,
+            order_id=self.order.pk,
+            data={"position": position, "requested_description": "Synthetic request"},
+            materialize=lambda line: line.pk,
+        )
 
     def _wait_for_block(self, waiter: int, blocker: int) -> None:
         deadline = monotonic() + 5
@@ -85,7 +81,7 @@ class DraftOrderConcurrencyTests(TransactionTestCase):
                 barrier.wait()
                 try:
                     self._create_line(position=1)
-                except IntegrityError:
+                except IntegrityError, DraftLinePositionConflict:
                     result = "duplicate"
                 else:
                     result = "created"
@@ -156,25 +152,22 @@ class DraftOrderConcurrencyTests(TransactionTestCase):
             close_old_connections()
             try:
                 actor = User.objects.get(pk=self.user.pk)
-                with tenant_scope(
-                    user=actor, workspace_id=self.organization.pk, write=True
-                ) as scope:
-                    if scope.role not in {
-                        MembershipRole.ADMIN,
-                        MembershipRole.REVIEWER,
-                    }:
-                        raise PermissionDenied("Draft writer access is required.")
-                    row = DraftOrderLine.objects.create(
-                        organization_id=scope.organization_id,
-                        order_id=self.order.pk,
-                        position=3,
-                        requested_sku="RACE-3",
-                    )
-                    inserted.put((self._pid(), row.pk))
+
+                def hold_line(line):
+                    inserted.put((self._pid(), line.pk))
                     if not release.wait(10):
                         raise RuntimeError("Writer release timed out")
+                    return line.pk
+
+                row_id = create_draft_order_line(
+                    actor=actor,
+                    organization_id=self.organization.pk,
+                    order_id=self.order.pk,
+                    data={"position": 3, "requested_sku": "RACE-3"},
+                    materialize=hold_line,
+                )
                 self._assert_clean_context()
-                return row.pk
+                return row_id
             finally:
                 connections["default"].close()
 
