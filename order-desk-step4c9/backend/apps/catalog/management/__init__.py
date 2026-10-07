@@ -1,1 +1,0 @@
-"""Catalogue management tooling."""

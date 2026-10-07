@@ -1,1 +1,0 @@
-"""Distributor-owned catalogue application."""
