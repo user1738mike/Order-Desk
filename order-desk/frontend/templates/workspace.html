@@ -29,7 +29,7 @@
         <nav class="pagination" aria-label="Catalogue pages"><span id="page-label"></span><div><button id="previous" class="quiet">← Previous</button><button id="next" class="quiet">Next →</button></div></nav>
       </section>
       <section id="drafts-screen" hidden aria-label="Draft orders">
-        <div class="draft-actions"><a id="draft-back" href="#" hidden>← All draft orders</a><button id="draft-refresh" class="quiet">Refresh</button></div>
+        <div class="draft-actions"><a id="draft-back" href="#" hidden>← All draft orders</a><button id="new-draft" hidden>Create manual draft</button><button id="edit-header" class="quiet" hidden>Edit customer fields</button><button id="add-line" class="quiet" hidden>Add requested line</button><button id="draft-refresh" class="quiet">Refresh</button></div>
         <p id="draft-message" role="status" aria-live="polite"></p>
         <ul id="draft-conflict" aria-label="Blockers reported when conversion was rejected"></ul>
         <section id="draft-list-panel" class="card">
@@ -56,6 +56,17 @@
     <button id="retry" class="quiet" hidden>Try again</button>
     <noscript><p class="card">Enable JavaScript to sign in and browse your workspace catalogue.</p></noscript>
   </main>
+  <dialog id="draft-editor" aria-labelledby="editor-heading">
+    <form id="editor-form">
+      <h2 id="editor-heading">Edit draft</h2><p id="editor-message" role="alert"></p>
+      <fieldset id="editor-header-fields"><label for="edit-customer-name">Customer name (optional)</label><input id="edit-customer-name" name="customer_name" maxlength="255"><p data-error="customer_name" class="field-error"></p><label for="edit-customer-reference">Customer reference (optional)</label><input id="edit-customer-reference" name="customer_reference" maxlength="128"><p data-error="customer_reference" class="field-error"></p><div id="editor-intake-field"><label for="edit-intake">Original intake text (optional; immutable after creation)</label><textarea id="edit-intake" name="original_intake_text" maxlength="10000" rows="4"></textarea><p data-error="original_intake_text" class="field-error"></p></div></fieldset>
+      <fieldset id="editor-line-fields"><div id="editor-position-field"><label for="edit-position">Line position</label><input id="edit-position" name="position" inputmode="numeric"><p data-error="position" class="field-error"></p></div><label for="edit-requested-sku">Requested SKU</label><input id="edit-requested-sku" name="requested_sku"><p data-error="requested_sku" class="field-error"></p><label for="edit-requested-description">Requested description</label><textarea id="edit-requested-description" name="requested_description" rows="3"></textarea><p data-error="requested_description" class="field-error"></p><label for="edit-quantity">Quantity (blank = missing)</label><input id="edit-quantity" name="quantity" inputmode="decimal" placeholder="1.234"><p data-error="quantity" class="field-error"></p><label for="edit-unit">Unit (optional)</label><input id="edit-unit" name="unit" maxlength="32"><p data-error="unit" class="field-error"></p></fieldset>
+      <fieldset id="editor-catalogue-fields"><p>Choose an active item. Attachment copies its SKU/description snapshot and preserves requested values, quantity and unit.</p><label for="attach-query">Find catalogue item</label><input id="attach-query" type="search" maxlength="200"><button id="attach-search" class="quiet" type="button">Search active items</button><label for="attach-item">Catalogue item</label><select id="attach-item" name="catalogue_item_id"></select><p data-error="catalogue_item_id" class="field-error"></p><div class="dialog-actions"><button id="attach-previous" type="button" class="quiet">Previous</button><span id="attach-page"></span><button id="attach-next" type="button" class="quiet">Next</button></div></fieldset>
+      <p id="editor-detach-note">Detach clears the catalogue reference and copied snapshots. It preserves the requested SKU/description, quantity and unit; the requested line remains.</p>
+      <p id="editor-general-error" class="field-error" role="alert"></p>
+      <div class="dialog-actions"><button id="editor-discard" type="button" class="quiet">Discard / close</button><button id="editor-reload" type="button" class="quiet" hidden>Reload and discard my changes</button><button id="editor-save" type="submit">Save</button></div>
+    </form>
+  </dialog>
   <dialog id="conversion-confirm" aria-labelledby="confirm-heading" aria-describedby="confirm-description"><form method="dialog"><h2 id="confirm-heading">Confirm internal conversion</h2><p id="confirm-description"></p><p>Creates an internal purchase order. It does not approve, send or export the order.</p><div class="dialog-actions"><button value="cancel" class="quiet">Cancel</button><button id="confirm-conversion" value="confirm">Confirm conversion</button></div></form></dialog>
   <footer>Order Desk <span>Built for the details that matter.</span></footer>
 </body>

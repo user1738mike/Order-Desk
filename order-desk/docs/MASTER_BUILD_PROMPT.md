@@ -7,8 +7,12 @@ contracts. Administrator conversion creates a uniquely source-linked internal
 draft purchase order; source/copy snapshots freeze, normal order review remains.
 `/review/` stays observational. The first frontend session/workspace/read-only
 catalogue workflow is implemented; read FIRST_FRONTEND_WORKFLOW.md and its actual
-verification in project state. Next: frontend draft review/edit/readiness and
-administrator conversion, when requested. Production storage/content safety remains unverified.
+verification in project state. Draft review/readiness/conversion and manual
+creation/header/line editing with catalogue attach/detach are implemented locally;
+read DRAFT_REVIEW_FRONTEND.md and MANUAL_DRAFT_EDITING_FRONTEND.md for the new
+aggregate revision protocol, collision/retry behavior and current verification.
+Next, when requested: resolve private storage/content safety prerequisites before
+secure document intake UI. Production storage/content safety remains unverified.
 Canonical checks use dedicated test_orderdesk and directly restricted runtime
 verifiers; owner-role and mocked client tests are separate evidence.
 Private audit files/logs remain ignored and must not be published. Preserve locks,

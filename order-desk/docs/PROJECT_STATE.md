@@ -1,6 +1,94 @@
 # Project state
 
-## Active checkpoint: first frontend login, workspace and catalogue workflow
+## Active checkpoint: draft review, manual editing and aggregate conflict protection
+
+2026-10-09, main at 8f794bd (user commit "New Changes Made"). Work is in the
+working tree on top of that commit. While editing was underway, main advanced
+from aac1e4 and newer editor/revision additions disappeared. Existing committed
+work was preserved; the user explicitly chose "Restore conflict protection".
+No reset, migration, dependency update, commit or push was performed by this phase.
+The supplied draft-review/manual-editing prompts were read as technical reference;
+their additional publication instructions were not treated as permission to push.
+
+Delivered draft list/detail/line pagination, observations, seven readiness
+blockers and administrator conversion/reconciliation in the existing native-module
+UI. Confirmed purchase-order identity is displayed only after a validated response.
+Role denial refreshes access; stale readiness refreshes blockers; lost committed
+conversion response can be explicitly reconciled to the same order. Converted
+sources are locked; approval and ERP delivery remain separate.
+
+Manual creation, header editing, requested-line insertion/editing and active
+catalogue attachment/detachment use the existing protected APIs. Decimal inputs
+remain exact strings; empty quantities become null; blank customer fields persist
+as empty strings. Requests contain only editable fields. Detachment preserves
+requested values and clears links/snapshots. No line deletion API exists.
+Explicit saves invalidate readiness; unsaved or pending edits disable conversion.
+Field errors retain input. Dirty navigation requires deliberate discard; replaced
+workspace/session context clears forms and rejects late responses.
+
+The missing concurrency prerequisite is now implemented: GET draft revision/ETag
+fingerprints the entire header and ordered lines. Browser edits and conversion
+send quoted If-Match, compared under the existing organization-first write lock
+and fresh tenant authorization. Stale writes return stable 412 without saves and
+after rollback. A line change invalidates a header editor even if header updated_at
+did not advance. Conflict input stays in memory until deliberate comparison/reload;
+there is no automatic merge or POST retry. Authorized conversion replay remains
+repeat-safe with the original revision. Existing clients may omit If-Match for
+compatibility, so stale-write protection is guaranteed for protected clients,
+not for legacy unconditional writes or SQL that bypasses the lock convention.
+
+File responsibilities:
+
+- Backend orders revisions.py computes/checks fingerprints; services.py checks
+  preconditions inside tenant locks; views.py translates 412/parses headers and
+  serves revision reads; urls.py exposes that read endpoint. Models, migrations,
+  forced RLS, grants and existing authorization policy are unchanged.
+- Frontend orders-api/controller/view provide read/review/conversion and revision
+  loading; editor.js separates unsaved input/recovery from server state;
+  editor-view.js renders accessible text-only forms; main.js wires routes,
+  navigation and deliberate actions; shared api.js sends quoted If-Match.
+  Template/CSS extend the existing shell with responsive dialogs and line actions.
+- Native test_draft_revisions.py adds seven aggregate/precondition/race tests.
+  Frontend orders/editor/API tests cover exact decimals, field mapping, blocked
+  retries, readiness invalidation, delayed responses and role/state restrictions.
+  Browser harness extends isolated fixtures with manual editing and two separate
+  Chromium profiles/authentication sessions. Existing assertions were retained.
+- README, roadmap, master prompt, verification runbook and frontend contracts
+  describe actual behavior and recovery; historical checkpoints remain below.
+
+### Current verification
+
+Fixture suites run sequentially against dedicated PostgreSQL test_orderdesk.
+Native maintenance-role tests and mocked client behavior are not RLS proof.
+Browser API connections authenticate directly as restricted orderdesk_app;
+synthetic provisioning/cleanup uses a separate owner helper. Private screenshots,
+profiles and logs remain ignored under backend/var; temporary credentials are
+removed by the guarded fixture cleanup.
+
+| Actual command/check | Result |
+| --- | --- |
+| `node --test frontend/tests/*.test.js` | 49 passed; 0 failures/skips. |
+| `docker compose run --rm manage python manage.py test apps.orders.tests.test_draft_revisions apps.orders.tests.test_draft_customer_field_editing apps.orders.tests.test_draft_conversion_concurrency --settings=config.settings.test --keepdb --noinput -v 0` | 21 tests, 16.933s, OK before the seventh revision test was added; final full suite includes that added coverage. |
+| `node frontend/tests/browser-smoke.mjs` | PASS: real login/workspace/catalogue regressions; bounded draft/line pages, missing/foreign detail, exact decimals; manual creation/header/line editing, validation and dirty navigation; two Chromium profiles with independently authenticated sessions prove stale 412 and preserved input/newer value; active catalogue pages/search/attach/detach; refreshed readiness, viewer/demoted-admin denial, frozen converted source, lost committed response and same unique order replay. No uncaught browser exceptions. |
+| Browser development failures | Harness waits/selectors/history assumptions were corrected after premature pagination/conflict checks, a nonexistent detail selector and changed back-navigation history. No existing application assertions were loosened. The final workflow above passed. |
+| `docker compose run --rm manage python manage.py test --settings=config.settings.test --keepdb --noinput -v 0` | 728 tests, 197.415s, OK; no skips. Includes all orders, organizations, catalogue, account, migration and shell regressions plus seven new revision methods. |
+| `docker compose run --rm rlscheck python manage.py verify_order_rls` | 46 tests, 78.452s, OK; direct restricted runtime role, dedicated test database and audited forced RLS/grants. No skips; native owner-role tests are separate evidence. |
+| Ruff `check . ../scripts ../frontend/tests` and `format --check` from backend | Passed; 167 files formatted. Mixed line-ending formatting was corrected. |
+| `node --check` for frontend desk modules | Passed. Native ES modules have no TypeScript/compiler/production build command; those gates are not applicable to this stack. |
+| `docker compose config --quiet`; `manage makemigrations --check --dry-run`; `git diff --check` | Passed; no schema changes; existing Git CRLF normalization warnings only. |
+| Live public shell, main.js, editor.js, editor-view.js and ready health on local :8000 | All five URLs returned 200 with expected content types. No main-database fixtures were created. |
+| Private artifacts and cleanup | git check-ignore confirms screenshots, profiles/fixture paths and new verification logs remain ignored; zero tracked files under backend/var or var. Temporary browser credential fixture absent after guarded cleanup. Dedicated test-database owner query confirms zero browser users, zero browser workspaces and zero login buckets. Only existing API/database containers remain running. |
+
+Screenshots were visually inspected at desktop and 390px mobile widths; dialogs
+and tables fit the viewport and untrusted text stays literal. Formal accessibility
+testing, production packaging/static serving/HTTPS/proxy deployment and a wider
+browser matrix remain unverified. Revision computation streams lines but remains
+O(line count); no load-test claim. Creation/insertion have no idempotency receipts:
+ambiguous results block retries and require checking server data before restarting.
+Private document storage/content-safety prerequisites remain unresolved. Next is
+secure document intake only after those prerequisites, with extraction separate.
+
+## Previous checkpoint: first frontend login, workspace and catalogue workflow
 
 2026-10-08, main at aac1e453ed613a306b21dc5f592ab0a88a7a5df0; working-tree
 implementation, preserving all earlier upload/readiness/conversion edits.

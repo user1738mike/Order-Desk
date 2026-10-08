@@ -1,5 +1,6 @@
 """Session-authenticated order APIs materialize data inside tenant transactions."""
 
+import re
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -20,6 +21,7 @@ from apps.orders import selectors, services
 from apps.orders.document_files import OrderDocumentTooLarge
 from apps.orders.pagination import DraftOrderPagination, validate_draft_query
 from apps.orders.readiness import evaluate_draft_readiness
+from apps.orders.revisions import DraftRevisionConflict, draft_revision
 from apps.orders.serializers import (
     DocumentReviewResolveSerializer,
     DraftOrderConversionInputSerializer,
@@ -72,6 +74,8 @@ class DraftOrderWriteView(DraftOrderReadView):
 
     def handle_exception(self, exc):
         # Translate only after the service has exited and rolled back its scope.
+        if isinstance(exc, DraftRevisionConflict):
+            return Response({"detail": "draft_revision_conflict"}, status=412)
         if isinstance(exc, services.DraftAlreadyConverted):
             return Response({"detail": "draft_already_converted"}, status=409)
         if isinstance(exc, services.DraftNotReady):
@@ -91,6 +95,32 @@ class DraftOrderWriteView(DraftOrderReadView):
                 details = {"non_field_errors": exc.messages}
             exc = ValidationError(details)
         return super().handle_exception(exc)
+
+
+def expected_draft_revision(request: Request) -> str | None:
+    value = request.headers.get("If-Match")
+    if value is None:
+        return None
+    match = re.fullmatch(r'"([0-9a-f]{64})"', value)
+    if not match:
+        raise ValidationError({"If-Match": ["Provide one quoted draft revision."]})
+    return match[1]
+
+
+class DraftOrderRevisionView(DraftOrderReadView):
+    def get(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
+            validate_draft_query(request.query_params, allow_page=False)
+            order = selectors.get_draft_order(scope.organization_id, order_id)
+            revision = draft_revision(order)
+            return Response(
+                {
+                    "id": order.pk,
+                    "organization_id": scope.organization_id,
+                    "revision": revision,
+                },
+                headers={"ETag": f'"{revision}"'},
+            )
 
 
 class DraftOrderListCreateView(DraftOrderWriteView):
@@ -144,6 +174,7 @@ class DraftOrderDetailView(DraftOrderWriteView):
             return serializer.validated_data
 
         result = services.update_draft_customer_fields(
+            expected_revision=lambda: expected_draft_revision(request),
             actor=request.user,
             organization_id=workspace_id,
             order_id=order_id,
@@ -192,6 +223,7 @@ class DraftOrderConversionView(DraftOrderWriteView):
             return serializer.validated_data
 
         result, created = services.convert_draft_to_purchase_order(
+            expected_revision=lambda: expected_draft_revision(request),
             actor=request.user,
             organization_id=workspace_id,
             order_id=order_id,
@@ -230,6 +262,7 @@ class DraftOrderLinesView(DraftOrderWriteView):
 
         try:
             result = services.create_draft_order_line(
+                expected_revision=lambda: expected_draft_revision(request),
                 actor=request.user,
                 organization_id=workspace_id,
                 order_id=order_id,
@@ -262,6 +295,7 @@ class DraftOrderLineAttachmentView(DraftOrderWriteView):
 
         try:
             result = services.attach_catalogue_item_to_draft_order_line(
+                expected_revision=lambda: expected_draft_revision(request),
                 actor=request.user,
                 organization_id=workspace_id,
                 order_id=order_id,
@@ -295,6 +329,7 @@ class DraftOrderLineDetachmentView(DraftOrderWriteView):
             return serializer.validated_data
 
         result = services.detach_catalogue_item_from_draft_order_line(
+            expected_revision=lambda: expected_draft_revision(request),
             actor=request.user,
             organization_id=workspace_id,
             order_id=order_id,
@@ -332,6 +367,7 @@ class DraftOrderLineDetailView(DraftOrderWriteView):
             return serializer.validated_data
 
         result = services.update_draft_order_line(
+            expected_revision=lambda: expected_draft_revision(request),
             actor=request.user,
             organization_id=workspace_id,
             order_id=order_id,

@@ -89,5 +89,7 @@ matrix and formal assistive-technology testing remain unverified. Compose still
 uses Django's local development server. Source assets are mounted read-only;
 the backend-only development image does not package them for a deployment.
 Workspace/user provisioning remains an existing operator workflow. Draft review,
-readiness and conversion UI are the next separate product increment. Private
+readiness/conversion and manual editing are now implemented in the same shell;
+see DRAFT_REVIEW_FRONTEND.md and MANUAL_DRAFT_EDITING_FRONTEND.md for current
+contracts and PROJECT_STATE.md for actual verification. Private
 storage/content safety, extraction and ERP export retain their prior boundaries.

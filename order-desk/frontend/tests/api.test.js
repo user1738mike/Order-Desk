@@ -41,3 +41,12 @@ test('untrusted paths never receive cookies or CSRF', async () => {
     await assert.rejects(api.request(path), /Invalid API path/);
   }
 });
+
+test('conditional writes send one quoted aggregate revision with session and CSRF', async () => {
+  let options;
+  const api = new ApiClient(async (_path, supplied) => { options = supplied; return reply({}); });
+  api.csrf = 'fresh';
+  await api.request('/api/v1/workspaces/', { method: 'PATCH', body: {}, revision: 'a'.repeat(64) });
+  assert.equal(options.headers['If-Match'], `"${'a'.repeat(64)}"`);
+  assert.equal(options.headers['X-CSRFToken'], 'fresh'); assert.equal(options.credentials, 'same-origin');
+});

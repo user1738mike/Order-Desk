@@ -15,7 +15,7 @@ export class ApiClient {
     this.csrf = null;
   }
 
-  async request(path, { method = 'GET', body, signal, withStatus = false } = {}) {
+  async request(path, { method = 'GET', body, signal, withStatus = false, revision = null } = {}) {
     // Accept only relative API paths. Never follow server pagination URLs.
     if (!path.startsWith('/api/v1/') || path.includes('\\')) throw new Error('Invalid API path.');
     const headers = { Accept: 'application/json' };
@@ -24,6 +24,7 @@ export class ApiClient {
       headers['X-CSRFToken'] = this.csrf;
     }
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (revision !== null) headers['If-Match'] = `"${revision}"`;
     const response = await this.fetcher(path, {
       method, headers, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
       signal, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),

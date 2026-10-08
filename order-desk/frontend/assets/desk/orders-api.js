@@ -75,13 +75,35 @@ export class OrdersApi {
     valid(count(data.line_count) && typeof data.ready_to_convert === 'boolean' && data.ready_to_convert === (data.blocking_reasons.length === 0));
     return data;
   }
-  async convert(workspace, draft, signal) {
+  async revision(workspace, draft, signal) {
+    const data = identity(await this.client.request(`${this.path(workspace, draft)}revision/`, { signal }), workspace, draft);
+    valid(typeof data.revision === 'string' && /^[0-9a-f]{64}$/.test(data.revision));
+    return data.revision;
+  }
+  async convert(workspace, draft, signal, revision = null) {
     await this.client.refreshCsrf(signal);
-    const { data, status } = await this.client.request(`${this.path(workspace, draft)}convert/`, { method: 'POST', body: {}, signal, withStatus: true });
+    const { data, status } = await this.client.request(`${this.path(workspace, draft)}convert/`, { method: 'POST', body: {}, signal, withStatus: true, revision });
     identity(data, workspace);
     valid([200, 201].includes(status) && data.source_draft_id === draft && text(data.purchase_order_number));
     valid(data.order_url === `/api/v1/workspaces/${workspace}/orders/${data.id}/`);
     return { ...data, replayed: status === 200 };
+  }
+  async create(workspace, data, signal) {
+    await this.client.refreshCsrf(signal);
+    const result = identity(await this.client.request(this.path(workspace), { method: 'POST', body: data, signal }), workspace);
+    valid(result.status === 'draft' && result.source_type === 'manual');
+    return result;
+  }
+  async edit(workspace, draft, mode, line, data, revision, signal) {
+    valid(typeof revision === 'string' && /^[0-9a-f]{64}$/.test(revision));
+    valid(['header', 'add-line', 'line', 'attach', 'detach'].includes(mode));
+    if (line) valid(UUID.test(line));
+    const suffix = mode === 'header' ? '' : mode === 'add-line' ? 'lines/' : `lines/${line}/${mode === 'attach' || mode === 'detach' ? `${mode}/` : ''}`;
+    await this.client.refreshCsrf(signal);
+    const result = await this.client.request(`${this.path(workspace, draft)}${suffix}`, { method: mode === 'header' || mode === 'line' ? 'PATCH' : 'POST', body: data, revision, signal });
+    if (mode === 'header') return header(result, workspace, draft, true);
+    valid(result && UUID.test(result.id) && result.organization_id === workspace && result.order_id === draft && (!line || result.id === line));
+    return result;
   }
 }
 export function parseRoute(hash) {

@@ -10,6 +10,7 @@ from apps.orders.views import (
     DraftOrderListCreateView,
     DraftOrderReadinessView,
     DraftOrderReviewView,
+    DraftOrderRevisionView,
     OrderDetailView,
     OrderDocumentListCreateView,
     OrderDocumentReviewListCreateView,
@@ -28,6 +29,9 @@ draft_urlpatterns = [
         "<uuid:order_id>/convert/", DraftOrderConversionView.as_view(), name="convert"
     ),
     path("<uuid:order_id>/review/", DraftOrderReviewView.as_view(), name="review"),
+    path(
+        "<uuid:order_id>/revision/", DraftOrderRevisionView.as_view(), name="revision"
+    ),
     path(
         "<uuid:order_id>/readiness/",
         DraftOrderReadinessView.as_view(),

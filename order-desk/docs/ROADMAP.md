@@ -23,7 +23,8 @@ upgrade, clean-install and local application evidence is in project state.
 | Implemented, deployment verification missing | Fail-closed production settings and ASGI/WSGI entry points. No production server/TLS/proxy/SMTP/backup evidence. Optional credential HTTP helpers exist but were not all rerun as live operator workflows in the audit. |
 | Partial | File capture and manually supplied extraction-review metadata; workspace administration through services/local provisioning; creator/reviewer/timestamp metadata. These do not establish automatic extraction, customer administration UI/API, an append-only audit history or external fulfillment. Private production storage and content handling prerequisites remain open; local upload byte limits and rollback cleanup are tested. |
 | Implemented and verified locally | First frontend session login/logout, workspace discovery/selection and read-only catalogue search/filter/pagination; native modules and Django shell, same-origin cookies/CSRF. Real Chromium, 18 client tests, 721 native regressions and 115 restricted-role catalogue checks passed; remaining production/browser prerequisites are in project state and the frontend guide. |
-| Planned only | Frontend draft review/edit/readiness/conversion, PDF/order-CSV/OCR/AI extraction, automatic/fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. Catalogue CSV import is already implemented; order-document CSV extraction is separate. |
+| Implemented locally; current verification in project state | Frontend draft list/detail/readiness, administrator conversion/replay, manual creation/header/line editing and catalogue attach/detach; aggregate revision/If-Match checks under the existing tenant write lock. No line deletion. See draft frontend contracts and current results rather than historical test totals. |
+| Planned only | Secure document intake UI, PDF/order-CSV/OCR/AI extraction, automatic/fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. Catalogue CSV import is already implemented; order-document CSV extraction is separate. |
 
 ## Implemented backend increments
 
@@ -66,6 +67,7 @@ with the dedicated PostgreSQL test settings. Runtime checks are separate.
 | Purchase-order workflow | Same orders layering, migrations 0001/0002/0005; workspace `orders/`, `<order>/`, `lines/`, `submit/`, `approve/`, `reject/`; member reads, admin/reviewer writes, status locks. | orders `test_models`, `test_services`, `test_constraints`, `test_concurrency`; runtime order checks. |
 | Draft readiness | `backend/apps/orders/{readiness,selectors,serializers,views,urls}.py`; GET/HEAD `draft-orders/<draft>/readiness/`; active members, read-only scope, one statement snapshot, no writes. | `test_draft_readiness`; real-session and deliberately unfiltered aggregate runtime checks. |
 | Draft conversion | Existing orders models/services/API plus migration 0008; POST `draft-orders/<draft>/convert/`; active administrator/CSRF, unique tenant source link, fresh readiness, converted source/copy freeze, first 201/replay 200. | `test_draft_conversion`, `test_draft_conversion_concurrency`, `test_draft_conversion_migration`; direct-runtime races, access, completion, uniqueness and snapshot constraints. |
+| Draft frontend and edit preconditions | `frontend/assets/desk/{orders-api,orders-controller,orders-view,editor,editor-view,main}.js`, template/CSS; `backend/apps/orders/revisions.py`, services/views/URLs; GET revision and optional quoted If-Match on existing edits/new conversion. Browser always supplies revision; existing role/tenant/lifecycle rules retained. | Frontend orders/editor/API tests, real restricted-runtime Chromium harness with separate authenticated sessions, native `test_draft_revisions`; existing conversion races and runtime verifier. |
 | Document/manual review | Same orders layering, migrations 0003/0004/0005; order `documents/`, document `reviews/`, review `resolve/`; scoped parent and admin/reviewer mutations. File storage prerequisites are open. | orders service/constraint/concurrency tests and runtime four-table tenant boundary; separate storage finding reproduction. |
 
 ## Next dependency order
@@ -73,11 +75,11 @@ with the dedicated PostgreSQL test settings. Runtime checks are separate.
 The reconciliation increment delivers the existing verified work and the current
 documentation/runbook; its actual commit/push outcome is recorded in project state.
 
-1. Add the frontend draft list/detail/review workflow against existing read APIs.
-2. Add draft editing/readiness and administrator
-   conversion action using its current CSRF and replay contract.
-3. Define an ERP export profile and safe document intake/content handling before
-   implementing dependent ingestion/export. Remaining
+1. Resolve private storage and document content-handling prerequisites before
+   adding secure document intake to the operator UI.
+2. Implement authorized upload/status/download UI against those verified contracts;
+   keep extraction separate.
+3. Define extraction/review and ERP export profiles before dependent automation. Remaining
    [storage prerequisites](STORAGE_FINDINGS.md) and production operations require
    their own verification; internal conversion is not ERP or launch readiness.
 

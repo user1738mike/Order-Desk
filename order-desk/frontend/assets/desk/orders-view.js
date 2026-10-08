@@ -7,14 +7,14 @@ function text(tag, value, className = '') {
 function fields(id, entries) {
   $(id).replaceChildren(...entries.flatMap(([label, value]) => [text('dt', label), text('dd', value === '' || value === null ? 'Not provided' : String(value))]));
 }
-export function renderDrafts(state, visible, canConvert) {
+export function renderDrafts(state, visible, canConvert, editLine = null) {
   $('drafts-screen').hidden = !visible;
   $('draft-list-panel').hidden = Boolean(state.draftId);
   $('draft-detail-panel').hidden = !state.draftId;
   $('draft-back').hidden = !state.draftId;
   $('draft-back').href = state.workspace ? draftRoute(state.workspace.id) : '#';
   $('draft-refresh').disabled = state.loading || state.converting || state.linesLoading;
-  $('draft-message').textContent = state.message;
+  $('draft-message').textContent = state.message || state.errors.revision || '';
   $('draft-conflict').replaceChildren(...state.conflict.map(reason => text('li', `Conversion rejection: ${blockers[reason.code][0]} (${reason.count})`)));
   $('draft-count').textContent = state.loading ? 'Loading drafts…' : `${state.count} draft orders`;
   $('draft-rows').replaceChildren(...state.rows.map(draft => {
@@ -62,6 +62,15 @@ export function renderDrafts(state, visible, canConvert) {
     const match = document.createElement('td');
     match.append(text('div', line.catalogue_item_id ? line.catalogue_sku_snapshot : 'Unmatched · manual request', 'sku'), text('div', line.catalogue_description_snapshot, 'muted small'));
     if (line.catalogue_item_id) match.append(text('div', line.catalogue_item_id, 'muted small identity'));
+    if (editLine && ['admin', 'reviewer'].includes(state.workspace.role) && state.draft.status === 'draft') {
+      const actions = document.createElement('div'); actions.className = 'line-actions';
+      for (const [label, mode] of [['Edit line', 'line'], [line.catalogue_item_id ? 'Detach catalogue' : 'Attach catalogue', line.catalogue_item_id ? 'detach' : 'attach']]) {
+        const button = text('button', label, 'quiet'); button.type = 'button';
+        button.disabled = !state.revision || state.loading || state.dirty || state.converting;
+        button.addEventListener('click', () => editLine(mode, line)); actions.append(button);
+      }
+      match.append(actions);
+    }
     row.append(text('td', String(line.position)), request, quantity, match); return row;
   }));
   $('draft-line-count').textContent = `${state.lineCount} lines · 50 per page`;

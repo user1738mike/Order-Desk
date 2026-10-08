@@ -34,6 +34,13 @@ The existing editor environment is `../.venv`, using the same lock; see
 [editor setup](EDITOR_SETUP.md) to provision/resync it. The frontend uses native
 browser modules without a build/install step; Node tests and real-browser checks
 are documented in [the frontend guide](FIRST_FRONTEND_WORKFLOW.md).
+Current draft review/editing contracts are in DRAFT_REVIEW_FRONTEND.md and
+MANUAL_DRAFT_EDITING_FRONTEND.md. `node --test frontend/tests/*.test.js` includes
+both workflows. The real Chromium harness also tests independent browser sessions,
+stale revision denial, catalogue attach/detach and lost-response conversion replay.
+Run it sequentially with native and runtime suites against test_orderdesk; its
+temporary server connects directly as orderdesk_app, with separate owner fixtures.
+There is no TypeScript/compiler/production build step in this native-module stack.
 
 ## Initial local setup
 

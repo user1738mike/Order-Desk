@@ -18,7 +18,7 @@ function fixture(overrides = {}, role = 'admin') {
   const api = {
     list: async (...args) => { calls.push(args); return page([header]); },
     detail: async () => header, lines: async () => page([line]),
-    review: async () => ({ line_count: 1 }), readiness: async () => ready,
+    review: async () => ({ line_count: 1 }), readiness: async () => ready, revision: async () => 'a'.repeat(64),
     convert: async () => ({ ...result, replayed: false }), ...overrides,
   };
   const denied = [];
@@ -84,6 +84,19 @@ test('independent panel failures preserve valid header and disable new conversio
   await desk.open(d); assert.equal(desk.state.draft.id, d); assert.equal(desk.state.review.line_count, 1); assert.equal(desk.canConvert(), false);
   assert.match(desk.state.errors.readiness, /unavailable/);
 });
+
+test('unavailable or changing aggregate revision preserves read panels but disables writes', async () => {
+  for (const operation of ['unavailable', 'changing']) {
+    let calls = 0;
+    const { desk } = fixture({ revision: async () => { if (operation === 'unavailable') throw new Error('Revision unavailable'); return (++calls === 1 ? 'a' : 'b').repeat(64); } });
+    await desk.open(d); assert.equal(desk.state.draft.id, d); assert.equal(desk.state.lines.length, 1); assert.equal(desk.state.revision, null); assert.equal(desk.canConvert(), false); assert.ok(desk.state.errors.revision);
+  }
+});
+
+test('unsaved edit disables conversion even while cached assessment says ready', async () => {
+  const { desk } = fixture(); await desk.open(d); assert.equal(desk.canConvert(), true);
+  desk.update({ dirty: true }); assert.equal(desk.canConvert(), false);
+});
 test('missing/foreign draft is explained and never turned into empty successful data', async () => {
   const { desk } = fixture({ detail: async () => { throw new ApiError(404, {}); } });
   await desk.open(d); assert.equal(desk.state.draft, null); assert.match(desk.state.errors.detail, /not found or unavailable/);
@@ -135,7 +148,7 @@ test('late detail, readiness and conversion never repopulate a replaced workspac
 });
 test('same-workspace new session generation rejects old private results', async () => {
   let resolve; const { desk } = fixture({ detail: async () => new Promise(done => { resolve = done; }) });
-  const pending = desk.open(d); desk.context({ id: w, role: 'viewer' }, 2); resolve(header); await pending; assert.equal(desk.state.draft, null);
+  const pending = desk.open(d); await new Promise(done => setImmediate(done)); desk.context({ id: w, role: 'viewer' }, 2); resolve(header); await pending; assert.equal(desk.state.draft, null);
 });
 test('late line-page response cannot replace the newest page', async () => {
   let resolve; const { desk, api } = fixture(); await desk.open(d);

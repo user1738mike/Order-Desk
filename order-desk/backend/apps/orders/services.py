@@ -31,6 +31,7 @@ from apps.orders.models import (
     PurchaseOrderLine,
 )
 from apps.orders.readiness import evaluate_draft_readiness
+from apps.orders.revisions import check_revision
 from apps.organizations.models import MembershipRole
 from apps.organizations.transactions import tenant_scope
 
@@ -98,6 +99,7 @@ def convert_draft_to_purchase_order(
     order_id: UUID,
     data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
     materialize: Materializer | None = None,
+    expected_revision: str | Callable[[], str | None] | None = None,
 ):
     """Serialize conversion with all cooperating writers; seal source and copy."""
     try:
@@ -119,12 +121,18 @@ def convert_draft_to_purchase_order(
                 raise ValidationError(
                     {key: ["Unsupported field."] for key in sorted(values)}
                 )
+            expected_revision = (
+                expected_revision()
+                if callable(expected_revision)
+                else expected_revision
+            )
             existing = PurchaseOrder.objects.filter(
                 source_draft_id=draft.pk, organization_id=context.organization_id
             ).first()
             if existing is not None:
                 return _result(existing, materialize), False
             _require_draft_editable(draft)
+            check_revision(draft, expected_revision)
             lines = list(
                 selectors.draft_lines_for_order(
                     context.organization_id, draft.pk
@@ -217,6 +225,7 @@ def update_draft_customer_fields(
     order_id: UUID,
     data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
     materialize: Materializer | None = None,
+    expected_revision: str | Callable[[], str | None] | None = None,
 ):
     """Apply customer-only changes to fresh protected, locked draft state."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
@@ -228,6 +237,7 @@ def update_draft_customer_fields(
             pk=order_id,
         )
         _require_draft_editable(order)
+        check_revision(order, expected_revision)
         values = data() if callable(data) else data
         unknown = set(values) - {"customer_name", "customer_reference"}
         if unknown:
@@ -261,6 +271,7 @@ def create_draft_order_line(
     order_id: UUID,
     data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
     materialize: Materializer | None = None,
+    expected_revision: str | Callable[[], str | None] | None = None,
 ):
     """Authorize and lock before calling input validation; materialize in scope."""
     try:
@@ -275,6 +286,7 @@ def create_draft_order_line(
                 pk=order_id,
             )
             _require_draft_editable(order)
+            check_revision(order, expected_revision)
             values = data() if callable(data) else data
             allowed = DRAFT_LINE_EDITABLE_FIELDS | {"position"}
             unknown = set(values) - allowed
@@ -315,6 +327,7 @@ def update_draft_order_line(
     line_id: UUID,
     data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
     materialize: Materializer | None = None,
+    expected_revision: str | Callable[[], str | None] | None = None,
 ):
     """Merge a patch into fresh locked state, preserving successful no-ops."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
@@ -326,6 +339,7 @@ def update_draft_order_line(
             pk=order_id,
         )
         _require_draft_editable(order)
+        check_revision(order, expected_revision)
         line = get_object_or_404(
             DraftOrderLine.objects.select_for_update().filter(
                 organization_id=context.organization_id, order_id=order.pk
@@ -356,6 +370,7 @@ def attach_catalogue_item_to_draft_order_line(
     line_id: UUID,
     catalogue_item_id: UUID | Callable[[], UUID],
     materialize: Materializer | None = None,
+    expected_revision: str | Callable[[], str | None] | None = None,
 ):
     """Attach one active, same-workspace catalogue item to an unmatched line."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
@@ -367,6 +382,7 @@ def attach_catalogue_item_to_draft_order_line(
             pk=order_id,
         )
         _require_draft_editable(order)
+        check_revision(order, expected_revision)
         line = get_object_or_404(
             DraftOrderLine.objects.select_for_update().filter(
                 organization_id=context.organization_id, order_id=order.pk
@@ -410,6 +426,7 @@ def detach_catalogue_item_from_draft_order_line(
     line_id: UUID,
     data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
     materialize: Materializer | None = None,
+    expected_revision: str | Callable[[], str | None] | None = None,
 ):
     """Clear catalogue state only when requested identity remains valid."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
@@ -421,6 +438,7 @@ def detach_catalogue_item_from_draft_order_line(
             pk=order_id,
         )
         _require_draft_editable(order)
+        check_revision(order, expected_revision)
         line = get_object_or_404(
             DraftOrderLine.objects.select_for_update().filter(
                 organization_id=context.organization_id, order_id=order.pk

@@ -425,3 +425,12 @@ dialog::backdrop { background: #172e3077; }
   dialog { width: calc(100% - 32px); }
   .section-heading { align-items: start; flex-direction: column; }
 }
+
+#draft-editor { width: min(660px, calc(100vw - 32px)); max-width: 660px; max-height: calc(100vh - 40px); overflow: auto; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+textarea { font: inherit; padding: 12px; border: 1px solid #c9d5cd; border-radius: 7px; width: 100%; resize: vertical; }
+textarea:focus-visible { outline: 3px solid #76b79f; outline-offset: 3px; }
+.field-error { color: #8b402d; font-size: 12px; line-height: 1.5; margin: 6px 0; }
+.line-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.line-actions button { font: inherit; font-size: 12px; padding: 7px; }
+.draft-actions { flex-wrap: wrap; gap: 8px; }

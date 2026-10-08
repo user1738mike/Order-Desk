@@ -3,9 +3,11 @@
 Django backend for turning distributors' purchase orders into checked ERP-ready
 orders. We are building it collaboratively in small, verified steps.
 
-Current checkpoint: **First frontend login → workspace selection → read-only
-catalogue workflow implemented locally**. Open `http://127.0.0.1:8000/` after
-starting the API; see the [frontend guide](docs/FIRST_FRONTEND_WORKFLOW.md).
+Current checkpoint: **Draft review and manual editing, with aggregate conflict
+protection and internal conversion**. Open `http://127.0.0.1:8000/` after starting
+the API; see the [frontend guide](docs/FIRST_FRONTEND_WORKFLOW.md),
+[draft review](docs/DRAFT_REVIEW_FRONTEND.md) and
+[manual editing](docs/MANUAL_DRAFT_EDITING_FRONTEND.md).
 Draft readiness and atomic internal conversion are also implemented. See the
 [upload contract](docs/ORDER_DOCUMENT_UPLOAD_HARDENING.md) and
 [readiness contract](docs/AI_Order_Desk_Step_04D9_Draft_Readiness.md) and
@@ -24,7 +26,9 @@ Use [project state](docs/PROJECT_STATE.md) for delivery and verification results
 [the roadmap](docs/ROADMAP.md) for capability status, and
 [local verification](docs/LOCAL_VERIFICATION.md) for current PowerShell commands.
 The frontend includes session login/logout, workspace selection and read-only
-catalogue search/filter/pagination. Draft UI, automatic extraction/matching, ERP export,
+catalogue search/filter/pagination, draft list/detail/readiness, manual header/line
+editing, catalogue attachment/detachment and administrator conversion/replay.
+Automatic extraction/matching, secure document intake UI, ERP export,
 usage tracking and production deployment remain future work. Live email
 ingestion, real ERP compatibility and certification have not been demonstrated.
 
@@ -47,7 +51,7 @@ The accepted design is documented in
 | backend/scripts/ | Local database provisioning and development startup |
 | backend/pyproject.toml, backend/uv.lock | Declared and locked Python dependencies |
 | backend/apps/web/ | Public product UI shell and shell tests |
-| frontend/ | Same-origin session/workspace/catalogue UI and Node/browser tests |
+| frontend/ | Same-origin session/workspace/catalogue and draft review/editing UI; Node/browser tests |
 | scripts/ | Host-only environment setup and helper tests |
 | docs/ | Step-by-step explanations and architecture decisions |
 | compose.yaml | Local database, API, and temporary administrative helpers |

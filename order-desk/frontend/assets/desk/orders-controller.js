@@ -10,7 +10,7 @@ export class DraftController {
     return { workspace: null, generation: null, draftId: null, rows: [], count: 0, page: 1,
       draft: null, lines: [], lineCount: 0, linePage: 1, review: null, readiness: null,
       errors: {}, loading: false, linesLoading: false, converting: false,
-      result: null, uncertain: false, conflict: [], assessedAt: null, message: '' };
+      result: null, uncertain: false, conflict: [], assessedAt: null, message: '', revision: null, dirty: false };
   }
   update(patch) { Object.assign(this.state, patch); this.render(this.state); }
   cancel() { this.version += 1; this.abort?.abort(); this.lineAbort?.abort(); }
@@ -41,11 +41,19 @@ export class DraftController {
     const { result, uncertain, conflict, message } = this.state;
     this.cancel(); const version = this.version; const abort = this.abort = new AbortController();
     this.update({ draftId: id, draft: null, lines: [], review: null, readiness: null, assessedAt: null,
-      errors: {}, loading: true, linePage: 1, lineCount: 0, rows: [], converting: false,
+      errors: {}, loading: true, linePage: 1, lineCount: 0, rows: [], converting: false, revision: null,
       result: preserveOutcome ? result : null, uncertain: preserveOutcome && uncertain,
       conflict: preserveOutcome ? conflict : [], message: preserveOutcome ? message : '' });
     const workspace = this.state.workspace.id;
     try {
+      let before;
+      try { before = await this.api.revision(workspace, id, abort.signal); }
+      catch (error) {
+        if (error instanceof ApiError && [403, 404].includes(error.status)) throw error;
+        if (!this.live(version, abort)) return;
+        this.update({ errors: { revision: 'Draft revision unavailable. Refresh before editing or converting.' } });
+      }
+      if (!this.live(version, abort)) return;
       const draft = await this.api.detail(workspace, id, abort.signal);
       if (!this.live(version, abort)) return;
       this.update({ draft });
@@ -60,10 +68,15 @@ export class DraftController {
           else this.update({ errors: { ...this.state.errors, [panel]: this.error(error) } });
         }
       }));
+      if (!this.live(version, abort)) return;
+      const after = await this.api.revision(workspace, id, abort.signal);
+      if (!this.live(version, abort)) return;
+      if (before === after) this.update({ revision: after });
+      else this.update({ errors: { ...this.state.errors, revision: 'The draft changed while loading. Refresh before editing or converting.' } });
     } catch (error) {
       if (!this.live(version, abort)) return;
       if (error instanceof ApiError && error.status === 403) await this.denied(false);
-      else this.update({ errors: { detail: this.error(error) } });
+      else this.update({ errors: { ...this.state.errors, [this.state.draft ? 'revision' : 'detail']: this.error(error) } });
     } finally { if (this.live(version, abort)) this.update({ loading: false }); }
   }
   async lines(number) {
@@ -81,7 +94,7 @@ export class DraftController {
   }
   canConvert() {
     const s = this.state;
-    return Boolean(s.workspace?.role === 'admin' && s.draft && !s.loading && !s.linesLoading && !s.converting &&
+    return Boolean(s.workspace?.role === 'admin' && s.draft && s.revision && !s.dirty && !s.loading && !s.linesLoading && !s.converting &&
       (s.draft.status === 'converted' || s.uncertain || (s.readiness?.ready_to_convert && s.review && !s.errors.lines && s.draft.line_count === s.readiness.line_count)));
   }
   async convert() {
@@ -89,7 +102,7 @@ export class DraftController {
     const version = this.version; const abort = this.abort; const workspace = this.state.workspace.id; const id = this.state.draftId;
     this.update({ converting: true, message: '', conflict: [] });
     try {
-      const result = await this.api.convert(workspace, id, abort.signal);
+      const result = await this.api.convert(workspace, id, abort.signal, this.state.revision);
       if (!this.live(version, abort)) return;
       this.update({ result, uncertain: false, message: result.replayed ? 'Existing internal purchase order confirmed.' : 'Internal purchase order created.' });
       await this.open(id, true);
@@ -98,7 +111,7 @@ export class DraftController {
       if (error instanceof ApiError && error.status === 403) {
         this.update({ message: 'Conversion is not permitted. Workspace access and role will be rechecked.' });
         await this.denied(true);
-      } else if (error instanceof ApiError && error.status === 409) {
+      } else if (error instanceof ApiError && [409, 412].includes(error.status)) {
         let conflict = [];
         try { conflict = validateReasons(error.details?.blocking_reasons ?? []); } catch {}
         this.update({ conflict, uncertain: false, message: error.details?.detail === 'purchase_order_number_conflict' ? 'The reserved purchase-order number conflicts with another order. Contact your administrator.' : 'The draft changed or is not ready. Review the refreshed blockers.' });

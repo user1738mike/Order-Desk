@@ -12,7 +12,8 @@ session/CSRF client and Chromium harness are extended rather than replaced.
 | Lines | GET `draft-orders/<draft>/lines/?page=<n>` | 50 rows ordered by position/id. Requested text, exact decimal quantity strings/null, unit, catalogue ID and stored snapshots. No prices, currency or document provenance. |
 | Review observations | GET `draft-orders/<draft>/review/` | Header-empty flags and bounded unresolved/unmatched/missing-quantity/inactive counts; observational, no review mutation or approval. |
 | Readiness | GET `draft-orders/<draft>/readiness/` | Ready boolean and seven stable code/count blockers; point-in-time, no revision token, warnings or approval state. |
-| Convert/reconcile | POST `draft-orders/<draft>/convert/`, JSON `{}` | Active administrator + CSRF; fresh readiness under transaction locks. 201 first committed result, 200 authorized replay, same unique source-linked order. No revision/idempotency headers or overrides. |
+| Revision | GET `draft-orders/<draft>/revision/` | Active members; bounded aggregate fingerprint and quoted ETag. Browser brackets detail loading with revision reads. |
+| Convert/reconcile | POST `draft-orders/<draft>/convert/`, JSON `{}` | Active administrator + CSRF and browser If-Match; fresh readiness under transaction locks. 201 first committed result, 200 authorized replay, same unique source-linked order. Stale new conversion returns 412; authorized replay accepts the original revision. |
 
 Root shell hash routes are `#/workspaces/<workspace>/catalogue/`,
 `#/workspaces/<workspace>/draft-orders/` and
@@ -20,10 +21,15 @@ Root shell hash routes are `#/workspaces/<workspace>/catalogue/`,
 back/forward revalidate the URL-selected workspace through existing session
 selection APIs; an unauthenticated deep link is retained until login. Malformed
 routes and inaccessible/missing drafts get explicit errors. Page changes use
-bounded server requests, not bulk loading. No new backend routes are needed.
+bounded server requests, not bulk loading. The editing prerequisite adds only the
+revision route; existing review/readiness/conversion routes remain unchanged.
 
 Detail, lines, observations and readiness are separate HTTP snapshots. Header
 updated_at is shown as a timestamp, not an aggregate revision or optimistic lock.
+The aggregate revision is a separate endpoint; header and line edits, attachment,
+detachment and new conversion check it under the organization write lock. See
+[manual editing contract](MANUAL_DRAFT_EDITING_FRONTEND.md) for compatibility and
+recovery rules. Unsaved edits disable conversion and save invalidates readiness.
 Refresh replaces assessments without polling. Conversion always checks current
 server state even after the screen reported ready. Blockers link to header/lines;
 reference/unit remain optional. No warning, price, extraction-confidence,

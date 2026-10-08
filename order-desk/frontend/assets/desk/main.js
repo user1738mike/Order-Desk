@@ -3,14 +3,27 @@ import { DeskController } from './controller.js';
 import { OrdersApi, parseRoute } from './orders-api.js';
 import { DraftController } from './orders-controller.js';
 import { draftRoute, renderDrafts } from './orders-view.js';
+import { DraftEditor } from './editor.js';
+import { renderEditor } from './editor-view.js';
 
 const $ = id => document.getElementById(id);
 const client = new ApiClient();
 let desk;
+let editor;
 const orders = new DraftController(new OrdersApi(client), renderOrders, recheckAccess);
+editor = new DraftEditor(orders.api, orders, () => renderEditor(editor), async id => {
+  if (orders.state.draftId === id) await orders.open(id, true);
+  else location.hash = draftRoute(orders.state.workspace.id, id);
+}, () => recheckAccess(true));
 function renderOrders(state) {
   const route = parseRoute(location.hash);
-  renderDrafts(state, desk?.state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'drafts' && route.workspace === state.workspace.id, orders.canConvert());
+  editor?.context();
+  renderDrafts(state, desk?.state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'drafts' && route.workspace === state.workspace.id, orders.canConvert(), (mode, line) => editor.begin(mode, line));
+  if (editor) {
+    $('new-draft').hidden = !editor.canEdit('create');
+    $('edit-header').hidden = !editor.canEdit(); $('add-line').hidden = !editor.canEdit();
+    for (const id of ['new-draft', 'edit-header', 'add-line']) $(id).disabled = editor.state.open || state.converting;
+  }
 }
 async function recheckAccess(action) {
   const { workspace, draftId } = orders.state;
@@ -22,7 +35,7 @@ async function recheckAccess(action) {
       // Context can itself finish after logout or workspace replacement.
       if (orders.state.workspace?.id !== workspace.id || orders.state.generation !== generation || orders.version !== version) return;
       desk.update({ workspace: data.workspace });
-      await orders.open(draftId, true);
+      if (draftId) await orders.open(draftId, true); else await orders.list();
       return;
     } catch {
       if (orders.state.generation !== generation || orders.version !== version) return;
@@ -31,7 +44,15 @@ async function recheckAccess(action) {
   await desk.startWithoutSelection();
 }
 let navigation = 0;
+let acceptedHash = location.hash;
+function discardForNavigation() {
+  if (!editor.state.open) return true;
+  if (editor.state.pending || (editor.state.dirty && !window.confirm('Discard unsaved draft values before leaving?'))) return false;
+  editor.discard(); return true;
+}
 async function applyRoute() {
+  if (location.hash !== acceptedHash && !discardForNavigation()) { history.replaceState(null, '', location.pathname + location.search + acceptedHash); return; }
+  acceptedHash = location.hash;
   const version = ++navigation;
   const route = parseRoute(location.hash);
   if (desk.state.phase !== 'desk') return;
@@ -113,8 +134,9 @@ $('login-form').addEventListener('submit', async event => {
   await applyRoute();
   if (desk.state.phase === 'login') $('password').focus();
 });
-$('logout').addEventListener('click', () => desk.logout());
+$('logout').addEventListener('click', () => { if (discardForNavigation()) desk.logout(); });
 $('workspace').addEventListener('change', async event => {
+  if (!discardForNavigation()) { $('workspace').value = desk.state.workspace?.id ?? ''; return; }
   navigation += 1;
   await desk.selectWorkspace(event.target.value);
   location.hash = desk.state.workspace ? `#/workspaces/${desk.state.workspace.id}/catalogue/` : '';
@@ -129,10 +151,23 @@ $('next').addEventListener('click', () => desk.goToPage(desk.state.page + 1));
 $('retry').addEventListener('click', () => desk.state.catalogError ? desk.loadCatalogue() : desk.state.retryAction === 'logout' ? desk.logout() : desk.start());
 // Revalidate on return from another tab, where selection, auth or access changed.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !orders.state.converting) desk.start().then(applyRoute);
+  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !orders.state.converting && !editor.state.open) desk.start().then(applyRoute);
 });
 window.addEventListener('pageshow', event => { if (event.persisted) desk.start().then(applyRoute); });
 window.addEventListener('hashchange', applyRoute);
+window.addEventListener('beforeunload', event => { if (editor.state.dirty || editor.state.pending) { event.preventDefault(); event.returnValue = ''; } });
+$('new-draft').addEventListener('click', () => editor.begin('create'));
+$('edit-header').addEventListener('click', () => editor.begin('header'));
+$('add-line').addEventListener('click', () => editor.begin('add-line'));
+$('editor-form').addEventListener('input', event => { if (event.target.name) editor.change(event.target.name, event.target.value); });
+$('editor-form').addEventListener('change', event => { if (event.target.name) editor.change(event.target.name, event.target.value); });
+$('editor-form').addEventListener('submit', event => { event.preventDefault(); editor.save(); });
+$('editor-discard').addEventListener('click', () => { if (discardForNavigation()) $('page-title').focus(); });
+$('draft-editor').addEventListener('cancel', event => { event.preventDefault(); discardForNavigation(); });
+$('editor-reload').addEventListener('click', () => { if (window.confirm('Reload server values and discard these unsaved values?')) editor.reload().catch(() => editor.update({ message: 'Unable to reload. Your values are still kept.' })); });
+$('attach-search').addEventListener('click', () => editor.catalogue($('attach-query').value));
+$('attach-previous').addEventListener('click', () => editor.catalogue(editor.state.catalogQuery, editor.state.catalogPage - 1));
+$('attach-next').addEventListener('click', () => editor.catalogue(editor.state.catalogQuery, editor.state.catalogPage + 1));
 $('draft-refresh').addEventListener('click', () => orders.state.draftId ? orders.open(orders.state.draftId, true) : orders.list(orders.state.page));
 $('draft-previous').addEventListener('click', () => orders.list(orders.state.page - 1));
 $('draft-next').addEventListener('click', () => orders.list(orders.state.page + 1));
