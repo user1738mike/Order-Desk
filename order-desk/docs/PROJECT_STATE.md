@@ -61,13 +61,13 @@ Commands are the exact canonical commands in LOCAL_VERIFICATION.md.
 | --- | --- |
 | Full native PostgreSQL suite | 679 tests, 152.861s, OK; config.settings.test, migrator, test_orderdesk. |
 | Catalogue runtime verifier | 115 tests, 347.605s, OK; direct orderdesk_app current/session identity, test_orderdesk. |
-| Order runtime verifier | Pending final candidate rerun. |
+| Order runtime verifier | 40 tests, 82.328s, OK; direct orderdesk_app, test_orderdesk. A stable isolated-candidate rerun is recorded below. |
 | Host script tests | 23 tests, 0.419s, OK; temporary/mocked helper scenarios, not runtime-RLS proof. |
 | Canonical Ruff lint/format | All checks passed; 150 files formatted (144 backend plus six scripts). |
 | Compose/system/model drift/applied migration checks | Exit 0; no issues, model changes or pending migrations. No migrations applied in reconciliation. |
 | Runtime role/main-database refusal/health/dependencies | Restricted role; both guards exit 1 with the required refusal; live/ready HTTP 200 ok; seven installed packages compatible. |
 | Storage diagnostic | One temporary test, 0.362s, OK: DB row rolled back but one file remained; temporary MEDIA_ROOT cleanup followed. This confirms an open gap, not remediation/RLS proof. |
-| Documentation paths/links/commands/whitespace | Pending final review. |
+| Documentation paths/links/commands/whitespace | Local link/anchor and source-path checks passed; Git diff whitespace passed. |
 
 The audit's alternate lint invocations produced path/configuration-dependent
 warnings; the documented invocation passes without disabling rules or
@@ -83,12 +83,56 @@ optional live operator credential helpers remain unverified.
 
 ### Delivery and exact next task
 
-Delivery commits/push: pending final-candidate verification and staged review.
+During verification another process created and pushed existing implementation/
+documentation commit b727056c0277ba5cad86758be58703265accf892, followed by
+cleanup commit a9455cda5c6abdf2fc036dc224c0e5ce8591322d. That cleanup removed
+generated full_suite.log/rls.log and added ignore entries. No private audit or
+probe was staged/published by this reconciliation process. Existing history is
+preserved; no force push or rewriting is used.
+
+New local commit bad9e052750b8127c461133b5252ffe786911146 introduced upload
+cleanup tests, and concurrent unstaged edits appeared in orders/services.py,
+views.py, test_order_document_upload_storage.py plus new orders/uploads.py.
+Those changes belong to the next focused increment and remain untouched and
+excluded from this delivery. The earlier 679-test result does not verify this
+new moving working tree. Do not infer upload-hardening completion from it.
+
+To publish only reviewed work, an isolated documentation checkout was based on
+already-pushed a9455cd. Its backend was compared to reviewed b727056, ignoring
+Git checkout line endings: no source differences. A private Compose override
+selects that isolated backend for stable verification while keeping the original
+project/environment, roles and test_orderdesk. No .env was copied or printed.
+The ordinary fresh-checkout commands remain LOCAL_VERIFICATION.md; the temporary
+override is only concurrency isolation for this session. Actual delivery commands
+ran from the original application directory with
+`docker compose --project-directory <original-application-directory> -f compose.yaml
+-f backend/var/reconciliation_delivery.compose.yaml run --rm manage python
+manage.py test --settings=config.settings.test --keepdb --noinput -v 0`, followed
+by the same Compose prefix and `run --rm rlscheck python manage.py verify_order_rls`.
+The override changes only manage/rlscheck source mounts; database/environment
+configuration remains the existing original Compose project.
+
+Stable isolated delivery candidate:
+- Native suite: 679 tests in 157.548s, OK; no skips; dedicated PostgreSQL test_orderdesk and config.settings.test.
+- Order runtime verifier: 40 tests in 54.191s, OK; no skips; directly restricted orderdesk_app on test_orderdesk.
+- Catalogue implementation is unchanged; the fresh 115-check reconciliation
+  result above remains applicable.
+
+Stable verification and storage-record commit
+bdb7d9851e79b4a3532deae67d063b00c957f9e7 was created on isolated
+`docs/post-audit-reconciliation`, based on already-pushed a9455cd.
+Actual command `git push origin HEAD:main` exited 0 and advanced remote main
+from a9455cd to bdb7d98, without force. This documentation-only follow-up records
+that observed result; its own push result is reported in the session handoff.
+The concurrent bad9e05 test commit and unfinished upload implementation are
+excluded from the remote reconciliation delivery. Published documentation is
+merged normally back into local main, preserving those separate local changes;
+that merge is not pushed as part of the verified documentation delivery.
 The existing intended remote is origin and branch main; the inspected remote tip
 is an ancestor of the starting HEAD. Only a normal non-force push is authorized;
 no reset, remote replacement or divergent-work discard is performed.
 
-**Next task:** protected purchase-order document-upload hardening: define bounded
+**Next task:** review and finish the concurrent protected purchase-order document-upload hardening: define bounded
 actual-byte intake and new-file cleanup on transaction/materialization failure,
 with permanent regressions for containment, rollback/cleanup failure, successful
 persistence and unchanged authorization/RLS. See STORAGE_FINDINGS.md. Resolve
