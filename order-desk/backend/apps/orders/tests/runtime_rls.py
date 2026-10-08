@@ -9,13 +9,18 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
 from ipaddress import IPv6Address
-from threading import Barrier
+from pathlib import Path
+from queue import Queue
+from tempfile import TemporaryDirectory
+from threading import Barrier, Event
+from time import monotonic
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
 from django.conf import settings
 from django.contrib.sessions.models import Session
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import (
     DatabaseError,
     close_old_connections,
@@ -25,6 +30,7 @@ from django.db import (
 )
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from django.test import override_settings
 from django.utils import timezone
 from psycopg import sql
 from rest_framework.test import APIClient
@@ -42,7 +48,11 @@ from apps.orders.models import (
     PurchaseOrder,
     PurchaseOrderLine,
 )
-from apps.orders.services import create_document_review, resolve_document_review
+from apps.orders.services import (
+    convert_draft_to_purchase_order,
+    create_document_review,
+    resolve_document_review,
+)
 from apps.organizations.models import Membership, MembershipRole, Organization
 from apps.organizations.transactions import tenant_scope
 
@@ -56,6 +66,372 @@ DRAFT_MODELS = (DraftOrder, DraftOrderLine)
 
 
 class RuntimeOrderRLSChecks(unittest.TestCase):
+    def test_conversion_waiting_on_revocation_or_demotion_rechecks_runtime_role(self):
+        draft, _, _ = self._ready_conversion_source()
+        for changes in ({"role": MembershipRole.REVIEWER}, {"is_active": False}):
+            ready = Queue()
+
+            def attempt(ready=ready):
+                close_old_connections()
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT current_user, session_user, pg_backend_pid()"
+                        )
+                        identity = cursor.fetchone()
+                    self.assertEqual(identity[:2], ("orderdesk_app", "orderdesk_app"))
+                    ready.put(identity[2])
+                    with self.assertRaises(PermissionDenied):
+                        convert_draft_to_purchase_order(
+                            actor=self.admin,
+                            organization_id=self.a.pk,
+                            order_id=draft.pk,
+                            data={},
+                        )
+                    self._assert_clean()
+                finally:
+                    connections["default"].close()
+
+            with (
+                self.subTest(changes=changes),
+                ThreadPoolExecutor(max_workers=1) as pool,
+            ):
+                with transaction.atomic(using=OWNER_ALIAS):
+                    Organization.objects.using(OWNER_ALIAS).select_for_update().get(
+                        pk=self.a.pk
+                    )
+                    with connections[OWNER_ALIAS].cursor() as cursor:
+                        cursor.execute("SELECT pg_backend_pid()")
+                        blocker = cursor.fetchone()[0]
+                    Membership.objects.using(OWNER_ALIAS).filter(
+                        pk=self.admin_membership.pk
+                    ).update(**changes)
+                    waiting = pool.submit(attempt)
+                    pid = ready.get(timeout=10)
+                    deadline = monotonic() + 5
+                    pause = Event()
+                    while monotonic() < deadline:
+                        with connection.cursor() as cursor:
+                            cursor.execute("SELECT pg_blocking_pids(%s)", [pid])
+                            if blocker in cursor.fetchone()[0]:
+                                break
+                        pause.wait(0.02)
+                    else:
+                        self.fail(
+                            "Expected runtime conversion lock wait was not observed"
+                        )
+                waiting.result(timeout=15)
+                self.assertFalse(
+                    PurchaseOrder.objects.using(OWNER_ALIAS)
+                    .filter(source_draft=draft)
+                    .exists()
+                )
+                Membership.objects.using(OWNER_ALIAS).filter(
+                    pk=self.admin_membership.pk
+                ).update(role=MembershipRole.ADMIN, is_active=True)
+
+    def _ready_conversion_source(self):
+        draft = self.drafts[self.a.pk][DraftOrder]
+        line = self.drafts[self.a.pk][DraftOrderLine]
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a, sku="000-Conversion"
+        )
+        DraftOrder.objects.using(OWNER_ALIAS).filter(pk=draft.pk).update(
+            customer_name="Buyer"
+        )
+        DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+            catalogue_item=item,
+            catalogue_sku_snapshot=item.sku,
+            catalogue_description_snapshot="Historical",
+            quantity="2.125",
+            unit="",
+        )
+        return draft, line, item
+
+    def test_conversion_real_sessions_replay_permissions_and_snapshot(self):
+        draft, line, item = self._ready_conversion_source()
+        path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{draft.pk}/convert/"
+        client, token = self._credential_client(self.admin)
+        self.assertEqual(client.post(path, {}, format="json").status_code, 403)
+        for actor in (self.reviewer, self.viewer):
+            denied, csrf = self._credential_client(actor)
+            self.assertEqual(
+                denied.post(path, {}, format="json", HTTP_X_CSRFTOKEN=csrf).status_code,
+                403,
+            )
+        foreign = self.drafts[self.b.pk][DraftOrder]
+        self.assertEqual(
+            client.post(
+                path.replace(str(draft.pk), str(foreign.pk)),
+                {},
+                format="json",
+                HTTP_X_CSRFTOKEN=token,
+            ).status_code,
+            404,
+        )
+        before = PurchaseOrder.objects.using(OWNER_ALIAS).count()
+        with patch(
+            "apps.orders.serializers.DraftOrderConversionSerializer.to_representation",
+            side_effect=ValidationError("Synthetic"),
+        ):
+            response = client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(PurchaseOrder.objects.using(OWNER_ALIAS).count(), before)
+        response = client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()
+        CatalogItem.objects.using(OWNER_ALIAS).filter(pk=item.pk).update(
+            is_active=False
+        )
+        retry = client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(retry.status_code, 200, retry.content)
+        self.assertEqual(retry.json(), body)
+        with self._write_scope():
+            copied = PurchaseOrderLine.objects.get(order_id=body["id"])
+            self.assertEqual(
+                (copied.sku, str(copied.quantity), copied.description, copied.unit),
+                (item.sku, "2.1250", "Historical", ""),
+            )
+        for model, pk, values in (
+            (DraftOrder, draft.pk, {"customer_name": "Changed"}),
+            (PurchaseOrder, body["id"], {"source_draft": None}),
+            (PurchaseOrder, body["id"], {"customer_name": "Changed"}),
+            (PurchaseOrderLine, copied.pk, {"quantity": 4}),
+        ):
+            self._expect_error(
+                "23514",
+                self._write_scope(),
+                lambda model=model, pk=pk, values=values: model.objects.filter(
+                    pk=pk
+                ).update(**values),
+            )
+        self._expect_error(
+            "42501",
+            self._write_scope(self.reviewer),
+            lambda: PurchaseOrder.objects.filter(
+                pk=self.rows[self.a.pk][PurchaseOrder].pk
+            ).update(source_draft=draft),
+        )
+        Membership.objects.using(OWNER_ALIAS).filter(
+            pk=self.admin_membership.pk
+        ).update(is_active=False)
+        self.assertEqual(
+            client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token).status_code,
+            403,
+        )
+        self._assert_clean()
+
+    def test_conversion_database_unique_tenant_and_completion_guards(self):
+        draft, _, _ = self._ready_conversion_source()
+        foreign = self.drafts[self.b.pk][DraftOrder]
+        existing = self.rows[self.a.pk][PurchaseOrder]
+        self._expect_error(
+            "23503",
+            self._write_scope(),
+            lambda: PurchaseOrder.objects.filter(pk=existing.pk).update(
+                source_draft=foreign
+            ),
+        )
+        for model, pk, values in (
+            (DraftOrder, draft.pk, {"status": "converted"}),
+            (PurchaseOrder, existing.pk, {"source_draft": draft}),
+        ):
+            with self.assertRaises(DatabaseError) as caught:
+                with self._write_scope():
+                    model.objects.filter(pk=pk).update(**values)
+            self.assertEqual(caught.exception.__cause__.sqlstate, "23514")
+            self.assertEqual(
+                caught.exception.__cause__.diag.constraint_name,
+                "draft_conversion_complete",
+            )
+            self._assert_clean()
+        self._expect_error(
+            "42501",
+            self._write_scope(self.reviewer),
+            lambda: DraftOrder.objects.filter(pk=draft.pk).update(status="converted"),
+        )
+        order, created = convert_draft_to_purchase_order(
+            actor=self.admin, organization_id=self.a.pk, order_id=draft.pk, data={}
+        )
+        self.assertTrue(created)
+        self._expect_error(
+            "23505",
+            self._write_scope(),
+            lambda: PurchaseOrder.objects.filter(pk=existing.pk).update(
+                source_draft=draft
+            ),
+        )
+        self._expect_error(
+            "23514",
+            self._write_scope(),
+            lambda: PurchaseOrderLine.objects.create(
+                organization_id=self.a.pk,
+                order_id=order.pk,
+                line_number=100,
+                sku="New",
+                quantity=1,
+            ),
+        )
+        with self._write_scope(self.reviewer):
+            self.assertEqual(
+                DraftOrderLine.objects.filter(order=draft).update(quantity=5), 0
+            )
+        self._assert_clean()
+
+    def test_concurrent_conversion_direct_runtime_connections_commit_once(self):
+        draft, _, _ = self._ready_conversion_source()
+        barrier = Barrier(2, timeout=10)
+
+        def attempt():
+            close_old_connections()
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT current_user, session_user, pg_backend_pid()"
+                    )
+                    identity = cursor.fetchone()
+                barrier.wait()
+                result, created = convert_draft_to_purchase_order(
+                    actor=self.admin,
+                    organization_id=self.a.pk,
+                    order_id=draft.pk,
+                    data={},
+                    materialize=lambda order: order.pk,
+                )
+                self._assert_clean()
+                return result, created, identity
+            finally:
+                connections["default"].close()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(attempt) for _ in range(2)]
+            results = [future.result(timeout=20) for future in futures]
+        self.assertEqual(len({result[0] for result in results}), 1)
+        self.assertCountEqual([result[1] for result in results], [True, False])
+        self.assertEqual(len({result[2][2] for result in results}), 2)
+        self.assertTrue(
+            all(
+                result[2][:2] == ("orderdesk_app", "orderdesk_app")
+                for result in results
+            )
+        )
+        self.assertEqual(
+            PurchaseOrder.objects.using(OWNER_ALIAS).filter(source_draft=draft).count(),
+            1,
+        )
+
+    def test_draft_readiness_with_real_sessions_and_unfiltered_aggregate(self):
+        draft = self.drafts[self.a.pk][DraftOrder]
+        line = self.drafts[self.a.pk][DraftOrderLine]
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a, sku="Readiness-001"
+        )
+        DraftOrder.objects.using(OWNER_ALIAS).filter(pk=draft.pk).update(
+            customer_name="Buyer"
+        )
+        DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+            catalogue_item=item, catalogue_sku_snapshot=item.sku, quantity=1
+        )
+        path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{draft.pk}/readiness/"
+        for actor in (self.admin, self.reviewer, self.viewer):
+            client, _ = self._credential_client(actor)
+            response = client.get(path)
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertTrue(response.json()["ready_to_convert"])
+            with tenant_scope(user=actor, workspace_id=self.a.pk):
+                # Deliberately no application header/line tenant predicates.
+                rows = list(DraftOrder.objects.annotate(count=Count("draft_lines")))
+                self.assertEqual([(row.pk, row.count) for row in rows], [(draft.pk, 1)])
+            self._assert_clean()
+        CatalogItem.objects.using(OWNER_ALIAS).filter(pk=item.pk).update(
+            is_active=False
+        )
+        body = client.get(path).json()
+        self.assertEqual(
+            body["blocking_reasons"], [{"code": "catalogue_inactive", "count": 1}]
+        )
+        foreign = self.drafts[self.b.pk][DraftOrder]
+        self.assertEqual(
+            client.get(path.replace(str(draft.pk), str(foreign.pk))).status_code, 404
+        )
+        Membership.objects.using(OWNER_ALIAS).filter(
+            user=self.viewer, organization=self.a
+        ).update(is_active=False)
+        self.assertEqual(client.get(path).status_code, 403)
+        self._assert_clean()
+
+    def test_document_upload_limits_and_cleanup_with_real_runtime_sessions(self):
+        from apps.orders.serializers import OrderDocumentSerializer
+
+        order = self.rows[self.a.pk][PurchaseOrder]
+        path = f"/api/v1/workspaces/{self.a.pk}/orders/{order.pk}/documents/"
+
+        def upload(length=16):
+            return {"file": SimpleUploadedFile("synthetic.pdf", b"x" * length)}
+
+        def count():
+            return OrderDocument.objects.using(OWNER_ALIAS).filter(order=order).count()
+
+        with (
+            TemporaryDirectory() as media,
+            override_settings(MEDIA_ROOT=media),
+            patch("apps.orders.document_files.MAX_ORDER_DOCUMENT_BYTES", 32),
+            patch("apps.orders.uploads.MAX_ORDER_DOCUMENT_BYTES", 32),
+        ):
+            for actor in (self.admin, self.reviewer):
+                client, token = self._credential_client(actor)
+                before = count()
+                self.assertEqual(
+                    client.post(path, upload(), format="multipart").status_code, 403
+                )
+                response = client.post(
+                    path, upload(32), format="multipart", HTTP_X_CSRFTOKEN=token
+                )
+                self.assertEqual(response.status_code, 201, response.content)
+                self.assertEqual(response.json()["size_bytes"], 32)
+                self.assertEqual(count(), before + 1)
+                files = sorted(str(p) for p in Path(media).rglob("*") if p.is_file())
+                before = count()
+                response = client.post(
+                    path, upload(33), format="multipart", HTTP_X_CSRFTOKEN=token
+                )
+                self.assertEqual(response.status_code, 413, response.content)
+                with patch.object(
+                    OrderDocumentSerializer,
+                    "to_representation",
+                    side_effect=ValidationError("Synthetic post-save failure"),
+                ):
+                    response = client.post(
+                        path, upload(), format="multipart", HTTP_X_CSRFTOKEN=token
+                    )
+                self.assertEqual(response.status_code, 400, response.content)
+                foreign = self.rows[self.b.pk][PurchaseOrder]
+                response = client.post(
+                    path.replace(str(order.pk), str(foreign.pk)),
+                    upload(),
+                    format="multipart",
+                    HTTP_X_CSRFTOKEN=token,
+                )
+                self.assertEqual(response.status_code, 404, response.content)
+                Membership.objects.using(OWNER_ALIAS).filter(
+                    user=actor, organization=self.a
+                ).update(is_active=False)
+                response = client.post(
+                    path, upload(), format="multipart", HTTP_X_CSRFTOKEN=token
+                )
+                self.assertEqual(response.status_code, 403, response.content)
+                self.assertEqual(count(), before)
+                self.assertEqual(
+                    sorted(str(p) for p in Path(media).rglob("*") if p.is_file()), files
+                )
+                self._assert_clean()
+            client, token = self._credential_client(self.viewer)
+            response = client.post(
+                path, upload(), format="multipart", HTTP_X_CSRFTOKEN=token
+            )
+            self.assertEqual(response.status_code, 403, response.content)
+            self._assert_clean()
+
     def setUp(self) -> None:
         self.user_ids: list[UUID] = []
         self.workspace_ids: list[UUID] = []
@@ -118,11 +494,11 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
             LoginAttemptBucket.objects.using(OWNER_ALIAS).filter(
                 key__in=self.login_bucket_keys
             ).delete()
-            for model in reversed(DRAFT_MODELS):
+            for model in reversed(BUSINESS_MODELS):
                 model.objects.using(OWNER_ALIAS).filter(
                     organization_id__in=self.workspace_ids
                 ).delete()
-            for model in reversed(BUSINESS_MODELS):
+            for model in reversed(DRAFT_MODELS):
                 model.objects.using(OWNER_ALIAS).filter(
                     organization_id__in=self.workspace_ids
                 ).delete()

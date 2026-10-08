@@ -19,16 +19,18 @@ class RuntimeRoleTests(SimpleTestCase):
             False,
             False,
         ),
+        conversion_guard_state: tuple[bool] = (True,),
     ) -> None:
         cursor = MagicMock()
         cursor.__enter__.return_value.fetchone.side_effect = [
             flags,
             draft_table_state,
-            *([(True,)] * 4),
-            *([(False,)] * 6),
+            *([(True,)] * 5),
+            *([(False,)] * 5),
             draft_table_state,
             *([(True,)] * 9),
             *([(False,)] * 4),
+            conversion_guard_state,
         ]
         with patch(
             "apps.health.management.commands.check_runtime_role.connection"
@@ -47,6 +49,10 @@ class RuntimeRoleTests(SimpleTestCase):
 
     def test_restricted_role_is_accepted(self) -> None:
         self.check_flags((False,) * 7)
+
+    def test_missing_conversion_guards_prevent_status_grant_acceptance(self) -> None:
+        with self.assertRaises(CommandError):
+            self.check_flags((False,) * 7, conversion_guard_state=(False,))
 
     def test_missing_draft_table_grant_prevents_startup(self) -> None:
         with self.assertRaises(CommandError):

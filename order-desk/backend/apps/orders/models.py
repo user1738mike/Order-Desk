@@ -22,6 +22,7 @@ class DraftOrder(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
+        CONVERTED = "converted", "Converted"
 
     class SourceType(models.TextChoices):
         MANUAL = "manual", "Manual"
@@ -55,7 +56,8 @@ class DraftOrder(models.Model):
                 fields=["id", "organization"], name="draftorder_id_org_unique"
             ),
             models.CheckConstraint(
-                condition=models.Q(status="draft"), name="draftorder_status_draft"
+                condition=models.Q(status__in=["draft", "converted"]),
+                name="draftorder_status_valid",
             ),
             models.CheckConstraint(
                 condition=models.Q(source_type="manual"),
@@ -171,6 +173,13 @@ class OrderStatus(models.TextChoices):
 
 class PurchaseOrder(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_draft = models.OneToOneField(
+        DraftOrder,
+        on_delete=models.PROTECT,
+        related_name="converted_order",
+        null=True,
+        blank=True,
+    )
     organization = models.ForeignKey(
         Organization,
         on_delete=models.PROTECT,
@@ -252,7 +261,7 @@ class PurchaseOrder(models.Model):
 
     def clean(self) -> None:
         super().clean()
-        if isinstance(self.customer_name, str):
+        if self.source_draft_id is None and isinstance(self.customer_name, str):
             self.customer_name = self.customer_name.strip()
         if isinstance(self.purchase_order_number, str):
             self.purchase_order_number = self.purchase_order_number.strip()

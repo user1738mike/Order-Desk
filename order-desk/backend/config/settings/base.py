@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "apps.organizations.apps.OrganizationsConfig",
     "apps.catalog.apps.CatalogConfig",
     "apps.orders.apps.OrdersConfig",
+    "apps.web.apps.WebConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -37,7 +38,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR.parent / "frontend" / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -102,6 +103,7 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "var" / "static"
+STATICFILES_DIRS = [BASE_DIR.parent / "frontend" / "assets"]
 MEDIA_ROOT = BASE_DIR / "var" / "uploads"
 MEDIA_URL = "/media/"
 DEFAULT_FROM_EMAIL = "orderdesk@localhost"

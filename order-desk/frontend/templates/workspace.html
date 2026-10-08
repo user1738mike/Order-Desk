@@ -1,0 +1,62 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order Desk · Workspace</title>
+  <link rel="stylesheet" href="{% static 'desk/desk.css' %}">
+  <script type="module" src="{% static 'desk/main.js' %}"></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">▦ <span>Order Desk</span></a><span class="environment">LOCAL WORKSPACE</span><button id="logout" class="quiet" hidden>Sign out</button></header>
+  <main>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <section id="loading" class="welcome"><p class="eyebrow">YOUR OPERATIONS, IN ONE PLACE</p><h1>Opening Order Desk…</h1></section>
+    <section id="login-panel" class="login-layout" hidden>
+      <div class="welcome"><p class="eyebrow">A CLEARER START TO EVERY ORDER</p><h1>Your catalogue.<br>Your workspace.</h1><p class="intro">Find the right products, with the right team. Sign in to your distributor workspace to get started.</p><div class="welcome-note">01 <span>Sign in</span> → 02 <span>Choose a workspace</span> → 03 <span>Browse</span></div></div>
+      <form id="login-form" class="card"><h2>Welcome back</h2><p class="muted">Use your Order Desk account.</p><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="username" maxlength="254" required placeholder="you@company.com"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" maxlength="1024" required><button type="submit">Sign in <span aria-hidden="true">→</span></button><p class="muted small">Need access? Contact your workspace administrator.</p></form>
+    </section>
+    <section id="desk" hidden>
+      <div class="page-heading"><div><p class="eyebrow" id="breadcrumb">WORKSPACE / CATALOGUE</p><h1 id="page-title" tabindex="-1">Product catalogue</h1><p class="muted" id="page-subtitle">Browse your workspace’s products and catalogue status.</p></div><div class="workspace-picker"><label for="workspace">Workspace</label><select id="workspace"><option value="">Choose a workspace</option></select><button id="more-workspaces" class="quiet" hidden>Load more workspaces</button><span id="role" class="muted small"></span></div></div>
+      <nav id="workspace-tabs" class="workspace-tabs" aria-label="Workspace sections" hidden><a id="catalogue-tab" href="#">Catalogue</a><a id="drafts-tab" href="#">Draft orders</a></nav>
+      <div id="choose-workspace" class="card empty"><h2>Choose your workspace</h2><p class="muted">Select a workspace above to see its catalogue.</p></div>
+      <section id="catalogue" class="card catalogue" hidden aria-label="Workspace catalogue">
+        <form id="search-form" class="toolbar"><div class="search"><label for="search">Search catalogue</label><input id="search" type="search" maxlength="200" placeholder="Search SKU or description"><button type="submit">Search</button></div><div><label for="activity">Product status</label><select id="activity"><option value="">All products</option><option value="true">Active</option><option value="false">Inactive</option></select></div></form>
+        <div class="catalogue-summary"><span id="result-count" role="status"></span><span class="muted small">Read-only catalogue</span></div>
+        <div class="table-scroll"><table><thead><tr><th scope="col">SKU</th><th scope="col">Description</th><th scope="col">Status</th></tr></thead><tbody id="items"></tbody></table></div>
+        <p id="catalogue-state" class="empty" role="status"></p>
+        <nav class="pagination" aria-label="Catalogue pages"><span id="page-label"></span><div><button id="previous" class="quiet">← Previous</button><button id="next" class="quiet">Next →</button></div></nav>
+      </section>
+      <section id="drafts-screen" hidden aria-label="Draft orders">
+        <div class="draft-actions"><a id="draft-back" href="#" hidden>← All draft orders</a><button id="draft-refresh" class="quiet">Refresh</button></div>
+        <p id="draft-message" role="status" aria-live="polite"></p>
+        <ul id="draft-conflict" aria-label="Blockers reported when conversion was rejected"></ul>
+        <section id="draft-list-panel" class="card">
+          <div class="catalogue-summary"><span id="draft-count" role="status"></span><span class="muted small">Manual intake</span></div>
+          <div class="table-scroll"><table><thead><tr><th scope="col">Customer / reference</th><th scope="col">State</th><th scope="col">Lines</th><th scope="col">Updated</th></tr></thead><tbody id="draft-rows"></tbody></table></div>
+          <p id="draft-list-state" class="empty" role="status"></p>
+          <nav class="pagination" aria-label="Draft pages"><span id="draft-page-label"></span><div><button id="draft-previous" class="quiet">← Previous</button><button id="draft-next" class="quiet">Next →</button></div></nav>
+        </section>
+        <section id="draft-detail-panel" hidden>
+          <p id="draft-detail-state" class="empty" role="status"></p>
+          <div id="draft-content" hidden>
+            <section id="draft-header" class="card draft-header" tabindex="-1"><div class="section-heading"><h2>Draft details</h2><span id="draft-status" class="badge"></span></div><dl id="draft-fields"></dl><details><summary>Original intake text</summary><pre id="draft-intake"></pre></details></section>
+            <div class="review-grid">
+              <section class="card review-panel"><h2>Review observations</h2><p id="draft-review-state" role="status"></p><dl id="draft-review"></dl><p class="muted small">Inspection does not approve an order. Catalogue attachments do not verify pricing.</p></section>
+              <section class="card review-panel"><h2>Conversion readiness</h2><p id="draft-readiness-state" role="status"></p><ul id="draft-blockers"></ul><p id="draft-assessed" class="muted small"></p><p class="muted small">This is a point-in-time assessment. Conversion checks current data again.</p></section>
+            </div>
+            <section id="draft-lines-section" class="card" tabindex="-1"><div class="catalogue-summary"><h2>Requested lines</h2><span id="draft-line-count" class="muted small"></span></div><div class="table-scroll"><table class="draft-lines"><thead><tr><th scope="col">Line</th><th scope="col">Requested SKU / description</th><th scope="col">Quantity / unit</th><th scope="col">Catalogue snapshot</th></tr></thead><tbody id="draft-lines"></tbody></table></div><p id="draft-lines-state" class="empty" role="status"></p><nav class="pagination" aria-label="Draft line pages"><span id="draft-line-page-label"></span><div><button id="draft-line-previous" class="quiet">← Previous</button><button id="draft-line-next" class="quiet">Next →</button></div></nav></section>
+            <section class="card conversion-panel"><h2>Internal purchase order</h2><p class="muted">Conversion creates an internal purchase-order record. Approval and ERP delivery are separate.</p><div id="conversion-result" hidden role="status"><h3 id="conversion-number"></h3><p id="conversion-id"></p><p class="muted small">The current purchase-order approval state is not shown here.</p></div><p id="conversion-permission" class="muted small"></p><button id="convert-draft" hidden>Convert to purchase order</button></section>
+          </div>
+        </section>
+      </section>
+      <p id="route-missing" class="card empty" hidden>Page not found. Choose Catalogue or Draft orders above.</p>
+    </section>
+    <button id="retry" class="quiet" hidden>Try again</button>
+    <noscript><p class="card">Enable JavaScript to sign in and browse your workspace catalogue.</p></noscript>
+  </main>
+  <dialog id="conversion-confirm" aria-labelledby="confirm-heading" aria-describedby="confirm-description"><form method="dialog"><h2 id="confirm-heading">Confirm internal conversion</h2><p id="confirm-description"></p><p>Creates an internal purchase order. It does not approve, send or export the order.</p><div class="dialog-actions"><button value="cancel" class="quiet">Cancel</button><button id="confirm-conversion" value="confirm">Confirm conversion</button></div></form></dialog>
+  <footer>Order Desk <span>Built for the details that matter.</span></footer>
+</body>
+</html>
