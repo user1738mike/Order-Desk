@@ -78,6 +78,49 @@ def create_draft_order(
         return _result(order, materialize)
 
 
+def update_draft_customer_fields(
+    *,
+    actor,
+    organization_id: UUID,
+    order_id: UUID,
+    data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
+    materialize: Materializer | None = None,
+):
+    """Apply customer-only changes to fresh protected, locked draft state."""
+    with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
+        _require_writer(context)
+        order = get_object_or_404(
+            DraftOrder.objects.select_for_update().filter(
+                organization_id=context.organization_id
+            ),
+            pk=order_id,
+        )
+        values = data() if callable(data) else data
+        unknown = set(values) - {"customer_name", "customer_reference"}
+        if unknown:
+            raise ValidationError(
+                {key: ["Unsupported field."] for key in sorted(unknown)}
+            )
+        if not values:
+            raise ValidationError("Provide at least one customer field.")
+        invalid = {
+            field: ["Not a valid string."]
+            for field, value in values.items()
+            if not isinstance(value, str)
+        }
+        if invalid:
+            raise ValidationError(invalid)
+        changed = []
+        for field, value in values.items():
+            if getattr(order, field) != value:
+                setattr(order, field, value)
+                changed.append(field)
+        order.full_clean()
+        if changed:
+            order.save(update_fields=[*changed, "updated_at"])
+        return _result(order, materialize)
+
+
 def create_draft_order_line(
     *,
     actor,
@@ -220,6 +263,52 @@ def attach_catalogue_item_to_draft_order_line(
                 "updated_at",
             ]
         )
+        return _result(line, materialize)
+
+
+def detach_catalogue_item_from_draft_order_line(
+    *,
+    actor,
+    organization_id: UUID,
+    order_id: UUID,
+    line_id: UUID,
+    data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
+    materialize: Materializer | None = None,
+):
+    """Clear catalogue state only when requested identity remains valid."""
+    with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
+        _require_writer(context)
+        order = get_object_or_404(
+            DraftOrder.objects.select_for_update().filter(
+                organization_id=context.organization_id
+            ),
+            pk=order_id,
+        )
+        line = get_object_or_404(
+            DraftOrderLine.objects.select_for_update().filter(
+                organization_id=context.organization_id, order_id=order.pk
+            ),
+            pk=line_id,
+        )
+        values = data() if callable(data) else data
+        if values:
+            raise ValidationError(
+                {key: ["Unsupported field."] for key in sorted(values)}
+            )
+        attached = line.catalogue_item_id is not None
+        line.catalogue_item_id = None
+        line.catalogue_sku_snapshot = ""
+        line.catalogue_description_snapshot = ""
+        line.full_clean()
+        if attached:
+            line.save(
+                update_fields=[
+                    "catalogue_item",
+                    "catalogue_sku_snapshot",
+                    "catalogue_description_snapshot",
+                    "updated_at",
+                ]
+            )
         return _result(line, materialize)
 
 

@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from django.db.models import Count, Prefetch, QuerySet
+from django.db.models import Count, Prefetch, Q, QuerySet
 from django.shortcuts import get_object_or_404
 
 from apps.orders.models import (
@@ -25,6 +25,31 @@ def draft_orders_for_workspace(organization_id: UUID) -> QuerySet[DraftOrder]:
 
 def get_draft_order(organization_id: UUID, order_id: UUID) -> DraftOrder:
     return get_object_or_404(draft_orders_for_workspace(organization_id), pk=order_id)
+
+
+def get_draft_review(organization_id: UUID, order_id: UUID) -> DraftOrder:
+    lines = Q(draft_lines__organization_id=organization_id)
+    unmatched = Q(draft_lines__catalogue_item_id__isnull=True)
+    missing_quantity = Q(draft_lines__quantity__isnull=True)
+    orders = DraftOrder.objects.filter(organization_id=organization_id).annotate(
+        line_count=Count("draft_lines", filter=lines),
+        unmatched_line_count=Count("draft_lines", filter=lines & unmatched),
+        missing_quantity_line_count=Count(
+            "draft_lines", filter=lines & missing_quantity
+        ),
+        unresolved_line_count=Count(
+            "draft_lines", filter=lines & (unmatched | missing_quantity)
+        ),
+        inactive_catalogue_line_count=Count(
+            "draft_lines",
+            filter=lines
+            & Q(
+                draft_lines__catalogue_item__organization_id=organization_id,
+                draft_lines__catalogue_item__is_active=False,
+            ),
+        ),
+    )
+    return get_object_or_404(orders, pk=order_id)
 
 
 def draft_lines_for_order(

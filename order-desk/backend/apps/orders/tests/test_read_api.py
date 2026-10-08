@@ -126,6 +126,8 @@ class DraftReadAPITests(TransactionTestCase):
                     if path == self.lines and method == "post"
                     else {}
                 )
+                if path == self.detail and method == "patch":
+                    data = {"customer_name": "Updated synthetic customer"}
                 response = getattr(self.client, method)(
                     path, data, format="json", HTTP_X_CSRFTOKEN=token
                 )
@@ -143,6 +145,13 @@ class DraftReadAPITests(TransactionTestCase):
                     self.assertEqual(created_line.organization_id, self.a.pk)
                     self.assertEqual(created_line.order_id, self.order.pk)
                     self.assertIsNone(created_line.catalogue_item_id)
+                elif path == self.detail and method == "patch":
+                    # Customer editing now supports detail PATCH; other methods
+                    # retain their existing assertions and line creation is 201.
+                    self.assertEqual(response.status_code, 200)
+                    self.order.refresh_from_db()
+                    self.assertEqual(self.order.customer_name, data["customer_name"])
+                    self.assertEqual(response.json()["id"], str(self.order.pk))
                 else:
                     self.assertEqual(response.status_code, 405)
         self.assertEqual(DraftOrder.objects.count(), 3)

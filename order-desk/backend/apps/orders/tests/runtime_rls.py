@@ -23,6 +23,8 @@ from django.db import (
     connections,
     transaction,
 )
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from psycopg import sql
 from rest_framework.test import APIClient
@@ -346,6 +348,93 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
                 )
             self._assert_clean()
 
+    def test_draft_review_aggregates_with_real_sessions_and_rls(self) -> None:
+        order = self.drafts[self.a.pk][DraftOrder]
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a, sku="Synthetic review item", is_active=False
+        )
+        for quantity in (1, 2):
+            line = self._insert_draft(DraftOrderLine, self.a, using=OWNER_ALIAS)
+            DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+                catalogue_item=item,
+                catalogue_sku_snapshot="Historical review SKU",
+                catalogue_description_snapshot="Historical review description",
+                quantity=quantity,
+            )
+        path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{order.pk}/review/"
+        foreign = self.drafts[self.b.pk][DraftOrder]
+        before = list(
+            DraftOrderLine.objects.using(OWNER_ALIAS)
+            .filter(order_id=order.pk)
+            .order_by("id")
+            .values()
+        )
+
+        def unfiltered_review(_organization_id, order_id):
+            # Deliberately omit application organization predicates in this test.
+            # The real-role statement must still respect the bound tenant's RLS.
+            unmatched = Q(draft_lines__catalogue_item_id__isnull=True)
+            missing = Q(draft_lines__quantity__isnull=True)
+            return get_object_or_404(
+                DraftOrder.objects.annotate(
+                    line_count=Count("draft_lines"),
+                    unmatched_line_count=Count("draft_lines", filter=unmatched),
+                    missing_quantity_line_count=Count("draft_lines", filter=missing),
+                    unresolved_line_count=Count(
+                        "draft_lines", filter=unmatched | missing
+                    ),
+                    inactive_catalogue_line_count=Count(
+                        "draft_lines",
+                        filter=Q(draft_lines__catalogue_item__is_active=False),
+                    ),
+                ),
+                pk=order_id,
+            )
+
+        for actor in (self.admin, self.reviewer, self.viewer):
+            client, _ = self._credential_client(actor)
+            for omit_filters in (False, True):
+                with self.subTest(actor=actor.pk, omit_filters=omit_filters):
+                    if omit_filters:
+                        with patch(
+                            "apps.orders.views.selectors.get_draft_review",
+                            side_effect=unfiltered_review,
+                        ):
+                            response = client.get(path)
+                            denied = client.get(
+                                path.replace(str(order.pk), str(foreign.pk))
+                            )
+                    else:
+                        response = client.get(path)
+                        denied = client.get(
+                            path.replace(str(order.pk), str(foreign.pk))
+                        )
+                    self.assertEqual(response.status_code, 200, response.content)
+                    self.assertEqual(denied.status_code, 404)
+                    for field, expected in {
+                        "line_count": 3,
+                        "unmatched_line_count": 1,
+                        "missing_quantity_line_count": 1,
+                        "unresolved_line_count": 1,
+                        "inactive_catalogue_line_count": 2,
+                    }.items():
+                        self.assertEqual(response.json()[field], expected, field)
+                    self._assert_clean()
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=actor, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(client.get(path).status_code, 403)
+        self.assertEqual(
+            list(
+                DraftOrderLine.objects.using(OWNER_ALIAS)
+                .filter(order_id=order.pk)
+                .order_by("id")
+                .values()
+            ),
+            before,
+        )
+        self._assert_clean()
+
     def test_draft_http_refreshes_revoked_membership(self) -> None:
         client, _ = self._credential_client(self.viewer)
         path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/"
@@ -388,6 +477,85 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         self.assertEqual(
             DraftOrder.objects.using(OWNER_ALIAS).filter(organization=self.a).count(),
             original_count + 1,
+        )
+        self._assert_clean()
+
+    def test_draft_customer_editing_as_runtime_role(self) -> None:
+        order = self.drafts[self.a.pk][DraftOrder]
+        path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{order.pk}/"
+        lines = list(
+            DraftOrderLine.objects.using(OWNER_ALIAS)
+            .filter(order_id=order.pk)
+            .order_by("id")
+            .values()
+        )
+        for actor in (self.admin, self.reviewer):
+            client, token = self._credential_client(actor)
+            body = {
+                "customer_name": str(actor.pk),
+                "customer_reference": "Synthetic reference",
+            }
+            self.assertEqual(client.patch(path, body, format="json").status_code, 403)
+            read = client.get(path).json()
+            response = client.patch(path, body, format="json", HTTP_X_CSRFTOKEN=token)
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual(set(response.json()), set(read))
+            self.assertEqual(response.json()["customer_name"], body["customer_name"])
+            self.assertEqual(response.json()["line_count"], 1)
+            before = DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk)
+            for invalid in (
+                {"customer_reference": "\u2003"},
+                {"original_intake_text": "Changed"},
+                {},
+            ):
+                self.assertEqual(
+                    client.patch(
+                        path, invalid, format="json", HTTP_X_CSRFTOKEN=token
+                    ).status_code,
+                    400,
+                )
+            self.assertEqual(
+                client.patch(
+                    path, body, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                200,
+            )
+            foreign = self.drafts[self.b.pk][DraftOrder]
+            self.assertEqual(
+                client.patch(
+                    path.replace(str(order.pk), str(foreign.pk)),
+                    body,
+                    format="json",
+                    HTTP_X_CSRFTOKEN=token,
+                ).status_code,
+                404,
+            )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=actor, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(
+                client.patch(
+                    path, body, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                403,
+            )
+            self.assertEqual(
+                DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk), before
+            )
+            self._assert_clean()
+        viewer, token = self._credential_client(self.viewer)
+        self.assertEqual(
+            viewer.patch(path, body, format="json", HTTP_X_CSRFTOKEN=token).status_code,
+            403,
+        )
+        self.assertEqual(
+            list(
+                DraftOrderLine.objects.using(OWNER_ALIAS)
+                .filter(order_id=order.pk)
+                .order_by("id")
+                .values()
+            ),
+            lines,
         )
         self._assert_clean()
 
@@ -578,6 +746,76 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         )
         self.assertEqual(
             DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk), header
+        )
+        self._assert_clean()
+
+    def test_catalogue_detachment_http_as_runtime_role(self) -> None:
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a, sku="Synthetic detachment SKU", is_active=False
+        )
+        catalogue = CatalogItem.objects.using(OWNER_ALIAS).values().get(pk=item.pk)
+        order = self.drafts[self.a.pk][DraftOrder]
+        header = DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk)
+        for actor in (self.admin, self.reviewer):
+            line = self._insert_draft(DraftOrderLine, self.a, using=OWNER_ALIAS)
+            DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+                catalogue_item=item,
+                catalogue_sku_snapshot="Historical",
+                requested_description="",
+            )
+            path = (
+                f"/api/v1/workspaces/{self.a.pk}/draft-orders/"
+                f"{order.pk}/lines/{line.pk}/detach/"
+            )
+            client, token = self._credential_client(actor)
+            before = DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk)
+            denied = client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token)
+            self.assertEqual(denied.status_code, 400, denied.content)
+            self.assertEqual(
+                DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk),
+                before,
+            )
+            DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+                requested_description="Keep request"
+            )
+            response = client.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token)
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertIsNone(response.json()["catalogue_item_id"])
+            self.assertEqual(response.json()["catalogue_sku_snapshot"], "")
+            self.assertEqual(response.json()["catalogue_description_snapshot"], "")
+            self.assertEqual(response.json()["requested_description"], "Keep request")
+            self.assertIsNone(response.json()["quantity"])
+            after = DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk)
+            self.assertEqual(
+                client.post(
+                    path, {}, format="json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                200,
+            )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=actor, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(
+                client.post(
+                    path, "{", content_type="application/json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                403,
+            )
+            self.assertEqual(
+                DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk),
+                after,
+            )
+            self._assert_clean()
+        viewer, token = self._credential_client(self.viewer)
+        self.assertEqual(
+            viewer.post(path, {}, format="json", HTTP_X_CSRFTOKEN=token).status_code,
+            403,
+        )
+        self.assertEqual(
+            DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk), header
+        )
+        self.assertEqual(
+            CatalogItem.objects.using(OWNER_ALIAS).values().get(pk=item.pk), catalogue
         )
         self._assert_clean()
 

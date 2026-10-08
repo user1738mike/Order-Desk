@@ -1,6 +1,93 @@
 # Master build prompt
 
-Current verified checkpoint: Step 4D.5 protected requested draft-line editing
+Current instruction: complete post-audit documentation/reproducibility and
+verified delivery. Read PROJECT_STATE.md, LOCAL_VERIFICATION.md and
+STORAGE_FINDINGS.md. The backend through 4D.8 exists; the frontend is only a
+placeholder. The private full audit is ignored and must not be published.
+Canonical checks use the active checkout, dedicated test_orderdesk and directly
+restricted runtime verifiers, with owner-role evidence kept separate.
+The confirmed document-file rollback gap and actual-byte containment checks
+require a focused tested upload-hardening increment before dependent intake/
+finalization is ready. Then define the separate read-only readiness contract;
+do not implement readiness or conversion during reconciliation. Preserve locks,
+synthetic fixtures, tenant boundaries and the $0 budget. Current delivery and
+verification outcomes are maintained in PROJECT_STATE.md.
+
+## Historical checkpoint prompts
+
+The following records retain earlier increment context and original delivery
+states. They do not override the current project state, actual Git history or
+the maintained verification runbook.
+
+Current verified checkpoint: Step 4D.8 read-only draft review summary is complete
+locally after customer-field editing. Read `PROJECT_STATE.md` and
+`AI_Order_Desk_Step_04D8_Draft_Review_Summary.md`. GET/HEAD scoped draft review
+returns bounded counts for unmatched/missing-quantity lines, their union,
+inactive catalogue links and empty customer flags. All current members may read.
+Explicit tenant filters and one aggregate SELECT preserve a single statement
+snapshot; scalar serialization adds no queries in the read-only scope. No draft,
+line/catalogue/snapshot writes or submission/readiness policy. Existing creation,
+editing, attachment/detachment and line collection POST 201 remain unchanged.
+Final verification on 2026-10-08: 9 focused tests, 679 full backend tests and
+40 restricted-role order/RLS checks passed without skips. Lint/format/model/
+migration/role/health/whitespace gates passed. Real-role tests retain tenant
+isolation when application aggregate filters are deliberately omitted. Prior
+local work is preserved and summary changes remain uncommitted. Automatic
+matching, finalization and submission-readiness rules remain separate work.
+Historical instructions do not supersede this checkpoint.
+
+Previous verified checkpoint: protected draft customer-field editing after Step
+4D.7 is complete locally. Read `PROJECT_STATE.md` and the requested contract file
+`AI_Order_Desk_Step_04D4_Draft_Customer_Field_Editing.md` (filename is historical
+numbering; it does not replace the 4D.4 line-creation contract). Current
+admins/reviewers may PATCH only customer_name/customer_reference; omitted and
+empty-string semantics match creation, whitespace validators are shared, wrong
+types/empty patches are rejected. Protected lookup precedes parsing and in-scope
+materialization; intake/system fields and lines remain unchanged.
+Tests-first: 14 tests, 58 expected 405 failures, zero errors. Final verification
+on 2026-10-08: 14 focused tests, 670 full backend tests, 39 restricted-role RLS
+checks and all lint/format/model/migration/role/health/whitespace gates passed
+without skips. Draft status is only draft; no submitted/converted lock state
+exists. Existing line collection POST 201 and its assertions remain intact;
+the requested 405 conflicted with established creation, and clarification had no
+reply. Draft/line detail POST stays 405. Prior local work is preserved and
+customer-editing changes remain uncommitted. No additional build step is
+authorized by this focused request. Historical instructions do not supersede
+this checkpoint.
+
+Previous verified checkpoint: Step 4D.7 protected manual catalogue detachment
+is complete locally after verified Step 4D.6 attachment. JSON POST
+`.../lines/<line>/detach/` accepts an empty object and permits current admins
+and reviewers to clear catalogue reference/snapshots together while retaining
+valid requested identity. Catalogue-only lines return 400 without writes;
+already unmatched lines are no-ops. Original requested fields/null quantity,
+header state and catalogue rows are preserved. Protected scoped locking precedes
+parsing; materialization and validation stay in the write scope.
+Final results on 2026-10-08: 656 full backend tests, 11 focused detachment tests,
+38 restricted-role order/RLS checks and all lint/format/model/migration/role/health
+gates passed without skips. Read `PROJECT_STATE.md` and
+`AI_Order_Desk_Step_04D7_Protected_Draft_Catalogue_Detachment.md` before continuing.
+Detachment changes remain uncommitted. Next proposed increment: protected draft
+customer-field editing, preserving original intake and system state, with its
+contract documented first. Automatic matching/finalization remain separate.
+Historical instructions do not supersede this checkpoint.
+
+Previous verified checkpoint: Step 4D.6 protected manual catalogue attachment
+is complete locally. JSON POST `.../lines/<line>/attach/` lets current admins
+and reviewers attach active same-workspace items to unmatched lines. Protected
+lookup precedes parsing; requested fields and header state are preserved.
+Final results on 2026-10-08: 645 full backend tests, 15 focused attachment tests,
+37 restricted-role order/RLS checks and all lint/format/migration/role/health gates
+passed without skips. Read `PROJECT_STATE.md` and
+`AI_Order_Desk_Step_04D6_Protected_Draft_Catalogue_Attachment.md`. Keep the
+catalogue read under the shared organization lock: item FOR UPDATE conflicts
+with reviewer access under catalogue's admin-only update policy. No grants or
+policies were widened. Changes remain uncommitted. User requested the next
+increment during final verification: continue protected manual detachment with
+its identity/snapshot/no-op contract documented first; automatic matching stays
+separate. Historical instructions do not supersede this checkpoint.
+
+Previous verified checkpoint: Step 4D.5 protected requested draft-line editing
 is complete locally after Step 4D.4 requested line creation. Scoped detail
 GET/HEAD and admin/reviewer JSON PATCH preserve omitted fields, no-op timestamps,
 header state and catalogue snapshots. Authorization and scoped locking precede

@@ -1,16 +1,236 @@
 # Project state
 
-## Active increment: Step 4D.6 manual catalogue attachment
+## Active checkpoint: post-audit reconciliation and reproducibility
 
-Continuing the existing uncommitted attachment implementation. Its contract is
-in `AI_Order_Desk_Step_04D6_Protected_Draft_Catalogue_Attachment.md`, clarified
-before further code: deferred parsing after protected parent/line lookup,
-active same-workspace item resolution under the shared organization lock,
-immutable snapshots after attachment,
-stable conflict, unchanged header/request fields, line-only update timestamp.
-Verification is pending; preserve Step 4D.5 behavior and existing local work.
+This increment reconciles the actual backend inventory and local verification
+instructions, and delivers the existing protected draft editing/review work.
+No new business feature, dependency, migration, runtime grant or RLS policy is
+introduced. README and ROADMAP now describe actual implemented, unverified,
+partial and planned scope. LOCAL_VERIFICATION.md is the maintained runbook;
+EDITOR_SETUP.md records the reliable backend-directory lint invocation.
+STORAGE_FINDINGS.md records a confirmed storage-lifecycle gap and missing checks.
+The full audit and temporary probe/logs stay private under ignored backend/var/.
 
-## Active checkpoint: Step 4D.5 requested draft-line editing verified locally
+### Source of truth and retained historical evidence
+
+Reconciliation started on main at 0091cf5457bddec84e83e4c668fb9b1db53ee1fc,
+matching the audited baseline; newer work was not discarded. The 2026-10-08
+audit reported 679 native Django tests (171.218s), 115 direct-runtime catalogue
+checks (269.212s), 40 direct-runtime order checks (72.015s), and 23 script tests
+(0.423s), all passing without unittest skips. These are separate historical
+results, not fixed acceptance thresholds. Both verifiers actually connected
+as restricted orderdesk_app to test_orderdesk and refused the main database.
+Audit role/health/migration/lint checks passed; deployment was not verified.
+Historical hashes/overlay instructions in old step guides are not current
+Git identity or setup prerequisites. No replacement hash is fabricated.
+The earlier checkpoint entries below describe their original delivery states;
+their 'uncommitted' statements are historical after the current delivery.
+
+### Reviewed existing work
+
+All six previously untracked files are intentional source tests/contracts,
+not generated output, private fixtures or local artifacts:
+
+| File | Classification |
+| --- | --- |
+| backend/apps/orders/tests/test_draft_customer_field_editing.py | Synthetic TransactionTestCase/API/concurrency regression tests, 14 tests. |
+| backend/apps/orders/tests/test_draft_line_detachment.py | Synthetic scoped detachment/rollback/concurrency tests, 11 tests. |
+| backend/apps/orders/tests/test_draft_review_api.py | Synthetic scalar aggregate/read-only/current-access tests, nine tests. |
+| docs/AI_Order_Desk_Step_04D4_Draft_Customer_Field_Editing.md | Intentional customer-edit contract and historical verification record; distinct from requested-line 4D.4. |
+| docs/AI_Order_Desk_Step_04D7_Protected_Draft_Catalogue_Detachment.md | Intentional detachment contract and verification record. |
+| docs/AI_Order_Desk_Step_04D8_Draft_Review_Summary.md | Intentional observational review contract and verification record. |
+
+Reviewed production diffs preserve services/selectors layering, URL-selected
+workspace authorization, refreshed active account/member/workspace checks,
+organization/header/line locks and in-transaction serialization. Customer PATCH
+and detachment allow only their documented fields; aggregate review makes no
+readiness decision. Existing read tests changed only the obsolete detail PATCH
+expectation and retained all other assertions. Runtime regression additions
+exercise real credential sessions and deliberately unfiltered aggregate RLS.
+Application source and test contents remained identical to the audited baseline.
+Relevant files are selected explicitly for delivery; credentials, local uploads,
+private audit/probe/logs and generated caches are excluded.
+
+### Reconciliation verification (2026-10-08)
+
+Applicable final-candidate gates are rerun because verified existing application
+work is being committed. Documentation alone does not justify a full-suite rerun.
+Commands are the exact canonical commands in LOCAL_VERIFICATION.md.
+
+| Gate | Actual result |
+| --- | --- |
+| Full native PostgreSQL suite | 679 tests, 152.861s, OK; config.settings.test, migrator, test_orderdesk. |
+| Catalogue runtime verifier | 115 tests, 347.605s, OK; direct orderdesk_app current/session identity, test_orderdesk. |
+| Order runtime verifier | Pending final candidate rerun. |
+| Host script tests | 23 tests, 0.419s, OK; temporary/mocked helper scenarios, not runtime-RLS proof. |
+| Canonical Ruff lint/format | All checks passed; 150 files formatted (144 backend plus six scripts). |
+| Compose/system/model drift/applied migration checks | Exit 0; no issues, model changes or pending migrations. No migrations applied in reconciliation. |
+| Runtime role/main-database refusal/health/dependencies | Restricted role; both guards exit 1 with the required refusal; live/ready HTTP 200 ok; seven installed packages compatible. |
+| Storage diagnostic | One temporary test, 0.362s, OK: DB row rolled back but one file remained; temporary MEDIA_ROOT cleanup followed. This confirms an open gap, not remediation/RLS proof. |
+| Documentation paths/links/commands/whitespace | Pending final review. |
+
+The audit's alternate lint invocations produced path/configuration-dependent
+warnings; the documented invocation passes without disabling rules or
+reformatting migrations. No claim is made about all cached IDE diagnostics.
+The diagnostic command was `docker compose run --rm manage python manage.py
+shell --settings=config.settings.test -c "from pathlib import Path;
+exec(Path('var/reconcile_storage_probe.py').read_text())"`; its temporary input
+is ignored/private and not a required fresh-checkout gate. A permanent cleanup
+regression belongs to the next remediation increment. No unittest skips in
+completed gates; the host helper's synthetic exact-SKU skip message is not a
+skipped unittest. Production serving/TLS/proxy/storage/SMTP/backups/CI and
+optional live operator credential helpers remain unverified.
+
+### Delivery and exact next task
+
+Delivery commits/push: pending final-candidate verification and staged review.
+The existing intended remote is origin and branch main; the inspected remote tip
+is an ancestor of the starting HEAD. Only a normal non-force push is authorized;
+no reset, remote replacement or divergent-work discard is performed.
+
+**Next task:** protected purchase-order document-upload hardening: define bounded
+actual-byte intake and new-file cleanup on transaction/materialization failure,
+with permanent regressions for containment, rollback/cleanup failure, successful
+persistence and unchanged authorization/RLS. See STORAGE_FINDINGS.md. Resolve
+these prerequisites before dependent intake/finalization is declared ready.
+Then define the separate read-only draft readiness contract/tests; atomic,
+repeat-safe draft-to-purchase-order conversion follows later. Neither readiness
+nor conversion is implemented in reconciliation. Frontend, automatic extraction/
+matching, ERP export and usage tracking remain planned; the $0 industrial-
+distributor product scope is unchanged.
+
+## Previous checkpoint: Step 4D.8 draft review summary verified locally
+
+Added scoped GET/HEAD `.../draft-orders/<draft>/review/` after verified customer
+editing. Contract recorded before code in
+`AI_Order_Desk_Step_04D8_Draft_Review_Summary.md`. All current active member roles
+may read scalar observations: empty customer flags; total/unmatched/missing-
+quantity lines; unresolved union counted once per line; inactive catalogue links
+counted per line. No readiness/submission policy or status transition is implied.
+Selectors explicitly filter header/line/catalogue organization boundaries and
+compute all counts in one aggregate SELECT for a single statement snapshot.
+Response serialization adds no queries and stays inside the read-only tenant
+scope. Empty drafts return zeros. HEAD/cache/query/method guards retain existing
+conventions. Original request/header/line/catalogue data and snapshots are intact.
+
+Actual final verification on 2026-10-08: 9 focused tests passed in 3.358s;
+679 full backend tests passed in 146.419s; 40 restricted-role order/RLS checks
+passed in 50.375s. No skips. Ruff lint/format (144 files), model drift, migration
+state, runtime role, both health probes and whitespace passed. Native tests
+verify mixed/overlapping counts, repeated catalogue references, customer/line
+edits and deactivation without snapshot refresh, all roles and denial states,
+fresh revocation, foreign/missing/UUID isolation, one SELECT and zero serializer
+queries in a read-only transaction. Runtime tests use real credentials for all
+roles and verify tenant-scoped aggregate results even when application header/
+line organization filters are deliberately omitted in the synthetic test query.
+Foreign rows stay hidden and revocation denies access. No schema/dependency/
+grant/RLS changes. Fixtures stayed in test_orderdesk; main checks were metadata/
+health only. All earlier local work and existing assertions were preserved.
+Ignored logs: `backend/var/draft_review_{focused,regression,runtime}.log`.
+Review-summary changes remain locally verified and uncommitted. Finalization,
+automatic matching and any submission-readiness rules remain separate work.
+
+## Previous checkpoint: draft customer-field editing verified locally
+
+Added the requested focused test module using the creation API setUp/session/
+CSRF/TransactionTestCase conventions, then implemented customer-only detail PATCH.
+Contract recorded first in `AI_Order_Desk_Step_04D4_Draft_Customer_Field_Editing.md`
+(requested filename; follows Step 4D.7 and does not replace line creation).
+Tests-first run: 14 tests in 5.509s, 58 failed assertions because PATCH returned
+405, zero test errors. After implementation: 14 focused tests passed in 6.141s.
+
+Current admins/reviewers edit customer_name/customer_reference only. Shared
+creation whitespace validators preserve empty strings and original nonblank
+text; editing additionally requires string types and rejects empty patches.
+Organization-first authorization and scoped header locking precede parsing,
+merged model validation, changed-field save and in-scope scalar detail response.
+Omitted fields and identical values preserve state/no-op timestamps. Original
+intake, system fields and lines are untouched. Existing Django-to-DRF validation
+translation handles field/__all__/unkeyed errors only after rollback.
+
+Actual final verification on 2026-10-08: 670 full backend tests passed in 148.924s;
+39 restricted-role order/RLS checks passed in 50.864s. No skips. Ruff lint/format
+(143 files), model drift, migration state, runtime role, both health probes and
+whitespace passed. Focused variants cover lengths/types/Unicode whitespace,
+empty/partial values, no-save rejection, full_clean and post-save validation
+rollback, current/revoked/removed/nonmember/inactive access, tenant/UUID isolation,
+CSRF/methods/media/queries and unchanged lines. Independent HTTP connections
+prove complete field pairs stay consistent and disjoint edits retain both fields.
+Real-role checks verify writers, 400/no-op/foreign/revocation and line preservation.
+
+Updated only the obsolete detail PATCH expectation in the old read-method test,
+adding saved-value assertions while retaining all other checks. Requested line
+collection POST 405 conflicts with the existing Step 4D.4 creation contract and
+201 assertion. Clarification was offered; no reply arrived, so existing line
+creation/201 is preserved, with POST 405 on draft and line detail routes.
+DraftOrder defines only draft status with a DB constraint; submitted/converted
+status-lock fixtures are inapplicable, and no tests were skipped. Creation's
+numeric scalar coercion and invalid-viewer-input error precedence stay unchanged.
+No schema/dependency/grant/RLS changes. Fixtures stayed in test_orderdesk;
+main checks were metadata/health only. Earlier uncommitted work was preserved.
+Ignored logs: `backend/var/draft_customer_editing_{red,focused,regression,runtime}.log`.
+Customer-editing changes remain locally verified and uncommitted.
+
+## Previous checkpoint: Step 4D.7 manual catalogue detachment verified locally
+
+Continued after verified attachment. Contract recorded before code in
+`AI_Order_Desk_Step_04D7_Protected_Draft_Catalogue_Detachment.md`. JSON POST
+`.../lines/<line>/detach/` accepts an empty object only. Current admins/reviewers
+may detach after fresh organization authorization and scoped parent/line locks;
+lookup precedes parsing. Clear catalogue reference and both snapshots together,
+validate remaining requested identity, save changed catalogue fields and line
+updated_at, and materialize in scope. Catalogue-only lines return 400 without
+writes until requested fields are repaired. Already unmatched lines are 200
+no-ops preserving updated_at. Requested text/unit/null quantity, identity,
+position, creation time and header fields/timestamps/count remain unchanged.
+No catalogue row is read or modified; no schema/dependency/grant/RLS changes.
+
+Actual final verification on 2026-10-08: 11 focused detachment tests passed in
+6.501s; 38 restricted-role order/RLS checks passed in 52.824s; 656 full backend
+tests passed in 148.967s. No skips. Ruff lint/format (142 files), model drift,
+migration state, runtime-role audit, both health probes and whitespace passed.
+Tests cover writer roles, valid/invalid identity and repair, real/no-op timestamps,
+original request/header/catalogue preservation, strict fields/transport/methods,
+foreign parents/lines, viewer/revoked/removed/nonmember denial, in-scope response
+and post-save rollback. Independent connections prove identity-clearing versus
+detachment commits one change and retains valid state; committed demotion denies
+a waiting detachment with an observed organization lock wait. Real credentials
+verify both writers, no-op, identity denial and revocation under orderdesk_app.
+All fixtures stayed in test_orderdesk; main checks were metadata/health only.
+Ignored logs: `backend/var/draft_detachment_{focused,runtime,regression}.log`.
+Detachment changes remain uncommitted. Next proposed increment: protected draft
+customer-field editing, preserving original intake and system state. Automatic
+matching and finalization remain separate work.
+
+## Previous checkpoint: Step 4D.6 manual catalogue attachment verified locally
+
+Finished the existing uncommitted attachment implementation under the contract
+`AI_Order_Desk_Step_04D6_Protected_Draft_Catalogue_Attachment.md`. JSON POST
+`.../lines/<line>/attach/` accepts only `catalogue_item_id`. Current admins and
+reviewers may attach active same-workspace items to unmatched lines. Organization,
+parent and line locks precede parsing; missing/foreign/inactive items return 404;
+repeat attachment returns stable 409 without refreshing snapshots. Requested
+fields/null quantity, position, header fields/timestamps/count are preserved;
+only catalogue reference/snapshots and the line update timestamp change.
+Model/materialization validation failures return 400 after rollback.
+
+Actual final verification on 2026-10-08: 15 focused tests passed in 4.740s;
+645 full backend tests passed in 190.715s; 37 restricted-role order/RLS checks
+passed in 52.977s. No skips. Ruff lint/format (141 files), model drift, migration
+state, runtime role, both health probes and whitespace checks passed.
+Tests cover competing attachments and waiting deactivation/demotion with observed
+organization lock waits, scoped lookup before parsing, role/revocation/nonmember
+denial, CSRF/media/query/method checks, historical snapshots and post-save rollback.
+Real-role testing caught reviewer 404s caused by a catalogue row write lock
+applying admin-only UPDATE RLS. Removed that lock and retained catalogue member
+SELECT under the shared organization lock; final full regression includes the
+corrected race tests. No migration/grant/policy/dependency changes. Concurrent
+direct maintenance catalogue writes must follow that lock discipline.
+All fixtures stayed in `test_orderdesk`; main checks were metadata/health only.
+Ignored logs: `backend/var/draft_attachment_{focused,regression,runtime}.log`.
+Changes remain uncommitted. Next: protected manual detachment, now requested.
+
+## Previous checkpoint: Step 4D.5 requested draft-line editing verified locally
 
 Continued from Step 4D.4 with scoped line-detail GET/HEAD and protected JSON
 PATCH for requested SKU/description, quantity and unit. The contract was recorded

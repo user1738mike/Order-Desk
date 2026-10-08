@@ -3,9 +3,11 @@ from django.urls import path
 from apps.orders.views import (
     DraftOrderDetailView,
     DraftOrderLineAttachmentView,
+    DraftOrderLineDetachmentView,
     DraftOrderLineDetailView,
     DraftOrderLinesView,
     DraftOrderListCreateView,
+    DraftOrderReviewView,
     OrderDetailView,
     OrderDocumentListCreateView,
     OrderDocumentReviewListCreateView,
@@ -20,6 +22,7 @@ app_name = "orders"
 draft_urlpatterns = [
     path("", DraftOrderListCreateView.as_view(), name="list"),
     path("<uuid:order_id>/", DraftOrderDetailView.as_view(), name="detail"),
+    path("<uuid:order_id>/review/", DraftOrderReviewView.as_view(), name="review"),
     path("<uuid:order_id>/lines/", DraftOrderLinesView.as_view(), name="lines"),
     path(
         "<uuid:order_id>/lines/<uuid:line_id>/",
@@ -30,6 +33,11 @@ draft_urlpatterns = [
         "<uuid:order_id>/lines/<uuid:line_id>/attach/",
         DraftOrderLineAttachmentView.as_view(),
         name="line-catalogue-attach",
+    ),
+    path(
+        "<uuid:order_id>/lines/<uuid:line_id>/detach/",
+        DraftOrderLineDetachmentView.as_view(),
+        name="line-catalogue-detach",
     ),
 ]
 

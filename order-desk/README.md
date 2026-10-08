@@ -3,12 +3,26 @@
 Django backend for turning distributors' purchase orders into checked ERP-ready
 orders. We are building it collaboratively in small, verified steps.
 
-Current step: **Step 3 — backend foundation**. The custom user, locked dependencies,
-local PostgreSQL roles, and health endpoints are implemented. Organization
-membership, tenant isolation, order processing, and the frontend follow later.
+Current checkpoint: **Step 4D.8 backend implemented and verified locally**.
+The backend includes session authentication, workspaces, PostgreSQL tenant
+transactions and forced RLS, catalogue management and CSV imports, manual draft
+creation/editing/catalogue attachment/detachment/review, and separate
+purchase-order/document-review APIs. Draft finalization is not implemented.
 
-Read [the complete Step 3 walkthrough](docs/AI_Order_Desk_Step_03_Backend.md) for
-every file, the Windows PowerShell setup sequence, verification, and pitfalls.
+This product serves industrial distributors: checked purchase orders, staff
+exception review and eventual ERP-ready output. Development remains local with
+synthetic data and a $0 budget; no paid dependency or service is required.
+
+Use [project state](docs/PROJECT_STATE.md) for delivery and verification results,
+[the roadmap](docs/ROADMAP.md) for capability status, and
+[local verification](docs/LOCAL_VERIFICATION.md) for current PowerShell commands.
+The frontend is a placeholder. Automatic extraction/matching, ERP export,
+usage tracking and production deployment remain future work. Live email
+ingestion, real ERP compatibility and certification have not been demonstrated.
+
+Read [the Step 3 foundation walkthrough](docs/AI_Order_Desk_Step_03_Backend.md)
+for the original foundation files, setup explanation and pitfalls; its increment
+test totals are historical. Current commands are in the verification runbook.
 The accepted design is documented in
 [the backend and tenancy decision](docs/AI_Order_Desk_Step_02_Backend_and_Tenancy.md).
 
@@ -18,6 +32,9 @@ The accepted design is documented in
 | --- | --- |
 | backend/config/ | Django settings and application entry points |
 | backend/apps/accounts/ | Global users, admin forms, migration, and tests |
+| backend/apps/organizations/ | Membership, workspace APIs and tenant transactions |
+| backend/apps/catalog/ | Catalogue management, CSV import and runtime RLS tests |
+| backend/apps/orders/ | Drafts, purchase orders, document review and RLS tests |
 | backend/apps/health/ | HTTP probes and runtime database-role verification |
 | backend/scripts/ | Local database provisioning and development startup |
 | backend/pyproject.toml, backend/uv.lock | Declared and locked Python dependencies |
@@ -29,8 +46,9 @@ The accepted design is documented in
 
 ## Setup and operation
 
-Follow the Step 3 guide in order: extend `.env`, build `api`, start `db`, run
-`dbsetup`, migrate with `manage`, then start and verify `api`. Starting all
+Follow the [current setup sequence](docs/LOCAL_VERIFICATION.md#initial-local-setup)
+in order: extend `.env`, build `api`, start `db`, run `dbsetup`, migrate with
+`manage`, then start and verify `api`. Starting all
 services before provisioning the roles and tables will fail readiness.
 
 After initial verification:

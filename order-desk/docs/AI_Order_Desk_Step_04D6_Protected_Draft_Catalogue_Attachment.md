@@ -94,3 +94,15 @@ RLS while holding the organization lock used by catalogue mutation services.
 The corrected real-role suite passed all 37 checks in 52.977s, including actual
 reviewer attachment. No policy or grant was widened. The final native regression
 run includes the deactivation/demotion lock races against this corrected service.
+
+## Actual final results: 2026-10-08
+
+15 focused tests passed in 4.740s; final full backend regression passed all 645
+tests in 190.715s; corrected restricted-role verifier passed all 37 checks in
+52.977s. No skips. Pinned Ruff lint/format (141 files), model drift, migration
+state, restricted runtime role, both health probes and whitespace checks passed.
+The final full suite includes the corrected attachment implementation.
+No schema/dependency/grant/policy changes. All fixtures remained synthetic in
+`test_orderdesk`; main checks were metadata/health only. Changes remain
+uncommitted. Files changed: order services/serializers/views/routes, new
+`test_draft_line_attachment.py`, guarded `runtime_rls.py` and state/contract docs.

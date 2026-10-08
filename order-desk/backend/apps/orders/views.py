@@ -22,11 +22,14 @@ from apps.orders.serializers import (
     DocumentReviewResolveSerializer,
     DraftOrderCreateSerializer,
     DraftOrderCreationSerializer,
+    DraftOrderCustomerUpdateSerializer,
     DraftOrderDetailSerializer,
     DraftOrderLineAttachmentSerializer,
     DraftOrderLineCreateSerializer,
+    DraftOrderLineDetachmentSerializer,
     DraftOrderLineReadSerializer,
     DraftOrderLineUpdateSerializer,
+    DraftOrderReviewSerializer,
     DraftOrderSummarySerializer,
     OrderDocumentCreateSerializer,
     OrderDocumentReviewCreateSerializer,
@@ -99,7 +102,9 @@ class DraftOrderListCreateView(DraftOrderWriteView):
         return Response(result, status=201)
 
 
-class DraftOrderDetailView(DraftOrderReadView):
+class DraftOrderDetailView(DraftOrderWriteView):
+    http_method_names = ["get", "head", "patch", "options"]
+
     def get(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
         with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
             validate_draft_query(request.query_params, allow_page=False)
@@ -107,6 +112,40 @@ class DraftOrderDetailView(DraftOrderReadView):
             return Response(
                 DraftOrderDetailSerializer(order, context={"request": request}).data
             )
+
+    def patch(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        def update_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if (
+                request.content_type.split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise UnsupportedMediaType(request.content_type)
+            serializer = DraftOrderCustomerUpdateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return serializer.validated_data
+
+        result = services.update_draft_customer_fields(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            data=update_data,
+            materialize=lambda order: (
+                DraftOrderDetailSerializer(
+                    selectors.get_draft_order(workspace_id, order.pk),
+                    context={"request": request},
+                ).data
+            ),
+        )
+        return Response(result, status=200)
+
+
+class DraftOrderReviewView(DraftOrderReadView):
+    def get(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
+            validate_draft_query(request.query_params, allow_page=False)
+            order = selectors.get_draft_review(scope.organization_id, order_id)
+            return Response(DraftOrderReviewSerializer(order).data)
 
 
 class DraftOrderLinesView(DraftOrderWriteView):
@@ -182,6 +221,34 @@ class DraftOrderLineAttachmentView(DraftOrderWriteView):
                 {"detail": "Already attached to a catalogue item."},
                 status=409,
             )
+        return Response(result, status=200)
+
+
+class DraftOrderLineDetachmentView(DraftOrderWriteView):
+    http_method_names = ["post", "options"]
+
+    def post(
+        self, request: Request, workspace_id: UUID, order_id: UUID, line_id: UUID
+    ) -> Response:
+        def detachment_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if (
+                request.content_type.split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise UnsupportedMediaType(request.content_type)
+            serializer = DraftOrderLineDetachmentSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return serializer.validated_data
+
+        result = services.detach_catalogue_item_from_draft_order_line(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            line_id=line_id,
+            data=detachment_data,
+            materialize=lambda line: DraftOrderLineReadSerializer(line).data,
+        )
         return Response(result, status=200)
 
 

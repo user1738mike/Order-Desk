@@ -89,6 +89,38 @@ class DraftOrderDetailSerializer(DraftOrderSummarySerializer):
         return self.context["request"].build_absolute_uri(path)
 
 
+class DraftOrderReviewSerializer(serializers.ModelSerializer):
+    organization_id = serializers.UUIDField(read_only=True)
+    customer_name_empty = serializers.SerializerMethodField()
+    customer_reference_empty = serializers.SerializerMethodField()
+    line_count = serializers.IntegerField(read_only=True)
+    unmatched_line_count = serializers.IntegerField(read_only=True)
+    missing_quantity_line_count = serializers.IntegerField(read_only=True)
+    unresolved_line_count = serializers.IntegerField(read_only=True)
+    inactive_catalogue_line_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = DraftOrder
+        fields = (
+            "id",
+            "organization_id",
+            "customer_name_empty",
+            "customer_reference_empty",
+            "line_count",
+            "unmatched_line_count",
+            "missing_quantity_line_count",
+            "unresolved_line_count",
+            "inactive_catalogue_line_count",
+        )
+        read_only_fields = fields
+
+    def get_customer_name_empty(self, order: DraftOrder) -> bool:
+        return not order.customer_name.strip()
+
+    def get_customer_reference_empty(self, order: DraftOrder) -> bool:
+        return not order.customer_reference.strip()
+
+
 class DraftOrderLineReadSerializer(serializers.ModelSerializer):
     organization_id = serializers.UUIDField(read_only=True)
     order_id = serializers.UUIDField(read_only=True)
@@ -132,15 +164,12 @@ class StrictInputSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
 
-class DraftOrderCreateSerializer(StrictInputSerializer):
+class DraftOrderCustomerFieldsSerializer(StrictInputSerializer):
     customer_name = serializers.CharField(
         max_length=255, allow_blank=True, required=False, trim_whitespace=False
     )
     customer_reference = serializers.CharField(
         max_length=128, allow_blank=True, required=False, trim_whitespace=False
-    )
-    original_intake_text = serializers.CharField(
-        max_length=10000, allow_blank=True, required=False, trim_whitespace=False
     )
 
     def validate_customer_name(self, value: str) -> str:
@@ -156,6 +185,30 @@ class DraftOrderCreateSerializer(StrictInputSerializer):
                 "Provide a nonblank value or an empty string."
             )
         return value
+
+
+class DraftOrderCreateSerializer(DraftOrderCustomerFieldsSerializer):
+    original_intake_text = serializers.CharField(
+        max_length=10000, allow_blank=True, required=False, trim_whitespace=False
+    )
+
+
+class DraftOrderCustomerUpdateSerializer(DraftOrderCustomerFieldsSerializer):
+    def to_internal_value(self, data):
+        if isinstance(data, Mapping):
+            errors = {
+                field: ["Not a valid string."]
+                for field in self.fields
+                if field in data and not isinstance(data[field], str)
+            }
+            if errors:
+                raise serializers.ValidationError(errors)
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Provide at least one customer field.")
+        return attrs
 
 
 class DraftOrderLineCreateSerializer(StrictInputSerializer):
@@ -209,6 +262,10 @@ class DraftOrderLineUpdateSerializer(StrictInputSerializer):
 
 class DraftOrderLineAttachmentSerializer(StrictInputSerializer):
     catalogue_item_id = serializers.UUIDField()
+
+
+class DraftOrderLineDetachmentSerializer(StrictInputSerializer):
+    """Only an empty object is valid for this explicit action."""
 
 
 class PurchaseOrderCreateSerializer(StrictInputSerializer):

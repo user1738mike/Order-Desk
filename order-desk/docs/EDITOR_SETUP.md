@@ -13,9 +13,10 @@ editor's existing format-on-save preference. Flake8 and Pylint are disabled
 for this workspace because their defaults conflict with the established
 project checks. They remain installed for other projects.
 
-Historical verification checkouts remain available on disk, but current
-workspace analysis focuses on `order-desk`. Open that repository directly
-when working on the application. No archived code was reformatted to satisfy
+Historical verification snapshot directories were removed from the tracked tree; the
+current checkout is the source of truth. Any local archived directory is not
+required for verification. Open `order-desk` directly when working on the
+application. No archived code or generated migration was reformatted to satisfy
 different tools or an older Python parser.
 
 If imports or old lint messages remain cached, run **Developer: Reload Window**
@@ -30,6 +31,13 @@ Repeat local linting from `Billion1/order-desk/backend`:
 & ../../.venv/Scripts/ruff.exe check . ../scripts
 & ../../.venv/Scripts/ruff.exe format --check . ../scripts
 ```
+
+The working directory is significant: it anchors the application configuration,
+relative migration exclusions and test per-file rules. Passing
+`--config backend/pyproject.toml` from the application root or running scripts
+without this configuration can produce a different diagnostic set. Use the
+commands above or the equivalent commands in
+[local verification](LOCAL_VERIFICATION.md#lint-and-format).
 
 Use **Tasks: Run Task > backend-lint** from the root workspace for the Docker
 lint gate. Test tasks preserve `test_orderdesk` and use the dedicated test
