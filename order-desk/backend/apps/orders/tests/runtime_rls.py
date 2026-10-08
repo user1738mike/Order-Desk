@@ -29,6 +29,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.login_limits import login_bucket_key
 from apps.accounts.models import LoginAttemptBucket, User
+from apps.catalog.models import CatalogItem
 from apps.catalog.tests.runtime_rls import OWNER_ALIAS, _forged_policy_context
 from apps.orders.models import (
     DraftOrder,
@@ -123,6 +124,9 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
                 model.objects.using(OWNER_ALIAS).filter(
                     organization_id__in=self.workspace_ids
                 ).delete()
+            CatalogItem.objects.using(OWNER_ALIAS).filter(
+                organization_id__in=self.workspace_ids
+            ).delete()
             Membership.objects.using(OWNER_ALIAS).filter(
                 organization_id__in=self.workspace_ids
             ).delete()
@@ -492,6 +496,84 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         self.assertEqual(viewer.get(path).status_code, 200)
         self.assertEqual(
             viewer.patch(path, {}, format="json", HTTP_X_CSRFTOKEN=token).status_code,
+            403,
+        )
+        self.assertEqual(
+            DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk), header
+        )
+        self._assert_clean()
+
+    def test_catalogue_attachment_http_as_runtime_role(self) -> None:
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a, sku="Synthetic attachment SKU", description="Snapshot"
+        )
+        foreign = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.b, sku="Synthetic foreign attachment SKU"
+        )
+        inactive = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a,
+            sku="Synthetic inactive attachment SKU",
+            is_active=False,
+        )
+        order = self.drafts[self.a.pk][DraftOrder]
+        header = DraftOrder.objects.using(OWNER_ALIAS).values().get(pk=order.pk)
+        for actor in (self.admin, self.reviewer):
+            line = self._insert_draft(DraftOrderLine, self.a, using=OWNER_ALIAS)
+            path = (
+                f"/api/v1/workspaces/{self.a.pk}/draft-orders/"
+                f"{order.pk}/lines/{line.pk}/attach/"
+            )
+            client, token = self._credential_client(actor)
+            for missing in (foreign.pk, inactive.pk, uuid4()):
+                response = client.post(
+                    path,
+                    {"catalogue_item_id": str(missing)},
+                    format="json",
+                    HTTP_X_CSRFTOKEN=token,
+                )
+                self.assertEqual(response.status_code, 404, response.content)
+            response = client.post(
+                path,
+                {"catalogue_item_id": str(item.pk)},
+                format="json",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual(response.json()["catalogue_item_id"], str(item.pk))
+            self.assertEqual(response.json()["catalogue_sku_snapshot"], item.sku)
+            self.assertEqual(
+                response.json()["catalogue_description_snapshot"], "Snapshot"
+            )
+            self.assertIsNone(response.json()["quantity"])
+            before = DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk)
+            self.assertEqual(
+                client.post(
+                    path,
+                    {"catalogue_item_id": str(item.pk)},
+                    format="json",
+                    HTTP_X_CSRFTOKEN=token,
+                ).status_code,
+                409,
+            )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=actor, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(
+                client.post(
+                    path, "{", content_type="application/json", HTTP_X_CSRFTOKEN=token
+                ).status_code,
+                403,
+            )
+            self.assertEqual(
+                DraftOrderLine.objects.using(OWNER_ALIAS).values().get(pk=line.pk),
+                before,
+            )
+            self._assert_clean()
+        viewer, token = self._credential_client(self.viewer)
+        self.assertEqual(
+            viewer.post(
+                path, "{", content_type="application/json", HTTP_X_CSRFTOKEN=token
+            ).status_code,
             403,
         )
         self.assertEqual(

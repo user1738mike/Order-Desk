@@ -23,6 +23,7 @@ from apps.orders.serializers import (
     DraftOrderCreateSerializer,
     DraftOrderCreationSerializer,
     DraftOrderDetailSerializer,
+    DraftOrderLineAttachmentSerializer,
     DraftOrderLineCreateSerializer,
     DraftOrderLineReadSerializer,
     DraftOrderLineUpdateSerializer,
@@ -148,6 +149,40 @@ class DraftOrderLinesView(DraftOrderWriteView):
                 {"detail": services.DRAFT_LINE_POSITION_CONFLICT}, status=409
             )
         return Response(result, status=201)
+
+
+class DraftOrderLineAttachmentView(DraftOrderWriteView):
+    http_method_names = ["post", "options"]
+
+    def post(
+        self, request: Request, workspace_id: UUID, order_id: UUID, line_id: UUID
+    ) -> Response:
+        def attachment_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if (
+                request.content_type.split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise UnsupportedMediaType(request.content_type)
+            serializer = DraftOrderLineAttachmentSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return serializer.validated_data["catalogue_item_id"]
+
+        try:
+            result = services.attach_catalogue_item_to_draft_order_line(
+                actor=request.user,
+                organization_id=workspace_id,
+                order_id=order_id,
+                line_id=line_id,
+                catalogue_item_id=attachment_data,
+                materialize=lambda line: DraftOrderLineReadSerializer(line).data,
+            )
+        except services.DraftLineCatalogueAttachmentConflict:
+            return Response(
+                {"detail": "Already attached to a catalogue item."},
+                status=409,
+            )
+        return Response(result, status=200)
 
 
 class DraftOrderLineDetailView(DraftOrderWriteView):

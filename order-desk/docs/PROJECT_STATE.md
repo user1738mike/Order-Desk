@@ -1,5 +1,15 @@
 # Project state
 
+## Active increment: Step 4D.6 manual catalogue attachment
+
+Continuing the existing uncommitted attachment implementation. Its contract is
+in `AI_Order_Desk_Step_04D6_Protected_Draft_Catalogue_Attachment.md`, clarified
+before further code: deferred parsing after protected parent/line lookup,
+active same-workspace item resolution under the shared organization lock,
+immutable snapshots after attachment,
+stable conflict, unchanged header/request fields, line-only update timestamp.
+Verification is pending; preserve Step 4D.5 behavior and existing local work.
+
 ## Active checkpoint: Step 4D.5 requested draft-line editing verified locally
 
 Continued from Step 4D.4 with scoped line-detail GET/HEAD and protected JSON

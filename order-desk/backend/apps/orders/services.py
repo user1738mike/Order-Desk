@@ -15,6 +15,7 @@ from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+from apps.catalog.models import CatalogItem
 from apps.orders.models import (
     DraftOrder,
     DraftOrderLine,
@@ -39,6 +40,10 @@ DRAFT_LINE_EDITABLE_FIELDS = frozenset(
 
 class DraftLinePositionConflict(Exception):
     """A requested position is already occupied in this draft."""
+
+
+class DraftLineCatalogueAttachmentConflict(Exception):
+    """A requested line is already attached to a catalogue item."""
 
 
 def _result(instance, materialize: Materializer | None):
@@ -162,6 +167,59 @@ def update_draft_order_line(
         changed = [field for field in values if getattr(line, field) != original[field]]
         if changed:
             line.save(update_fields=[*changed, "updated_at"])
+        return _result(line, materialize)
+
+
+def attach_catalogue_item_to_draft_order_line(
+    *,
+    actor,
+    organization_id: UUID,
+    order_id: UUID,
+    line_id: UUID,
+    catalogue_item_id: UUID | Callable[[], UUID],
+    materialize: Materializer | None = None,
+):
+    """Attach one active, same-workspace catalogue item to an unmatched line."""
+    with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
+        _require_writer(context)
+        order = get_object_or_404(
+            DraftOrder.objects.select_for_update().filter(
+                organization_id=context.organization_id
+            ),
+            pk=order_id,
+        )
+        line = get_object_or_404(
+            DraftOrderLine.objects.select_for_update().filter(
+                organization_id=context.organization_id, order_id=order.pk
+            ),
+            pk=line_id,
+        )
+        if line.catalogue_item_id is not None:
+            raise DraftLineCatalogueAttachmentConflict
+        item_id = (
+            catalogue_item_id() if callable(catalogue_item_id) else catalogue_item_id
+        )
+        item = get_object_or_404(
+            # Catalogue writes take our organization lock too. A row write lock
+            # here would apply catalogue's admin-only UPDATE policy to reviewers.
+            CatalogItem.objects.filter(
+                pk=item_id,
+                organization_id=context.organization_id,
+                is_active=True,
+            )
+        )
+        line.catalogue_item_id = item.pk
+        line.catalogue_sku_snapshot = item.sku
+        line.catalogue_description_snapshot = item.description
+        line.full_clean()
+        line.save(
+            update_fields=[
+                "catalogue_item",
+                "catalogue_sku_snapshot",
+                "catalogue_description_snapshot",
+                "updated_at",
+            ]
+        )
         return _result(line, materialize)
 
 

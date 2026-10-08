@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.orders.views import (
     DraftOrderDetailView,
+    DraftOrderLineAttachmentView,
     DraftOrderLineDetailView,
     DraftOrderLinesView,
     DraftOrderListCreateView,
@@ -24,6 +25,11 @@ draft_urlpatterns = [
         "<uuid:order_id>/lines/<uuid:line_id>/",
         DraftOrderLineDetailView.as_view(),
         name="line-detail",
+    ),
+    path(
+        "<uuid:order_id>/lines/<uuid:line_id>/attach/",
+        DraftOrderLineAttachmentView.as_view(),
+        name="line-catalogue-attach",
     ),
 ]
 

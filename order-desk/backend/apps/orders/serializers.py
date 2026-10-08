@@ -207,6 +207,10 @@ class DraftOrderLineUpdateSerializer(StrictInputSerializer):
     )
 
 
+class DraftOrderLineAttachmentSerializer(StrictInputSerializer):
+    catalogue_item_id = serializers.UUIDField()
+
+
 class PurchaseOrderCreateSerializer(StrictInputSerializer):
     customer_name = serializers.CharField(max_length=255)
     purchase_order_number = serializers.CharField(max_length=64)
