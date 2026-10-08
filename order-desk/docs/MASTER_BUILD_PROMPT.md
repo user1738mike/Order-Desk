@@ -1,13 +1,14 @@
 # Master build prompt
 
-Current instruction: complete post-audit documentation/reproducibility and
-verified delivery. Read PROJECT_STATE.md, LOCAL_VERIFICATION.md and
+Current checkpoint: post-audit documentation/reproducibility and stable
+verified delivery are complete. Read PROJECT_STATE.md, LOCAL_VERIFICATION.md and
 STORAGE_FINDINGS.md. The backend through 4D.8 exists; the frontend is only a
 placeholder. The private full audit is ignored and must not be published.
 Canonical checks use the active checkout, dedicated test_orderdesk and directly
 restricted runtime verifiers, with owner-role evidence kept separate.
 The confirmed document-file rollback gap and actual-byte containment checks
-require a focused tested upload-hardening increment before dependent intake/
+require review and completion of the concurrent upload-hardening increment
+before dependent intake/
 finalization is ready. Then define the separate read-only readiness contract;
 do not implement readiness or conversion during reconciliation. Preserve locks,
 synthetic fixtures, tenant boundaries and the $0 budget. Current delivery and

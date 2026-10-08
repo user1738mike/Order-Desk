@@ -118,11 +118,16 @@ Stable isolated delivery candidate:
 - Catalogue implementation is unchanged; the fresh 115-check reconciliation
   result above remains applicable.
 
-Documentation delivery is prepared as a separate commit on the isolated
-`docs/post-audit-reconciliation` branch, based on already-pushed a9455cd.
-It is sent only by normal `git push origin HEAD:main` after stable verification;
-actual push outcome will be recorded after the command returns. The concurrent bad9e05 test commit and
-unfinished upload implementation are not part of that remote delivery.
+Stable verification and storage-record commit
+bdb7d9851e79b4a3532deae67d063b00c957f9e7 was created on isolated
+`docs/post-audit-reconciliation`, based on already-pushed a9455cd.
+Actual command `git push origin HEAD:main` exited 0 and advanced remote main
+from a9455cd to bdb7d98, without force. This documentation-only follow-up records
+that observed result; its own push result is reported in the session handoff.
+The concurrent bad9e05 test commit and unfinished upload implementation are
+excluded from the remote reconciliation delivery. Published documentation is
+merged normally back into local main, preserving those separate local changes;
+that merge is not pushed as part of the verified documentation delivery.
 The existing intended remote is origin and branch main; the inspected remote tip
 is an ancestor of the starting HEAD. Only a normal non-force push is authorized;
 no reset, remote replacement or divergent-work discard is performed.
