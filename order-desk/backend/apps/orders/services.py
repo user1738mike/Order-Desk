@@ -5,10 +5,11 @@ one, callers receive a model whose scalar fields are already loaded; fetching
 its relations later does not establish an authorized tenant transaction.
 """
 
+import logging
 from collections.abc import Callable, Mapping
 from decimal import Decimal
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError
@@ -16,6 +17,8 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.catalog.models import CatalogItem
+from apps.orders import selectors
+from apps.orders.document_files import bounded_document_file
 from apps.orders.models import (
     DraftOrder,
     DraftOrderLine,
@@ -27,10 +30,12 @@ from apps.orders.models import (
     PurchaseOrder,
     PurchaseOrderLine,
 )
+from apps.orders.readiness import evaluate_draft_readiness
 from apps.organizations.models import MembershipRole
 from apps.organizations.transactions import tenant_scope
 
 Materializer = Callable[[Any], Any]
+logger = logging.getLogger(__name__)
 
 DRAFT_LINE_POSITION_CONFLICT = "This draft already has a line at this position."
 DRAFT_LINE_EDITABLE_FIELDS = frozenset(
@@ -44,6 +49,133 @@ class DraftLinePositionConflict(Exception):
 
 class DraftLineCatalogueAttachmentConflict(Exception):
     """A requested line is already attached to a catalogue item."""
+
+
+class DraftAlreadyConverted(Exception):
+    """The immutable source cannot be edited after conversion."""
+
+
+class DraftNotReady(Exception):
+    def __init__(self, reasons):
+        paths = {
+            "customer_name_missing": "customer_name",
+            "lines_missing": "lines",
+            "quantity_missing": "lines.quantity",
+            "catalogue_unmatched": "lines.catalogue_item_id",
+            "catalogue_inactive": "lines.catalogue_item_id",
+            "catalogue_sku_too_long": "lines.catalogue_sku_snapshot",
+        }
+        self.reasons = [{**reason, "path": paths[reason["code"]]} for reason in reasons]
+        super().__init__("Draft is not ready for conversion.")
+
+
+class DraftConversionNumberConflict(Exception):
+    """The reserved source-derived number belongs to an unrelated order."""
+
+
+def _require_draft_editable(order) -> None:
+    if order.status != DraftOrder.Status.DRAFT:
+        raise DraftAlreadyConverted
+
+
+def _persist_order_record(instance, *, preserve_snapshot=False):
+    if preserve_snapshot:
+        # Existing clean() normalizes ordinary input. A reviewed stored snapshot
+        # must preserve exact strings; apply all validation without normalization.
+        instance.clean_fields()
+        instance.validate_unique()
+        instance.validate_constraints()
+    else:
+        instance.full_clean()
+    instance.save()
+    return instance
+
+
+def convert_draft_to_purchase_order(
+    *,
+    actor,
+    organization_id: UUID,
+    order_id: UUID,
+    data: Mapping[str, Any] | Callable[[], Mapping[str, Any]],
+    materialize: Materializer | None = None,
+):
+    """Serialize conversion with all cooperating writers; seal source and copy."""
+    try:
+        with tenant_scope(
+            user=actor, workspace_id=organization_id, write=True
+        ) as context:
+            if context.role not in {MembershipRole.ADMIN}:
+                raise PermissionDenied("Workspace administrator access is required.")
+            draft = get_object_or_404(
+                DraftOrder.objects.select_for_update().filter(
+                    organization_id=context.organization_id
+                ),
+                pk=order_id,
+            )
+            values = data() if callable(data) else data
+            if not isinstance(values, Mapping):
+                raise ValidationError("Provide an empty object.")
+            if values:
+                raise ValidationError(
+                    {key: ["Unsupported field."] for key in sorted(values)}
+                )
+            existing = PurchaseOrder.objects.filter(
+                source_draft_id=draft.pk, organization_id=context.organization_id
+            ).first()
+            if existing is not None:
+                return _result(existing, materialize), False
+            _require_draft_editable(draft)
+            lines = list(
+                selectors.draft_lines_for_order(
+                    context.organization_id, draft.pk
+                ).select_for_update()
+            )
+            readiness = evaluate_draft_readiness(
+                selectors.get_draft_readiness(context.organization_id, draft.pk)
+            )
+            if not readiness["ready_to_convert"]:
+                raise DraftNotReady(readiness["blocking_reasons"])
+            number = "DRAFT-" + draft.pk.hex
+            if PurchaseOrder.objects.filter(
+                organization_id=context.organization_id, purchase_order_number=number
+            ).exists():
+                raise DraftConversionNumberConflict
+            order = _persist_order_record(
+                PurchaseOrder(
+                    organization_id=context.organization_id,
+                    created_by_id=context.user_id,
+                    customer_name=draft.customer_name,
+                    purchase_order_number=number,
+                ),
+                preserve_snapshot=True,
+            )
+            for line in lines:
+                _persist_order_record(
+                    PurchaseOrderLine(
+                        organization_id=context.organization_id,
+                        order_id=order.pk,
+                        line_number=line.position,
+                        sku=line.catalogue_sku_snapshot,
+                        description=line.catalogue_description_snapshot,
+                        quantity=line.quantity,
+                        unit=line.unit,
+                    ),
+                    preserve_snapshot=True,
+                )
+            order.source_draft_id = draft.pk
+            order.save(update_fields=["source_draft"])
+            draft.status = DraftOrder.Status.CONVERTED
+            draft.save(update_fields=["status", "updated_at"])
+            return _result(order, materialize), True
+    except IntegrityError as error:
+        diagnostics = getattr(error.__cause__, "diag", None)
+        if (
+            getattr(error.__cause__, "sqlstate", None) == "23505"
+            and getattr(diagnostics, "constraint_name", None)
+            == "purchaseorder_org_number_unique"
+        ):
+            raise DraftConversionNumberConflict from error
+        raise
 
 
 def _result(instance, materialize: Materializer | None):
@@ -95,6 +227,7 @@ def update_draft_customer_fields(
             ),
             pk=order_id,
         )
+        _require_draft_editable(order)
         values = data() if callable(data) else data
         unknown = set(values) - {"customer_name", "customer_reference"}
         if unknown:
@@ -141,6 +274,7 @@ def create_draft_order_line(
                 ),
                 pk=order_id,
             )
+            _require_draft_editable(order)
             values = data() if callable(data) else data
             allowed = DRAFT_LINE_EDITABLE_FIELDS | {"position"}
             unknown = set(values) - allowed
@@ -191,6 +325,7 @@ def update_draft_order_line(
             ),
             pk=order_id,
         )
+        _require_draft_editable(order)
         line = get_object_or_404(
             DraftOrderLine.objects.select_for_update().filter(
                 organization_id=context.organization_id, order_id=order.pk
@@ -231,6 +366,7 @@ def attach_catalogue_item_to_draft_order_line(
             ),
             pk=order_id,
         )
+        _require_draft_editable(order)
         line = get_object_or_404(
             DraftOrderLine.objects.select_for_update().filter(
                 organization_id=context.organization_id, order_id=order.pk
@@ -284,6 +420,7 @@ def detach_catalogue_item_from_draft_order_line(
             ),
             pk=order_id,
         )
+        _require_draft_editable(order)
         line = get_object_or_404(
             DraftOrderLine.objects.select_for_update().filter(
                 organization_id=context.organization_id, order_id=order.pk
@@ -371,8 +508,7 @@ def create_purchase_order(
             source_document=source_document,
             is_active=is_active,
         )
-        order.full_clean()
-        order.save()
+        _persist_order_record(order)
         return _result(order, materialize)
 
 
@@ -487,27 +623,56 @@ def create_order_document(
     size_bytes: int | None = None,
     materialize: Materializer | None = None,
 ):
-    with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
-        order = _locked_order(organization_id=organization_id, order_id=order_id)
-        _require_editable_order(order)
-        if file is None:
-            raise ValidationError({"file": "A file is required."})
+    owned_name = None
+    storage = OrderDocument._meta.get_field("file").storage
+    try:
+        with tenant_scope(
+            user=actor, workspace_id=organization_id, write=True
+        ) as context:
+            _require_writer(context)
+            order = _locked_order(organization_id=organization_id, order_id=order_id)
+            _require_editable_order(order)
+            upload = file() if callable(file) else file
+            if upload is None:
+                raise ValidationError({"file": "A file is required."})
 
-        document = OrderDocument(
-            order=order,
-            organization_id=organization_id,
-            uploaded_by=actor,
-            file=file,
-            original_name=original_name or getattr(file, "name", "upload"),
-            content_type=(content_type or "").strip(),
-            size_bytes=int(size_bytes)
-            if size_bytes is not None
-            else (getattr(file, "size", 0) or 0),
-        )
-        document.full_clean()
-        document.save()
-        return _result(document, materialize)
+            with bounded_document_file(upload) as bounded:
+                document = OrderDocument(
+                    order=order,
+                    organization_id=organization_id,
+                    uploaded_by=actor,
+                    file=bounded,
+                    original_name=original_name or upload.name,
+                    content_type=(
+                        content_type or getattr(upload, "content_type", "") or ""
+                    ).strip(),
+                    size_bytes=int(size_bytes)
+                    if size_bytes is not None
+                    else bounded.size,
+                )
+                document.full_clean()
+                field = document._meta.get_field("file")
+                # A fresh, server-generated name belongs only to this attempt.
+                candidate = field.generate_filename(document, uuid4().hex)
+                if storage.exists(candidate):
+                    raise ValidationError({"file": "Unable to allocate a new file."})
+                owned_name = candidate
+                owned_name = storage.save(
+                    candidate, bounded, max_length=field.max_length
+                )
+                document.file.name = owned_name
+                document.file._committed = True
+                document.file._file = None
+                document.save()
+                return _result(document, materialize)
+    except Exception:
+        if owned_name is not None:
+            try:
+                storage.delete(owned_name)
+            except Exception:
+                # Keep the original error and avoid logging private names/content.
+                logger.error("Source document rollback cleanup failed.")
+        raise
 
 
 def create_document_review(
@@ -656,6 +821,8 @@ def add_order_line(
         _require_writer(context)
         order = _locked_order(organization_id=organization_id, order_id=order_id)
         _require_editable_order(order)
+        if order.source_draft_id is not None:
+            raise ValidationError({"order": "Converted order lines are immutable."})
         line = PurchaseOrderLine(
             order=order,
             organization_id=organization_id,
@@ -665,6 +832,5 @@ def add_order_line(
             quantity=quantity,
             unit=unit,
         )
-        line.full_clean()
-        line.save()
+        _persist_order_record(line)
         return _result(line, materialize)

@@ -71,6 +71,7 @@ class Command(CatalogVerifierCommand):
                 self._validate_policies(table, prefix, policies)
             self._audit_parent_constraints(cursor)
             self._audit_draft_boundary(cursor)
+            self._audit_conversion_boundary(cursor)
         self.stdout.write(
             "Order metadata verified: 4 tables, forced RLS, 20 policies, "
             "restricted grants, 3 composite parent foreign keys."
@@ -79,6 +80,73 @@ class Command(CatalogVerifierCommand):
             "Draft metadata verified: 2 tables, forced RLS, 10 policies, "
             "2 composite tenant foreign keys."
         )
+
+    @staticmethod
+    def _audit_conversion_boundary(cursor) -> None:
+        cursor.execute("""
+            SELECT convalidated, condeferrable, pg_get_constraintdef(oid)
+            FROM pg_constraint WHERE conname = 'order_source_draft_org_fk'
+            AND conrelid = 'public.orders_purchaseorder'::regclass
+        """)
+        row = cursor.fetchone()
+        if (
+            not row
+            or row[:2] != (True, True)
+            or (
+                "FOREIGN KEY (source_draft_id, organization_id) "
+                "REFERENCES orders_draftorder(id, organization_id)" not in row[2]
+            )
+        ):
+            raise CommandError("Conversion tenant reference is incorrect.")
+        cursor.execute("""
+            SELECT EXISTS(SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'public.orders_purchaseorder'::regclass AND contype = 'u'
+            AND conkey = ARRAY[(SELECT attnum FROM pg_attribute WHERE
+                attrelid = 'public.orders_purchaseorder'::regclass
+                AND attname = 'source_draft_id')]::smallint[])
+        """)
+        if cursor.fetchone() != (True,):
+            raise CommandError("Conversion source uniqueness is missing.")
+        cursor.execute(
+            """
+            SELECT t.tgname, t.tgenabled, t.tgdeferrable, t.tginitdeferred,
+                p.prosecdef, pg_get_userbyid(p.proowner)
+            FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+            WHERE t.tgname = ANY(%s) AND NOT t.tgisinternal
+        """,
+            [
+                [
+                    "draft_conversion_guard",
+                    "draft_line_conversion_guard",
+                    "order_conversion_guard",
+                    "order_line_conversion_guard",
+                    "draft_conversion_complete",
+                    "order_conversion_complete",
+                ]
+            ],
+        )
+        rows = cursor.fetchall()
+        expected = {
+            name: (
+                "O",
+                name.endswith("complete"),
+                name.endswith("complete"),
+                False,
+                "orderdesk_migrator",
+            )
+            for name in (
+                "draft_conversion_guard",
+                "draft_line_conversion_guard",
+                "order_conversion_guard",
+                "order_line_conversion_guard",
+                "draft_conversion_complete",
+                "order_conversion_complete",
+            )
+        }
+        if {row[0]: row[1:] for row in rows} != expected:
+            raise CommandError(
+                "Conversion guards/completion constraints are incorrect."
+            )
 
     @staticmethod
     def _validate_policies(table: str, prefix: str, policies: dict) -> None:

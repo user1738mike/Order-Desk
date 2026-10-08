@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.urls import include, path
 
+from apps.web.views import workspace
+
 urlpatterns = [
+    path("", workspace, name="workspace-ui"),
     path("admin/", admin.site.urls),
     path("api/v1/health/", include("apps.health.urls")),
     path(

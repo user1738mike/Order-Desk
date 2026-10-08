@@ -77,12 +77,12 @@ class Command(BaseCommand):
                         "customer_reference",
                         "original_intake_text",
                         "updated_at",
+                        "status",
                     ),
                     (
                         "id",
                         "organization_id",
                         "initiating_user_id",
-                        "status",
                         "source_type",
                         "created_at",
                     ),
@@ -136,4 +136,26 @@ class Command(BaseCommand):
                         raise CommandError(
                             f"Immutable draft column writable: {table}.{column}."
                         )
+            # Status is writable only with the conversion guards installed.
+            cursor.execute(
+                """
+                SELECT count(*) = 6 AND bool_and(t.tgenabled = 'O' AND NOT p.prosecdef)
+                FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+                WHERE NOT t.tgisinternal AND t.tgname = ANY(%s)
+            """,
+                [
+                    [
+                        "draft_conversion_guard",
+                        "draft_line_conversion_guard",
+                        "order_conversion_guard",
+                        "order_line_conversion_guard",
+                        "draft_conversion_complete",
+                        "order_conversion_complete",
+                    ]
+                ],
+            )
+            if cursor.fetchone() != (True,):
+                raise CommandError(
+                    "Conversion status/snapshot guards are missing or unsafe."
+                )
         self.stdout.write(self.style.SUCCESS("Runtime database role is restricted."))

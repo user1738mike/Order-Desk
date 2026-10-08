@@ -17,9 +17,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.orders import selectors, services
+from apps.orders.document_files import OrderDocumentTooLarge
 from apps.orders.pagination import DraftOrderPagination, validate_draft_query
+from apps.orders.readiness import evaluate_draft_readiness
 from apps.orders.serializers import (
     DocumentReviewResolveSerializer,
+    DraftOrderConversionInputSerializer,
+    DraftOrderConversionSerializer,
     DraftOrderCreateSerializer,
     DraftOrderCreationSerializer,
     DraftOrderCustomerUpdateSerializer,
@@ -29,6 +33,7 @@ from apps.orders.serializers import (
     DraftOrderLineDetachmentSerializer,
     DraftOrderLineReadSerializer,
     DraftOrderLineUpdateSerializer,
+    DraftOrderReadinessSerializer,
     DraftOrderReviewSerializer,
     DraftOrderSummarySerializer,
     OrderDocumentCreateSerializer,
@@ -40,6 +45,10 @@ from apps.orders.serializers import (
     PurchaseOrderLineCreateSerializer,
     PurchaseOrderLineSerializer,
     PurchaseOrderSerializer,
+)
+from apps.orders.uploads import (
+    OrderDocumentUploadLimitHandler,
+    OrderDocumentUploadTooLarge,
 )
 from apps.organizations.permissions import HasWorkspaceAccess
 from apps.organizations.transactions import tenant_scope
@@ -63,6 +72,15 @@ class DraftOrderWriteView(DraftOrderReadView):
 
     def handle_exception(self, exc):
         # Translate only after the service has exited and rolled back its scope.
+        if isinstance(exc, services.DraftAlreadyConverted):
+            return Response({"detail": "draft_already_converted"}, status=409)
+        if isinstance(exc, services.DraftNotReady):
+            return Response(
+                {"detail": "draft_not_ready", "blocking_reasons": exc.reasons},
+                status=409,
+            )
+        if isinstance(exc, services.DraftConversionNumberConflict):
+            return Response({"detail": "purchase_order_number_conflict"}, status=409)
         if isinstance(exc, DjangoValidationError):
             if hasattr(exc, "message_dict"):
                 details = {
@@ -146,6 +164,41 @@ class DraftOrderReviewView(DraftOrderReadView):
             validate_draft_query(request.query_params, allow_page=False)
             order = selectors.get_draft_review(scope.organization_id, order_id)
             return Response(DraftOrderReviewSerializer(order).data)
+
+
+class DraftOrderReadinessView(DraftOrderReadView):
+    def get(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        with tenant_scope(user=request.user, workspace_id=workspace_id) as scope:
+            validate_draft_query(request.query_params, allow_page=False)
+            order = selectors.get_draft_readiness(scope.organization_id, order_id)
+            return Response(
+                DraftOrderReadinessSerializer(evaluate_draft_readiness(order)).data
+            )
+
+
+class DraftOrderConversionView(DraftOrderWriteView):
+    http_method_names = ["post", "options"]
+
+    def post(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        def input_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if (
+                request.content_type.split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise UnsupportedMediaType(request.content_type)
+            serializer = DraftOrderConversionInputSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return serializer.validated_data
+
+        result, created = services.convert_draft_to_purchase_order(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            data=input_data,
+            materialize=lambda order: DraftOrderConversionSerializer(order).data,
+        )
+        return Response(result, status=201 if created else 200)
 
 
 class DraftOrderLinesView(DraftOrderWriteView):
@@ -296,7 +349,9 @@ class WorkspaceOrderView(APIView):
 
     def handle_exception(self, exc):
         # Services have exited their atomic scope before errors reach this layer.
-        if isinstance(exc, DjangoValidationError):
+        if isinstance(exc, OrderDocumentTooLarge):
+            exc = OrderDocumentUploadTooLarge()
+        elif isinstance(exc, DjangoValidationError):
             details = exc.message_dict if hasattr(exc, "message_dict") else exc.messages
             if isinstance(details, dict) and any(
                 key in details for key in ("order_id", "document_id", "review_id")
@@ -362,6 +417,10 @@ class OrderLineCreateView(WorkspaceOrderView):
 class OrderDocumentListCreateView(WorkspaceOrderView):
     parser_classes = (MultiPartParser, FormParser)
 
+    def initialize_request(self, request, *args, **kwargs):
+        request.upload_handlers.insert(0, OrderDocumentUploadLimitHandler(request))
+        return super().initialize_request(request, *args, **kwargs)
+
     def get(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
         with tenant_scope(user=request.user, workspace_id=workspace_id):
             response = self.paginated(
@@ -372,15 +431,19 @@ class OrderDocumentListCreateView(WorkspaceOrderView):
         return response
 
     def post(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
-        data = OrderDocumentCreateSerializer(data=request.data)
-        data.is_valid(raise_exception=True)
-        uploaded = data.validated_data["file"]
+        def upload_data():
+            files = request.FILES
+            if len(files.getlist("file")) != 1:
+                raise ValidationError({"file": ["Supply exactly one file."]})
+            data = OrderDocumentCreateSerializer(data=request.data)
+            data.is_valid(raise_exception=True)
+            return data.validated_data["file"]
+
         result = services.create_order_document(
             actor=request.user,
             organization_id=workspace_id,
             order_id=order_id,
-            file=uploaded,
-            content_type=getattr(uploaded, "content_type", ""),
+            file=upload_data,
             materialize=lambda document: OrderDocumentSerializer(document).data,
         )
         return Response(result, status=201)

@@ -164,6 +164,46 @@ class StrictInputSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
 
+class DraftOrderConversionInputSerializer(StrictInputSerializer):
+    """Conversion accepts an empty JSON object and no business overrides."""
+
+
+class DraftReadinessReasonSerializer(serializers.Serializer):
+    code = serializers.CharField(read_only=True)
+    count = serializers.IntegerField(read_only=True)
+
+
+class DraftOrderReadinessSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    organization_id = serializers.UUIDField(read_only=True)
+    ready_to_convert = serializers.BooleanField(read_only=True)
+    line_count = serializers.IntegerField(read_only=True)
+    blocking_reasons = DraftReadinessReasonSerializer(many=True, read_only=True)
+
+
+class DraftOrderConversionSerializer(serializers.ModelSerializer):
+    organization_id = serializers.UUIDField(read_only=True)
+    source_draft_id = serializers.UUIDField(read_only=True)
+    order_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PurchaseOrder
+        fields = (
+            "id",
+            "organization_id",
+            "source_draft_id",
+            "purchase_order_number",
+            "order_url",
+        )
+        read_only_fields = fields
+
+    def get_order_url(self, order):
+        return reverse(
+            "workspaces:orders:detail",
+            kwargs={"workspace_id": order.organization_id, "order_id": order.pk},
+        )
+
+
 class DraftOrderCustomerFieldsSerializer(StrictInputSerializer):
     customer_name = serializers.CharField(
         max_length=255, allow_blank=True, required=False, trim_whitespace=False

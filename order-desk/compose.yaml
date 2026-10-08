@@ -6,6 +6,7 @@ x-backend: &backend
   working_dir: /app
   volumes:
     - ./backend:/app
+    - ./frontend:/frontend:ro
   depends_on:
     db:
       condition: service_healthy

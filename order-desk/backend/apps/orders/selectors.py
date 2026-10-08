@@ -3,6 +3,8 @@
 from uuid import UUID
 
 from django.db.models import Count, Prefetch, Q, QuerySet
+from django.db.models.functions import Length
+from django.db.models.lookups import GreaterThan
 from django.shortcuts import get_object_or_404
 
 from apps.orders.models import (
@@ -47,6 +49,34 @@ def get_draft_review(organization_id: UUID, order_id: UUID) -> DraftOrder:
                 draft_lines__catalogue_item__organization_id=organization_id,
                 draft_lines__catalogue_item__is_active=False,
             ),
+        ),
+    )
+    return get_object_or_404(orders, pk=order_id)
+
+
+def get_draft_readiness(organization_id: UUID, order_id: UUID) -> DraftOrder:
+    lines = Q(draft_lines__organization_id=organization_id)
+    orders = DraftOrder.objects.filter(organization_id=organization_id).annotate(
+        line_count=Count("draft_lines", filter=lines),
+        unmatched_line_count=Count(
+            "draft_lines", filter=lines & Q(draft_lines__catalogue_item_id__isnull=True)
+        ),
+        missing_quantity_line_count=Count(
+            "draft_lines", filter=lines & Q(draft_lines__quantity__isnull=True)
+        ),
+        inactive_catalogue_line_count=Count(
+            "draft_lines",
+            filter=lines
+            & Q(
+                draft_lines__catalogue_item__organization_id=organization_id,
+                draft_lines__catalogue_item__is_active=False,
+            ),
+        ),
+        long_catalogue_sku_line_count=Count(
+            "draft_lines",
+            filter=lines
+            & Q(draft_lines__catalogue_item_id__isnull=False)
+            & Q(GreaterThan(Length("draft_lines__catalogue_sku_snapshot"), 128)),
         ),
     )
     return get_object_or_404(orders, pk=order_id)

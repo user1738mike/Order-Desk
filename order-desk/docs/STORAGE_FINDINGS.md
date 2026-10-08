@@ -1,5 +1,24 @@
 # Document-upload storage prerequisites
 
+## Current status after upload hardening
+
+Actual-byte containment and compensating rollback cleanup are implemented and
+tested locally. See [upload contract](ORDER_DOCUMENT_UPLOAD_HARDENING.md) and
+[project state](PROJECT_STATE.md) for commands/results. The historical orphan
+probe below is superseded by permanent cleanup regressions, including row-save,
+materialization, partial-storage-write and transaction-commit failures. The
+endpoint enforces an inclusive 10 MiB actual-file-byte limit before storage.
+
+Private production storage/retrieval and content/parser safety remain open.
+Cleanup deletion failure or process termination can still leave an orphan;
+durable reconciliation and alternate-storage semantics are not verified.
+Do not infer production readiness from the local cleanup tests. The separate
+[draft readiness contract](AI_Order_Desk_Step_04D9_Draft_Readiness.md) and
+[atomic internal conversion](AI_Order_Desk_Step_04D10_Draft_Conversion.md) are now
+implemented. Neither performs file intake or establishes production storage safety.
+
+## Historical audited findings before remediation
+
 Sanitized post-audit findings, 2026-10-08. These concern the older purchase-order
 document endpoint, not draft attachment (which links catalogue rows).
 No application remediation is included in the documentation/reproducibility
@@ -48,7 +67,7 @@ require separate evidence. Do not declare dependent document intake or
 finalization ready while these prerequisites are open. Production deployment,
 TLS, storage ACLs, backup/restore and real customer files remain unverified.
 
-**Exact next task:** define and implement protected purchase-order document upload
+**Historical next task:** define and implement protected purchase-order document upload
 hardening in one focused tested increment: actual-byte containment and new-file
 cleanup on transaction/materialization failure, preserving authorization/RLS and
 existing contracts. Record unresolved private-storage/content handling decisions

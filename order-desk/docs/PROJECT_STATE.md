@@ -1,6 +1,207 @@
 # Project state
 
-## Active checkpoint: post-audit reconciliation and reproducibility
+## Active checkpoint: first frontend login, workspace and catalogue workflow
+
+2026-10-08, main at aac1e453ed613a306b21dc5f592ab0a88a7a5df0; working-tree
+implementation, preserving all earlier upload/readiness/conversion edits.
+The referenced frontend prompt was absent at the supplied Downloads path;
+implemented the explicit user request using actual repository/API contracts.
+ADR-001 specifies same-origin sessions but no frontend framework, so this small
+increment uses a public Django shell and dependency-free browser ES modules.
+No dependency pins, database schema, tenant services or permission rules changed.
+
+Delivered sign-in/out, active workspace discovery with load-more, freshly
+validated current selection/reload, and read-only catalogue browsing with
+literal search, active/inactive/all filters and fixed 50-row pages. Loading,
+empty/no-membership, invalid credentials, unavailable server and expired/revoked
+access states are explicit. Session cookies remain HttpOnly; CSRF is refreshed for
+mutations and replaced after login rotation. Requests use relative same-origin
+paths, no-store and rejected redirects. No credentials/CSRF tokens in browser
+storage APIs or URLs.
+Rows clear before workspace changes and on denial; cancelled/late responses
+cannot restore a previous workspace. Tab/history restoration revalidates context.
+All API/user text is inserted with textContent, not HTML interpretation.
+
+Files: frontend template, API client/controller/DOM renderer/responsive CSS,
+package metadata and Node/browser tests; backend apps/web shell/config/tests;
+shared template/static settings, root URL and read-only Compose source mount.
+Docs: FIRST_FRONTEND_WORKFLOW, README, roadmap, master prompt, local verification
+and this state. Earlier backend work remains uncommitted and preserved. Private
+logs/audit files/browser screenshots/profiles remain ignored; temporary browser
+credentials and synthetic identities were cleaned. No commit/push performed.
+
+### Frontend verification
+
+All database fixture checks are sequential in dedicated PostgreSQL test_orderdesk.
+Node fake transports establish client behavior only. Native maintenance-role
+tests and restricted-role/browser tenant evidence are separate.
+
+| Actual command/check | Result |
+| --- | --- |
+| `node --test frontend/tests/*.test.js` | 18 passed; 0 failed/skipped. |
+| `docker compose run --rm manage python manage.py test apps.web.tests apps.accounts.tests apps.organizations.tests --settings=config.settings.test --keepdb --noinput -v 0` | 199 tests, 23.653s, OK; 2 new shell methods plus existing account/workspace regressions. |
+| `node frontend/tests/browser-smoke.mjs` | PASS in real Chromium: invalid/valid login, viewer catalogue, workspace selection/switch, search, status, pagination, reload, safe text, desktop/mobile, live membership revocation and logout; no uncaught browser exceptions. Server directly uses orderdesk_app/test_orderdesk; owner fixtures separate and cleaned. |
+| `docker compose run --rm rlscheck python manage.py verify_catalog_rls` | 115 tests, 256.708s, OK; direct restricted runtime, forced RLS/policies/grants audited; no skips. |
+| Initial full Django regression | 721 tests, 184.641s; 7 account failures caused by a browser-harness peer login counter left in the shared test database. No application assertions were loosened. Harness now observes the actual peer digest and removes only counters created by this run; corrected browser and full regressions rerun below. |
+| Corrected browser harness and cleanup | Browser workflow PASS again; guarded owner query confirms 0 remaining login counters and no browser synthetic users/workspaces; temporary credentials removed. |
+| `docker compose run --rm manage python manage.py test --settings=config.settings.test --keepdb --noinput -v 0` (final) | 721 tests, 170.311s, OK; no skips. Corrected harness leaves the shared test database clean. |
+| Ruff `check . ../scripts ../frontend/tests` and `format --check` from backend | Passed; 165 files already formatted. |
+| `docker compose config --quiet`; `manage makemigrations --check --dry-run`; `git diff --check` | Passed; no schema changes; existing CRLF normalization warnings only. |
+| `docker compose up -d --no-deps api`; live HTTP shell, main/API/controller JS, stylesheet and ready health | Existing API recreated with new read-only frontend mount; all six URLs 200 with appropriate content types; database preserved. |
+| Private artifacts | Screenshots/profile/temporary fixture paths ignored; credential fixture absent after cleanup; no temporary browser server remains. |
+
+Desktop/mobile screenshots were visually inspected. Production asset packaging,
+static serving/HTTPS/proxy deployment, wider browser compatibility and formal
+accessibility testing remain unverified. Existing operator provisioning remains
+necessary for accounts/memberships. No catalogue write/import UI, draft UI,
+storage/content safety, extraction or ERP-delivery claim. See
+[frontend contract/runbook](FIRST_FRONTEND_WORKFLOW.md).
+
+Next dependency order: frontend draft list/detail/review; then edit/readiness and
+administrator conversion; then separately agreed ERP/document-safety work.
+
+## Previous checkpoint: shared readiness and atomic internal draft conversion
+
+2026-10-08, main working tree, preserving all earlier upload-hardening edits.
+Implemented Step 4D.9 GET/HEAD readiness and Step 4D.10 administrator-only
+CSRF-protected JSON POST conversion. `/review/` remains observational. Readiness
+uses one explicitly scoped aggregate SELECT and a framework-independent evaluator
+shared by conversion. Reference/unit remain optional; positive quantities, active
+catalogue matches and 128-character SKU snapshots are required.
+
+Conversion owns one organization-first write transaction, refreshes access after
+the lock, locks source/lines, evaluates current readiness, creates the existing
+purchase-order model and independent line copies, seals a unique source link,
+marks the source converted, materializes the bounded response and commits.
+First success is 201, fresh authorized valid replay 200 with the same order.
+An internal `DRAFT-<UUID hex>` number is generated; unrelated reserved-number
+collisions are 409 and never adopted. No client business overrides, guessed
+prices/units, file processing or external effects. Source reference/intake text
+remain private on the frozen source. Actor/time reuse order created_by/created_at;
+no audit-event mechanism exists and no audit-completeness claim is made.
+
+Additive migration 0008 introduces nullable unique source_draft linkage,
+composite tenant FK, converted source state, invoker snapshot guards and deferred
+complete-copy/linkage checks. Existing orders remain unlinked and unchanged.
+Converted source headers/lines and copied order identity/customer/lines freeze;
+normal order review transitions and document/manual review handling remain.
+Status UPDATE grants now require conversion guards in the fail-closed role check;
+other immutable-column assertions remain intact. Existing RLS policies/grants
+stay restricted, with runtime-only admin linkage/status enforcement. Explicit
+maintenance deletion remains available for reviewed repair and fixture cleanup.
+
+Files: orders models, readiness, selectors, services, serializers, views, URLs,
+0008 migration, guarded verifier/runtime tests; native readiness/conversion/race/
+upgrade modules; health role check and its additional guard regression. Docs:
+Step 4D.9/4D.10, README, roadmap, master prompt, storage findings and this state.
+Earlier upload changes are preserved. Private audit/log/override files remain
+ignored and untracked. Conversion does not depend on file parsing or establish
+production storage/content safety, ERP compatibility or legal approval.
+
+### Conversion verification
+
+Commands ran from order-desk; fixtures ran sequentially in dedicated PostgreSQL
+test_orderdesk. Native maintenance-role evidence and restricted runtime evidence
+are separate. No SQLite or mocked checks substitute for RLS or races.
+
+| Gate / actual command | Observed result |
+| --- | --- |
+| Readiness prerequisite: manage `test apps.orders.tests.test_draft_readiness apps.orders.tests.test_draft_review_api --settings=config.settings.test --keepdb --noinput -v 0` | 16 tests, 6.113s, OK. |
+| Readiness prerequisite: rlscheck `python manage.py verify_order_rls` | 42 tests, 90.410s, OK, direct orderdesk_app on test_orderdesk. |
+| Conversion red test: manage `test apps.orders.tests.test_draft_conversion.DraftConversionTests.test_first_conversion_and_lost_response_retry_return_same_order --settings=config.settings.test --keepdb --noinput -v 0` | One expected assertion failure, 0.454s: absent convert route returned 404 instead of 201. |
+| Focused final candidate: manage `test apps.orders.tests.test_draft_conversion_migration apps.orders.tests.test_draft_conversion apps.orders.tests.test_draft_readiness apps.orders.tests.test_draft_conversion_concurrency apps.health.tests.test_runtime_role --settings=config.settings.test --keepdb --noinput -v 0` | 26 tests, 13.781s, OK; both serial orders across eight competing mutation types, upgrade preserves legacy rows. |
+| Fresh installation in disposable orderdesk-conversion-install Compose project | All migrations from zero through orders 0008; 21 conversion/readiness/race tests, 12.386s, OK. Test database is test_orderdesk; tmpfs, no host ports or persistent data volume. Project removed afterwards without touching existing databases. |
+| Full native: `docker compose run --rm manage python manage.py test --settings=config.settings.test --keepdb --noinput -v 0` | 719 tests, 214.080s, OK. |
+| Final order: `docker compose run --rm rlscheck python manage.py verify_order_rls` | 46 tests, 148.280s, OK, directly restricted orderdesk_app on test_orderdesk; concurrency and blocked revocation/demotion use independent runtime connections. |
+| Final catalogue: `docker compose run --rm rlscheck python manage.py verify_catalog_rls` | 115 tests, 349.500s, OK, directly restricted orderdesk_app on test_orderdesk. |
+| Host Ruff `check . ../scripts`, `format --check . ../scripts` from backend | All checks passed; 158 files already formatted. |
+| Local model/migration/runtime checks | `makemigrations --check --dry-run`: no changes; `migrate --plan`: only orders 0008; sanitized source-state preflight: zero unsupported states; `migrate --noinput`: 0008 OK; `migrate --check`: exit 0; API `check_runtime_role`: restricted. No main business fixtures or data repairs. |
+| Final Compose/system/dependency/health/guard checks | Compose config and manage system check exit 0; seven installed packages compatible via `uv pip check --python /opt/venv/bin/python`; live/ready HTTP 200 status ok; both API verifier invocations refuse main before fixtures with expected exit 1/test_orderdesk refusal. |
+| Documentation links / whitespace / ignore checks | Eight maintained files' local links resolve; Git diff whitespace passes; private audit/log/temporary override paths ignored, no tracked backend/var files. |
+
+All final gates passed without unittest skips or verification blockers.
+Initial fixture issues were corrected without loosening assertions: revocation
+must occur before read-only transaction entry; real-role inserts use scalar IDs
+rather than assigning maintenance-alias objects. The first runtime metadata gate
+correctly rejected the new status grant until the role checker was updated to
+require conversion guards. Final gate results above supersede those failed runs.
+Fresh installation used `docker compose -p orderdesk-conversion-install -f
+compose.yaml -f backend/var/draft_conversion_install.compose.yaml` for config,
+db startup, dbsetup, focused test run, test-database showmigrations and down.
+The ignored override removes DB ports/volumes and adds tmpfs only; credentials
+were reused without printing them. Existing main/test databases were never reset.
+The changes remain in the existing working tree; no commit, push, reset or
+unrelated-work discard was performed in this conversion increment. Host helper
+scripts and frontend/browser tests were not rerun: scripts are unchanged and the
+frontend remains a placeholder. No production deployment or content/storage
+verification is inferred from these local PostgreSQL results.
+
+Next task, only when requested: the first frontend session/workspace/read-only
+catalogue increment. Keep internal conversion distinct from ERP export and
+production release. Detailed API/transaction/snapshot boundaries are in
+[conversion contract](AI_Order_Desk_Step_04D10_Draft_Conversion.md).
+
+## Historical checkpoint: upload hardening and draft readiness definition
+
+2026-10-08, main working tree based on
+aac1e453ed613a306b21dc5f592ab0a88a7a5df0. Existing local work/history is
+preserved. Purchase-order document uploads now have an inclusive 10 MiB actual
+file-byte limit at multipart parsing (including CSRF) and independently in the
+framework-independent service. Aggregate duplicate uploads cannot evade it.
+Oversize returns stable HTTP 413 before document/storage writes; ordinary
+validation retains its existing 400 translation. Current writer/parent/state
+checks precede application input validation.
+
+Server-generated storage paths belong to a single attempt. Exceptions during
+storage write, database insertion, response materialization or commit trigger
+compensating deletion after rollback, preserving existing files and the original
+error. Temporary streams close on success/failure. Failed deletion logs a
+constant sanitized message and may leave an orphan; process termination,
+ambiguous commit outcomes, alternate storage backends and durable recovery are
+not solved by this compensation. No migration, grant, dependency or public
+download route was added. Production storage ACLs and content/parser safety
+remain unverified; see [upload contract](ORDER_DOCUMENT_UPLOAD_HARDENING.md) and
+[remaining storage findings](STORAGE_FINDINGS.md).
+
+Defined [Step 4D.9 readiness](AI_Order_Desk_Step_04D9_Draft_Readiness.md) separately:
+customer name, at least one line, positive quantities, active catalogue matches
+and SKU snapshots fitting the purchase-order 128-character limit. Reference/unit
+remain optional. Active-match policy is an explicit conservative assumption
+pending business feedback. `/review/` remains observational. Readiness endpoint,
+conversion, converted status and repeat-safe conversion identity are not
+implemented. Next: implement this read-only contract with native and real-role
+tests, then define conversion's identity/locking/retry contract.
+
+### Files and actual verification
+
+Production: orders `document_files.py`, `uploads.py`, `services.py`, `views.py`.
+Regressions: expanded `test_order_document_upload_storage.py` (17 methods total)
+and one credential-session test in `runtime_rls.py` (41 checks total).
+Docs: upload/readiness contracts, this state, storage findings, roadmap and master
+prompt. Existing assertions are preserved. Private audit files, local uploads and
+all logs remain ignored under backend/var/; no tracked file exists there.
+
+Commands ran from order-desk using existing Compose, sequential test fixtures
+and the dedicated PostgreSQL test_orderdesk:
+
+| Command | Actual result |
+| --- | --- |
+| `docker compose run --rm manage python manage.py test apps.orders.tests.test_order_document_upload_storage apps.orders.tests.test_services --settings=config.settings.test --keepdb --noinput -v 0` | 25 tests, 8.934s, OK. |
+| `docker compose run --rm manage python manage.py test --settings=config.settings.test --keepdb --noinput -v 0` | 696 tests, 184.431s, OK. |
+| `docker compose run --rm rlscheck python manage.py verify_order_rls` | 41 tests, 60.752s, OK; directly restricted orderdesk_app, test_orderdesk. |
+| `docker compose run --rm rlscheck python manage.py verify_catalog_rls` | 115 tests, 263.878s, OK; directly restricted orderdesk_app, test_orderdesk. |
+| Host Ruff from backend: `ruff check . ../scripts`, `ruff format --check . ../scripts` | All checks passed; 153 files already formatted. |
+| `docker compose config --quiet`; manage `check`, `makemigrations --check --dry-run`, `migrate --check` | All exit 0; no system issues, model drift or pending migrations. No migrations applied. |
+| `docker compose exec -T api python manage.py check_runtime_role`; HTTP health probes | Role restricted; `/api/v1/health/live/` and `ready/` HTTP 200, status ok. |
+| API `verify_order_rls` and `verify_catalog_rls` guard checks | Both refuse the main database before fixtures, expected exit 1 with the required test_orderdesk refusal message. |
+
+No unittest skips in any test gate. Native tests use maintenance
+credentials and do not establish runtime isolation; direct restricted-role
+verifiers are separate evidence. Logs include expected synthetic error responses
+from failure-path tests; overall result above is the runner's actual result.
+No readiness tests ran because only its next-step contract is defined here.
+
+## Historical checkpoint: post-audit reconciliation and reproducibility
 
 This increment reconciles the actual backend inventory and local verification
 instructions, and delivers the existing protected draft editing/review work.

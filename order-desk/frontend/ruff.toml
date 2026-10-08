@@ -1,0 +1,5 @@
+# The browser fixture imports backend apps through Django's management shell.
+extend = "../backend/pyproject.toml"
+
+[lint.isort]
+known-first-party = ["apps", "config"]

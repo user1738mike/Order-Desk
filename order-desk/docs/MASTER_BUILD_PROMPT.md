@@ -1,18 +1,19 @@
 # Master build prompt
 
-Current checkpoint: post-audit documentation/reproducibility and stable
-verified delivery are complete. Read PROJECT_STATE.md, LOCAL_VERIFICATION.md and
-STORAGE_FINDINGS.md. The backend through 4D.8 exists; the frontend is only a
-placeholder. The private full audit is ignored and must not be published.
-Canonical checks use the active checkout, dedicated test_orderdesk and directly
-restricted runtime verifiers, with owner-role evidence kept separate.
-The confirmed document-file rollback gap and actual-byte containment checks
-require review and completion of the concurrent upload-hardening increment
-before dependent intake/
-finalization is ready. Then define the separate read-only readiness contract;
-do not implement readiness or conversion during reconciliation. Preserve locks,
-synthetic fixtures, tenant boundaries and the $0 budget. Current delivery and
-verification outcomes are maintained in PROJECT_STATE.md.
+Current checkpoint: upload hardening, draft readiness and atomic repeat-safe
+internal draft conversion are implemented locally. Read PROJECT_STATE.md,
+ORDER_DOCUMENT_UPLOAD_HARDENING.md, STORAGE_FINDINGS.md and Step 4D.9/4D.10
+contracts. Administrator conversion creates a uniquely source-linked internal
+draft purchase order; source/copy snapshots freeze, normal order review remains.
+`/review/` stays observational. The first frontend session/workspace/read-only
+catalogue workflow is implemented; read FIRST_FRONTEND_WORKFLOW.md and its actual
+verification in project state. Next: frontend draft review/edit/readiness and
+administrator conversion, when requested. Production storage/content safety remains unverified.
+Canonical checks use dedicated test_orderdesk and directly restricted runtime
+verifiers; owner-role and mocked client tests are separate evidence.
+Private audit files/logs remain ignored and must not be published. Preserve locks,
+synthetic fixtures, tenant boundaries and the $0 budget. Actual verification
+outcomes are maintained in PROJECT_STATE.md.
 
 ## Historical checkpoint prompts
 

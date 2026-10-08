@@ -31,8 +31,9 @@ uv 0.12.23 and Ruff 0.16.10; Compose pins PostgreSQL 18.6-bookworm.
 `backend/Dockerfile` are authoritative. Keep the existing locks and $0 budget.
 Docker builds use `uv sync --locked`; no new dependency resolution is needed.
 The existing editor environment is `../.venv`, using the same lock; see
-[editor setup](EDITOR_SETUP.md) to provision/resync it. No frontend build or
-test exists: `frontend/.gitkeep` is a placeholder.
+[editor setup](EDITOR_SETUP.md) to provision/resync it. The frontend uses native
+browser modules without a build/install step; Node tests and real-browser checks
+are documented in [the frontend guide](FIRST_FRONTEND_WORKFLOW.md).
 
 ## Initial local setup
 
