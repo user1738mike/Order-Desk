@@ -3,7 +3,10 @@
 Sanitized post-audit findings, 2026-10-08. These concern the older purchase-order
 document endpoint, not draft attachment (which links catalogue rows).
 No application remediation is included in the documentation/reproducibility
-increment. Existing passing suites do not close these gaps.
+increment. Existing passing suites do not close these gaps. Concurrent local
+upload-hardening edits and tests appeared after reconciliation began; they are
+preserved but excluded from this documentation delivery and not declared ready.
+The findings below describe the audited/published backend before those edits.
 
 ## Affected implementation
 
