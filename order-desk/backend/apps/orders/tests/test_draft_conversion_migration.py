@@ -14,6 +14,9 @@ class DraftConversionMigrationTests(TransactionTestCase):
         previous = [("orders", "0007_draft_order_boundary")]
         target = [("orders", "0008_draft_conversion")]
         executor = MigrationExecutor(connection)
+        # Restore the current schema after exercising the historical upgrade;
+        # otherwise later tests run against a schema missing newer columns.
+        current = executor.loader.graph.leaf_nodes()
         executor.migrate(previous)
         try:
             apps = executor.loader.project_state(previous).apps
@@ -44,4 +47,4 @@ class DraftConversionMigrationTests(TransactionTestCase):
                 ("0001", "1.1250", "ea"),
             )
         finally:
-            MigrationExecutor(connection).migrate(target)
+            MigrationExecutor(connection).migrate(current)

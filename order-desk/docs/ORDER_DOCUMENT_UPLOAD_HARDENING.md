@@ -78,6 +78,12 @@ Actual results are recorded in [project state](PROJECT_STATE.md). Fixtures use
 the dedicated PostgreSQL test database and temporary MEDIA_ROOT. Native owner-
 role tests establish application behavior; only the direct restricted-role
 verifiers provide runtime RLS evidence. Logs/private audit files remain ignored.
-Production private-storage ACLs, authenticated retrieval, content eligibility
-and safe automatic intake remain separate prerequisites in
+Production ACLs and safe automatic extraction remain separate prerequisites in
 [storage findings](STORAGE_FINDINGS.md).
+
+## Private intake extension (2026-10-09)
+
+The legacy contract above remains compatible. New operator uploads use the
+explicit PDF/CSV private intake route, immutable source digest and authorized
+download described in [SECURE_DOCUMENT_INTAKE.md](SECURE_DOCUMENT_INTAKE.md).
+Legacy bytes are not automatically relocated or exposed through that route.

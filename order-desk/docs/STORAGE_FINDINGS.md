@@ -1,5 +1,14 @@
 # Document-upload storage prerequisites
 
+## Secure local intake update (2026-10-09)
+
+The explicit private intake route, persistent Linux volume, bounded PDF/CSV
+eligibility, source digest, authorized attachment download and operator UI now
+exist. See [current contract](SECURE_DOCUMENT_INTAKE.md) and actual verification
+in PROJECT_STATE.md. The findings below are historical evidence; legacy files
+remain unadopted, and production ACL/proxy/backup, malware scanning and extraction
+remain separate prerequisites. Database RLS evidence does not establish those.
+
 ## Current status after upload hardening
 
 Actual-byte containment and compensating rollback cleanup are implemented and

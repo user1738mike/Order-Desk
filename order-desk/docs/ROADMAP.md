@@ -4,8 +4,10 @@
 
 The active repository contains backend work through Step 4D.8 plus protected
 purchase-order upload byte limits and compensating rollback cleanup, Step 4D.9
-readiness and Step 4D.10 atomic repeat-safe internal conversion. See
-[project state](PROJECT_STATE.md) for actual delivery/results and
+readiness and Step 4D.10 atomic repeat-safe internal conversion. The local
+secure purchase-order document intake/status/download contract is in
+[SECURE_DOCUMENT_INTAKE.md](SECURE_DOCUMENT_INTAKE.md), alongside the draft editor.
+See [project state](PROJECT_STATE.md) for actual delivery/results and
 [local verification](LOCAL_VERIFICATION.md) for repeatable checks.
 The 2026-10-08 audit verified the local working tree, including then-uncommitted
 work. Historical walkthroughs describe their original increments; their
@@ -24,7 +26,8 @@ upgrade, clean-install and local application evidence is in project state.
 | Partial | File capture and manually supplied extraction-review metadata; workspace administration through services/local provisioning; creator/reviewer/timestamp metadata. These do not establish automatic extraction, customer administration UI/API, an append-only audit history or external fulfillment. Private production storage and content handling prerequisites remain open; local upload byte limits and rollback cleanup are tested. |
 | Implemented and verified locally | First frontend session login/logout, workspace discovery/selection and read-only catalogue search/filter/pagination; native modules and Django shell, same-origin cookies/CSRF. Real Chromium, 18 client tests, 721 native regressions and 115 restricted-role catalogue checks passed; remaining production/browser prerequisites are in project state and the frontend guide. |
 | Implemented locally; current verification in project state | Frontend draft list/detail/readiness, administrator conversion/replay, manual creation/header/line editing and catalogue attach/detach; aggregate revision/If-Match checks under the existing tenant write lock. No line deletion. See draft frontend contracts and current results rather than historical test totals. |
-| Planned only | Secure document intake UI, PDF/order-CSV/OCR/AI extraction, automatic/fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. Catalogue CSV import is already implemented; order-document CSV extraction is separate. |
+| Implemented locally; verification in project state | Private purchase-order PDF/CSV intake, status pages and authorized original-byte download; persistent Linux volume, digest verification, rollback cleanup and leased local orphan recovery. Legacy adoption and production operations remain open. See SECURE_DOCUMENT_INTAKE.md. |
+| Planned only | PDF/order-CSV/OCR/AI extraction, automatic/fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. Catalogue CSV import is already implemented; order-document CSV extraction is separate. |
 
 ## Implemented backend increments
 
@@ -75,11 +78,11 @@ with the dedicated PostgreSQL test settings. Runtime checks are separate.
 The reconciliation increment delivers the existing verified work and the current
 documentation/runbook; its actual commit/push outcome is recorded in project state.
 
-1. Resolve private storage and document content-handling prerequisites before
-   adding secure document intake to the operator UI.
-2. Implement authorized upload/status/download UI against those verified contracts;
-   keep extraction separate.
-3. Define extraction/review and ERP export profiles before dependent automation. Remaining
+1. Define an extraction result/review contract using immutable private sources;
+   decide content scanning requirements before introducing any parser execution.
+2. Implement one bounded extraction format with synthetic fixtures and mandatory
+   staff review; keep private sources and tenant permissions intact.
+3. Define ERP export profiles before dependent automation. Remaining
    [storage prerequisites](STORAGE_FINDINGS.md) and production operations require
    their own verification; internal conversion is not ERP or launch readiness.
 

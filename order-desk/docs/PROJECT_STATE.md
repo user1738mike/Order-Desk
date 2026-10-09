@@ -1,6 +1,72 @@
 # Project state
 
-## Active checkpoint: draft review, manual editing and aggregate conflict protection
+## Active checkpoint: secure purchase-order document intake
+
+2026-10-09: began on main at efa90e7. While verification was in progress the user
+committed the intake implementation as e7a10edc2ee7b044e6cda7e1ffb59c4710c60471.
+That commit and all existing work were preserved. Additional integrity/runtime
+regressions, migration-test cleanup and documentation remain local changes. No
+agent commit or push was performed; the attachment was technical reference for
+the requested feature, not separate publication authorization.
+
+Delivered PDF/CSV upload, fixed-page scalar status and deliberate authorized
+original-byte download in the native operator UI. Documents attach to existing
+purchase orders, including a confirmed conversion result; they do not attach to
+source draft orders. Admin/reviewer uploads, member reads, fresh tenant rechecks,
+inclusive actual 10 MiB limits, bounded eligibility, private persistent Linux
+volume, exclusive keys, source SHA-256, safe attachment headers and local leased
+orphan recovery are implemented. No extraction or automatic review is claimed.
+See [contract and file responsibilities](SECURE_DOCUMENT_INTAKE.md).
+
+Final native verification:
+
+- `docker compose run --rm manage python manage.py test apps.orders.tests.test_private_document_intake apps.orders.tests.test_order_document_upload_storage apps.orders.tests.test_draft_conversion_migration --settings=config.settings.test --keepdb --noinput`:
+  **36 tests, 9.510s, OK**, dedicated PostgreSQL test_orderdesk. New intake module
+  has 18 tests, including boundaries, eligibility, collision/symlink protection,
+  rollback/ambiguous commit, unchanged committed bytes, corruption, revocation,
+  CSRF, compatible FileField reads and bounded leased orphan recovery.
+- `docker compose run --rm manage python manage.py test --settings=config.settings.test --keepdb --noinput`:
+  **746 tests, 160.752s, OK**. Maintenance-role behavior tests are not runtime RLS
+  evidence. The first full run failed (6 failures/20 errors) because the historical
+  conversion migration test left schema 0008 installed. Its finally block now
+  restores current graph leaves without changing upgrade assertions. The corrected
+  focused and full runs passed. An earlier focused command also named a nonexistent
+  legacy module; the corrected command above supersedes that invocation.
+- `docker compose run --rm rlscheck python manage.py verify_order_rls`:
+  **47 tests, 94.567s, OK**, direct restricted orderdesk_app on test_orderdesk with
+  separately audited owner fixtures. New real-session evidence covers private
+  upload/download, required digest DB constraint, foreign parent denial, viewer
+  mutation denial and revoked download denial. Runtime order RLS verification passed.
+- `node --test frontend/tests/*.test.js`: **58 passed**, zero failures/skips.
+  Nine new document controller/transport tests cover FormData/CSRF, limits,
+  duplicate suppression, ambiguous outcomes, status validation, context changes,
+  exact blob size and fresh denial handling.
+- `node frontend/tests/browser-smoke.mjs`: **PASS** on real Chromium with two
+  authenticated profiles, direct orderdesk_app backend, isolated temporary storage
+  and synthetic test_orderdesk fixtures. Verified PDF/CSV UI uploads, malformed and
+  actual 10 MiB+1 rejection, received status, attachment headers and exact browser-
+  saved bytes, viewer write denial, foreign/revoked download denial, mobile overflow
+  check and existing session/catalogue/manual-edit/conversion regressions. Mobile
+  screenshot was inspected; fixture cleanup completed and the temporary server
+  stopped. Existing CDP harness was reused rather than adding Playwright dependencies.
+- No separate JS build or TypeScript check applies to this native-module frontend.
+  Production proxy/TLS and non-Linux storage verification were not run or claimed.
+- Ruff checks passed for backend/frontend helpers and scripts (scripts explicitly
+  use `--config backend/pyproject.toml`); format check passed. An initial scripts
+  check inherited the parent workspace config and reported three unrelated lint
+  findings; the repository-configured check passed without modifying those files.
+- Compose config passed; `makemigrations --check --dry-run` reported no changes.
+  Migration 0009 applied successfully to the local development DB. `docker compose
+  up -d api` initialized the named private volume; API inspection confirmed 0700
+  and runtime-user ownership. Ready health and operator shell returned 200.
+
+Private logs, source fixtures, screenshots and downloaded browser artifacts remain
+ignored under backend/var. Production proxy limits, malware/deep PDF validation,
+legacy-byte adoption, scheduled recovery/capacity limits and database+volume backup
+restore remain unverified. The compatible legacy generic upload API is unchanged;
+its bytes are not automatically exposed by the new private download route.
+
+## Previous checkpoint: draft review, manual editing and aggregate conflict protection
 
 ### Committed delivery recheck
 

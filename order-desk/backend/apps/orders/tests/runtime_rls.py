@@ -432,6 +432,58 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
             self.assertEqual(response.status_code, 403, response.content)
             self._assert_clean()
 
+    def test_private_intake_and_download_with_restricted_runtime_role(self):
+        raw = b"%PDF-1.7\nSynthetic runtime source\n%%EOF\n"
+        order = self.rows[self.a.pk][PurchaseOrder]
+        path = f"/api/v1/workspaces/{self.a.pk}/orders/{order.pk}/documents/intake/"
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            client, token = self._credential_client(self.admin)
+            response = client.post(
+                path,
+                {"file": SimpleUploadedFile("source.pdf", raw)},
+                format="multipart",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(response.status_code, 201, response.content)
+            body = response.json()
+            download = client.get(body["download_url"])
+            self.assertEqual(download.status_code, 200)
+            self.assertEqual(b"".join(download.streaming_content), raw)
+            download.close()
+            self._expect_error(
+                "23514",
+                self._write_scope(),
+                lambda: OrderDocument.objects.filter(pk=body["id"]).update(
+                    source_sha256=""
+                ),
+            )
+            foreign = self.rows[self.b.pk][PurchaseOrder]
+            self.assertEqual(
+                client.get(
+                    body["download_url"].replace(str(order.pk), str(foreign.pk))
+                ).status_code,
+                404,
+            )
+            viewer, token = self._credential_client(self.viewer)
+            self.assertEqual(viewer.get(body["download_url"]).status_code, 200)
+            self.assertEqual(
+                viewer.post(
+                    path,
+                    {"file": SimpleUploadedFile("source.pdf", raw)},
+                    format="multipart",
+                    HTTP_X_CSRFTOKEN=token,
+                ).status_code,
+                403,
+            )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=self.viewer, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(viewer.get(body["download_url"]).status_code, 403)
+            self._assert_clean()
+
     def setUp(self) -> None:
         self.user_ids: list[UUID] = []
         self.workspace_ids: list[UUID] = []

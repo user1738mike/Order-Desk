@@ -274,6 +274,36 @@ class PrivateDocumentIntakeTests(TransactionTestCase):
             404,
         )
 
+    def test_same_size_source_corruption_is_not_downloaded(self):
+        response = self.upload()
+        path = self.files()[0]
+        path.chmod(0o600)
+        path.write_bytes(b"x" * len(PDF))
+        path.chmod(0o400)
+        self.assertEqual(
+            self.client.get(response.json()["download_url"]).status_code, 503
+        )
+
+    def test_committed_metadata_survives_lost_commit_acknowledgement(self):
+        original = connection._commit
+        calls = 0
+
+        def commit():
+            nonlocal calls
+            calls += 1
+            result = original()
+            if calls == 2:
+                raise IntegrityError("synthetic acknowledgement loss")
+            return result
+
+        with patch.object(connection, "_commit", side_effect=commit):
+            response = self.upload()
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(OrderDocument.objects.count(), 1)
+        self.assertEqual(self.files()[0].read_bytes(), PDF)
+        self.assertFalse(connection.in_atomic_block)
+        self.assertEqual(self.client.get(self.url).json()["count"], 1)
+
     def test_revocation_during_streaming_is_rechecked_at_finalization(self):
         original = staged_document
         from contextlib import contextmanager

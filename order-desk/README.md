@@ -3,8 +3,10 @@
 Django backend for turning distributors' purchase orders into checked ERP-ready
 orders. We are building it collaboratively in small, verified steps.
 
-Current checkpoint: **Draft review and manual editing, with aggregate conflict
-protection and internal conversion**. Open `http://127.0.0.1:8000/` after starting
+Current checkpoint: **Secure purchase-order document upload, status and authorized
+download**, alongside draft review, manual editing and conversion. See the
+[private intake contract](docs/SECURE_DOCUMENT_INTAKE.md).
+Open `http://127.0.0.1:8000/` after starting
 the API; see the [frontend guide](docs/FIRST_FRONTEND_WORKFLOW.md),
 [draft review](docs/DRAFT_REVIEW_FRONTEND.md) and
 [manual editing](docs/MANUAL_DRAFT_EDITING_FRONTEND.md).
