@@ -363,10 +363,52 @@ try {
   const firstDocument = listedDocuments.results[0];
   for (let count=0; count<100 && !existsSync(resolve(downloadDirectory, firstDocument.original_name)); count++) await delay(100);
   assert.equal(await readFile(resolve(downloadDirectory, firstDocument.original_name), 'utf8'), firstDocument.original_name.endsWith('.csv') ? sourceCsv : sourcePdf);
+  // Queue from the actual operator UI; a separate restricted process dies after
+  // claiming, then another invocation recovers the durable expired lease.
+  await evaluate("[...document.querySelectorAll('#documents-rows button')].find(b=>b.textContent==='CSV extraction').click()");
+  await waitFor("!document.getElementById('extraction-queue').disabled");
+  await evaluate("document.getElementById('extraction-queue').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('Queued')");
+  const csvDocument = listedDocuments.results.find(row => row.original_name.endsWith('.csv'));
+  const queued = await evaluate(`fetch(${JSON.stringify(csvDocument.extraction_url)}).then(r=>r.json())`);
+  const crashScript = "import os; from unittest.mock import patch; from django.core.management import call_command\nwith patch('apps.orders.extraction_services.LEASE_SECONDS', -1), patch('apps.orders.extraction_services.extract_csv', side_effect=lambda source: os._exit(9)):\n call_command('process_csv_extraction', workspace='" + data.a + "', actor='" + data.user + "', job='" + queued.job.id + "')";
+  const crashed = spawnSync('docker', ['exec', container, 'python', 'manage.py', 'shell', '-c', crashScript], { cwd: root, windowsHide: true, encoding: 'utf8' });
+  assert.equal(crashed.status, 9, 'Synthetic processor must exit after durable claim.');
+  await evaluate("document.getElementById('extraction-refresh').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('lease expired')");
+  function processCSV(jobId) {
+    const result = spawnSync('docker', ['exec', container, 'python', 'manage.py', 'process_csv_extraction', '--workspace', data.a, '--actor', data.user, '--job', jobId], { cwd: root, windowsHide: true, encoding: 'utf8' });
+    assert.equal(result.status, 0, `Restricted CSV processor failed: ${result.stderr}`);
+  }
+  processCSV(queued.job.id);
+  await evaluate("document.getElementById('extraction-refresh').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('ready for staff review')");
+  assert.match(await evaluate("document.getElementById('extraction-fields').textContent"), /0001.Mixed-Case.*source rows 2/);
+  assert.match(await evaluate("document.getElementById('extraction-fields').textContent"), /1.234/);
+  assert.equal(await evaluate(`fetch(${JSON.stringify(csvDocument.download_url)}).then(r=>r.text())`), sourceCsv);
+  await pickDocument('invalid-quantity.csv', 'sku,quantity\nA,1\nB,invalid\n');
+  await evaluate("document.getElementById('document-upload-form').requestSubmit()");
+  await waitFor("document.getElementById('documents-rows').textContent.includes('invalid-quantity.csv') && document.getElementById('documents-message').textContent.includes('Source received')");
+  await evaluate("[...document.querySelectorAll('#documents-rows tr')].find(r=>r.textContent.includes('invalid-quantity.csv')).querySelectorAll('button')[1].click()");
+  await waitFor("!document.getElementById('extraction-queue').disabled");
+  await evaluate("document.getElementById('extraction-queue').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('Queued')");
+  const failedDocument = await evaluate(`fetch(${JSON.stringify(documentBase + 'intake/')}).then(r=>r.json()).then(d=>d.results.find(r=>r.original_name==='invalid-quantity.csv'))`);
+  const failing = await evaluate(`fetch(${JSON.stringify(failedDocument.extraction_url)}).then(r=>r.json())`);
+  processCSV(failing.job.id);
+  await evaluate("document.getElementById('extraction-refresh').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('invalid_quantity at source row 3')");
+  assert.equal(await evaluate("document.getElementById('extraction-fields').children.length"), 0);
+  await evaluate("document.getElementById('extraction-retry').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('Queued')");
+  processCSV(failing.job.id);
+  await evaluate("document.getElementById('extraction-refresh').click()");
+  await waitFor("document.getElementById('extraction-identity').textContent.includes('attempt 2/3') && document.getElementById('extraction-status').textContent.includes('failed')");
   assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([new Uint8Array(10485761)],'too-large.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 413);
   fixtures('viewer');
   assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([${JSON.stringify(sourcePdf)}],'denied.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 403);
   assert.equal(await evaluate(`fetch(${JSON.stringify(firstDocument.download_url)}).then(r=>r.status)`), 200);
+  assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();return(await fetch(${JSON.stringify(csvDocument.extraction_url)},{method:'POST',headers:{'X-CSRFToken':csrf_token,'Content-Type':'application/json'},body:'{}'})).status})()`), 403);
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Document mobile viewport overflows.');
   const documentShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
@@ -386,6 +428,7 @@ try {
   console.log('PASS: real browser session/catalogue regressions; manual creation/header/line editing, validation and dirty navigation, two authenticated sessions with stale-write rejection/input preservation, active catalogue pagination/attach/detach, exact decimals and readiness invalidation; draft review, role denial, locked source, lost conversion response and same-order replay.');
   console.log('Runtime server: orderdesk_app; synthetic fixtures: test_orderdesk; screenshots: ignored backend/var/frontend-browser/.');
   console.log('PASS: private PDF/CSV source intake, malformed and oversized rejection, exact browser attachment download, recorded status, viewer upload denial, cross-tenant/revoked download denial; isolated temporary storage.');
+  console.log('PASS: durable local CSV job, real processor exit/recovery, exact field provenance, immutable download, visible failure and explicit retry; restricted worker and viewer denial.');
 } finally {
   if (secondarySocket?.readyState === WebSocket.OPEN) await closeSecondBrowser?.();
   secondarySocket?.close(); secondaryChrome?.kill();

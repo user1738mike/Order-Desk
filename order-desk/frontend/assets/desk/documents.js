@@ -5,7 +5,7 @@ export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 export const documentRoute = (workspace, order = '') => `#/workspaces/${workspace}/${order ? `orders/${order}/documents/` : 'documents/'}`;
 export class DocumentController {
   constructor(client, render = () => {}, denied = async () => {}) { this.client = client; this.render = render; this.denied = denied; this.version = 0; this.state = this.empty(); }
-  empty() { return { workspace: null, generation: null, order: null, rows: [], count: 0, page: 1, file: null, busy: false, pending: false, uncertain: false, message: '' }; }
+  empty() { return { workspace: null, generation: null, order: null, rows: [], count: 0, page: 1, file: null, busy: false, pending: false, uncertain: false, message: '', extraction: null }; }
   update(patch) { Object.assign(this.state, patch); this.render(this.state); }
   context(workspace, generation, order = null) {
     if (workspace?.id === this.state.workspace?.id && generation === this.state.generation && order === this.state.order) { this.state.workspace = workspace; return; }
@@ -69,6 +69,51 @@ export class DocumentController {
     } catch (error) { if (version === this.version && !abort.signal.aborted) { this.update({ message: error.message }); if (error.status === 403) await this.denied(false); } return null; }
     finally { if (version === this.version && !abort.signal.aborted) this.update({ busy: false }); }
   }
+  extractionPath(row) {
+    this.validate(row);
+    const path = `${this.path()}${row.id}/extraction/`;
+    if (row.extraction_url !== path) throw new Error('CSV extraction unavailable for this source.');
+    return path;
+  }
+  validateExtraction(data, row) {
+    if (!data || !Array.isArray(data.results) || data.results.length > 50 || !Number.isSafeInteger(data.count) || data.count < 0 || data.count > 500) throw new Error('Extraction response unavailable.');
+    const job = data.job;
+    if (job !== null && (!UUID.test(job?.id) || job.document !== row.id || job.organization !== this.state.workspace.id || job.parser_version !== 'order-csv-v1' || !/^[0-9a-f]{64}$/.test(job.source_sha256) || !['queued', 'running', 'succeeded', 'failed'].includes(job.status) || !Number.isInteger(job.attempts) || job.attempts < 0 || job.attempts > 3 || typeof job.lease_expired !== 'boolean' || typeof job.error_code !== 'string' || (job.error_row !== null && (!Number.isInteger(job.error_row) || job.error_row < 1)))) throw new Error('Extraction response unavailable.');
+    if ((!job || job.status !== 'succeeded') && (data.count || data.results.length)) throw new Error('Extraction response unavailable.');
+    for (const fields of data.results) {
+      if (!fields || !fields.sku || !fields.quantity || Object.keys(fields).some(key => !['sku', 'quantity', 'description', 'unit'].includes(key))) throw new Error('Extraction response unavailable.');
+      for (const [key, field] of Object.entries(fields)) if (typeof field?.value !== 'string' || typeof field.raw !== 'string' || field.raw.length > 4096 || field.value.length > 4096 || field.column !== key || !Number.isInteger(field.row) || field.row < 2 || !Number.isInteger(field.end_row) || field.end_row < field.row || !Number.isInteger(field.column_index) || field.column_index < 1 || field.column_index > 4) throw new Error('Extraction response unavailable.');
+    }
+    return data;
+  }
+  async openExtraction(row, page = 1) {
+    if (this.state.busy || this.state.pending) return;
+    const abort = this.abort = new AbortController(); const version = ++this.version;
+    this.update({ busy: true, extraction: { row, page, job: null, rows: [], count: 0, loaded: false }, message: 'Loading CSV extraction status…' });
+    try {
+      const data = await this.client.request(`${this.extractionPath(row)}?page=${page}`, { signal: abort.signal });
+      if (version !== this.version || abort.signal.aborted) return;
+      this.validateExtraction(data, row);
+      this.update({ extraction: { row, page, job: data.job, rows: data.results, count: data.count, loaded: true }, message: '' });
+    } catch (error) { if (version === this.version && !abort.signal.aborted) { this.update({ message: error.message }); if (error.status === 403) await this.denied(false); } }
+    finally { if (version === this.version && !abort.signal.aborted) this.update({ busy: false }); }
+  }
+  canExtract(retry = false) {
+    const e = this.state.extraction;
+    return ['admin', 'reviewer'].includes(this.state.workspace?.role) && e?.loaded && !this.state.busy && !this.state.pending && (retry ? e.job?.status === 'failed' && e.job.attempts < 3 : e.job === null);
+  }
+  async queueExtraction(retry = false) {
+    if (!this.canExtract(retry)) return;
+    const row = this.state.extraction.row; const version = this.version; const abort = this.abort = new AbortController();
+    this.update({ pending: true, message: retry ? 'Requesting another extraction attempt…' : 'Queuing CSV extraction…' });
+    try {
+      await this.client.refreshCsrf(abort.signal);
+      await this.client.request(`${this.extractionPath(row)}${retry ? 'retry/' : ''}`, { method: 'POST', body: {}, signal: abort.signal });
+      if (version !== this.version || abort.signal.aborted) return;
+      this.update({ pending: false }); await this.openExtraction(row);
+    } catch (error) { if (version === this.version && !abort.signal.aborted) { this.update({ message: error.status === 403 ? error.message : 'Extraction request outcome is unconfirmed. Refresh status before retrying.', extraction: { ...this.state.extraction, loaded: false } }); if (error.status === 403) await this.denied(true); } }
+    finally { if (version === this.version && !abort.signal.aborted) this.update({ pending: false }); }
+  }
 }
 
 const $ = id => document.getElementById(id);
@@ -92,10 +137,34 @@ export function renderDocuments(controller, visible) {
     button.addEventListener('click', async () => {
       const version = controller.version; const blob = await controller.download(row); if (!blob || version !== controller.version) return;
       const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = row.original_name.replace(/[\r\n\\/]/g, '_'); link.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
-    }); td.append(button); tr.append(td); return tr;
+    }); td.append(button);
+    if (row.extraction_url) { const extraction = document.createElement('button'); extraction.textContent = 'CSV extraction'; extraction.disabled = s.busy || s.pending; extraction.addEventListener('click', () => controller.openExtraction(row)); td.append(extraction); }
+    tr.append(td); return tr;
   }));
   $('documents-empty').textContent = s.busy ? 'Loading documents…' : s.rows.length ? '' : s.order ? 'No source documents listed.' : '';
   $('documents-page').textContent = `Page ${s.page} · ${s.count} documents`;
   $('documents-previous').disabled = s.busy || s.pending || s.page <= 1;
   $('documents-next').disabled = s.busy || s.pending || s.page * 50 >= s.count;
+  renderExtraction(controller);
+}
+
+function renderExtraction(controller) {
+  const s = controller.state; const e = s.extraction; $('document-extraction').hidden = !e;
+  $('extraction-fields').replaceChildren();
+  if (!e) return;
+  $('extraction-source').textContent = e.row.original_name;
+  const job = e.job;
+  const status = !e.loaded ? 'Status unavailable. Refresh before requesting extraction.' : !job ? 'No extraction queued.' : job.status === 'queued' ? 'Queued; waiting for the local processor.' : job.status === 'running' ? (job.lease_expired ? 'Processing lease expired. An authorized processor can resume it.' : 'Processing CSV…') : job.status === 'failed' ? `Extraction failed: ${job.error_code}${job.error_row ? ` at source row ${job.error_row}` : ''}. No partial proposals were published.` : 'CSV proposals ready for staff review. No order lines or approvals were changed.';
+  $('extraction-status').textContent = status;
+  $('extraction-identity').textContent = job ? `Job ${job.id} · ${job.parser_version} · attempt ${job.attempts}/3 · source SHA-256 ${job.source_sha256}` : '';
+  $('extraction-queue').hidden = !!job; $('extraction-queue').disabled = !controller.canExtract();
+  $('extraction-retry').hidden = job?.status !== 'failed'; $('extraction-retry').disabled = !controller.canExtract(true);
+  $('extraction-refresh').disabled = s.busy || s.pending;
+  $('extraction-previous').disabled = s.busy || s.pending || e.page <= 1;
+  $('extraction-next').disabled = s.busy || s.pending || e.page * 50 >= e.count;
+  for (const fields of e.rows) {
+    const article = document.createElement('article');
+    for (const [name, field] of Object.entries(fields)) { const p = document.createElement('p'); p.textContent = `${name}: ${field.value} · source rows ${field.row}–${field.end_row}, column ${field.column_index} (${field.column}) · raw: ${field.raw}`; article.append(p); }
+    $('extraction-fields').append(article);
+  }
 }

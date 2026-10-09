@@ -1,6 +1,80 @@
 # Project state
 
-## Active checkpoint: secure purchase-order document intake
+## Active checkpoint: durable local CSV extraction
+
+2026-10-09: main at 33d7658 ("New Changes"); clean working tree on arrival.
+That user commit includes the secure-intake implementation and prior verification
+records. Existing work was preserved. The referenced
+`C:\Users\HomePC\Downloads\AI_Order_Desk_Local_CSV_Extraction_Prompt.md` was absent
+at that path and not found by the filename search in Downloads/workspace. The
+explicit feature request and repository conventions were used; no document
+publication instruction or authorization to push was inferred.
+
+Implemented `order-csv-v1` immutable proposals with raw/interpreted field values,
+physical record line range/header-column provenance and original SHA-256.
+Durable jobs have a repeat-safe source/version identity, two-minute token leases,
+three-attempt bound, fresh authorization/source checks and atomic result publication.
+The restricted local processor runs one explicit job outside web requests; it can
+resume expired claims. No broker/daemon/dependency was added. Operator screens show
+queued/running/expired/failed/completed state, safe failure code/row, explicit retry
+and 50-record proposal pages. No order lines, source bytes, document review status,
+approval, matching or ERP output are changed. See [contract](LOCAL_CSV_EXTRACTION.md).
+
+Verification:
+
+- `docker compose run --rm manage python manage.py test apps.orders.tests.test_csv_extraction apps.orders.tests.test_private_document_intake --settings=config.settings.test --keepdb --noinput`:
+  **32 tests, 18.168s, OK** on the final focused recheck after moving the nullable
+  job read into selectors (earlier run: 14.972s), dedicated PostgreSQL test_orderdesk.
+  Fourteen new native
+  methods cover exact/multiline provenance, invalid contracts, no partial result,
+  failure/retry bounds, storage failure, parse outside transactions, authorization
+  and order-state changes, interruption/expiry, superseded/live/concurrent claims,
+  CSRF/roles/scoping, pagination, result limits and terminal immutability.
+  The initial 12-test invocation hit one missing fixture-time import; the corrected
+  lease test injects a short claim duration without disabling database guards.
+- `docker compose run --rm manage python manage.py test --settings=config.settings.test --keepdb --noinput`:
+  **760 tests, 225.275s, OK**. Maintenance-role native results are behavior evidence,
+  not runtime tenant isolation proof.
+- `docker compose run --rm rlscheck python manage.py verify_order_rls`:
+  **48 tests, 110.144s, OK**, directly authenticated orderdesk_app on test_orderdesk,
+  separately audited maintenance fixtures. Verifier now audits the fifth business
+  table's forced RLS, 25 order/extraction policies, restricted grants, composite
+  document reference and invoker transition guard. Real worker/session checks prove
+  no ambient/foreign rows, viewer INSERT denial and zero-row UPDATE, scoped read,
+  immutable digest/result, runtime DELETE denial and membership revocation.
+  The first run failed one new test expectation: denied UPDATE affects zero rows
+  rather than raising 42501. Production policies were unchanged; corrected UPDATE
+  and separate INSERT assertions passed on the full rerun.
+- `node --test frontend/tests/*.test.js`: **64 passed**, zero failures/skips.
+  Six new controller tests cover provenance, malformed/foreign results, explicit
+  CSRF queue/retry, ambiguous outcomes, context changes and exhausted attempts.
+- `node frontend/tests/browser-smoke.mjs`: **PASS** on real Chromium, direct
+  orderdesk_app server/processor and synthetic test_orderdesk fixtures with isolated
+  temporary source storage. Queued through actual controls; a separate processor
+  exited with code 9 after a durable claim, the expired lease appeared, and a new
+  invocation recovered/published exact SKU/quantity provenance. Verified unchanged
+  downloaded bytes, visible invalid_quantity at row 3 with no proposals, explicit
+  retry/second failure, viewer queue denial and existing secure-intake/session/
+  catalogue/manual-edit/conversion regressions. The injected short lease simulates
+  time expiry; the process exit and persisted PostgreSQL job are real. Mobile
+  overflow check passed and the failure screenshot was inspected. Server/credential
+  fixture cleanup completed. Existing CDP harness reused; no Playwright dependency.
+- Ruff backend/frontend check and format check passed (170 files formatted);
+  scripts check passed with repository backend config. JS syntax checks passed.
+  No separate JS build/TypeScript gate applies to the native-module frontend.
+- Compose configuration passed; `makemigrations --check --dry-run`: no changes.
+  Migration 0010 applied successfully to the dedicated test and local development
+  schemas; no existing applied migration was rewritten and no main fixtures seeded.
+- `docker compose run --rm extract python manage.py check_runtime_role`:
+  runtime database role is restricted. Local API ready health and operator shell
+  remained 200 after migration; no extraction fixtures were seeded in the main DB.
+
+Private audit/log/source/browser artifacts remain ignored. Production serving,
+capacity scheduling, PDF/OCR/AI, review acceptance/application and ERP export remain
+outside this increment. Sources and job metadata both belong in backup/restore.
+No agent commit or push was performed.
+
+## Previous checkpoint: secure purchase-order document intake
 
 2026-10-09: began on main at efa90e7. While verification was in progress the user
 committed the intake implementation as e7a10edc2ee7b044e6cda7e1ffb59c4710c60471.

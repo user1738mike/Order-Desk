@@ -40,6 +40,7 @@ from apps.accounts.models import LoginAttemptBucket, User
 from apps.catalog.models import CatalogItem
 from apps.catalog.tests.runtime_rls import OWNER_ALIAS, _forged_policy_context
 from apps.orders.models import (
+    DocumentExtractionJob,
     DraftOrder,
     DraftOrderLine,
     ExtractionReviewStatus,
@@ -484,6 +485,111 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
             self.assertEqual(viewer.get(body["download_url"]).status_code, 403)
             self._assert_clean()
 
+    def test_csv_extraction_job_policies_and_restricted_worker(self):
+        from django.core.management import call_command
+
+        order = self.rows[self.a.pk][PurchaseOrder]
+        path = f"/api/v1/workspaces/{self.a.pk}/orders/{order.pk}/documents/intake/"
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            client, token = self._credential_client(self.admin)
+            response = client.post(
+                path,
+                {
+                    "file": SimpleUploadedFile(
+                        "source.csv", b"sku,quantity\n0001,1.2500\n"
+                    )
+                },
+                format="multipart",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(response.status_code, 201, response.content)
+            extraction = response.json()["extraction_url"]
+            response = client.post(
+                extraction, {}, format="json", HTTP_X_CSRFTOKEN=token
+            )
+            self.assertEqual(response.status_code, 202, response.content)
+            job_id = response.json()["id"]
+            job_data = response.json()
+            self.assertEqual(
+                set(DocumentExtractionJob.objects.values_list("id", flat=True)), set()
+            )
+            with tenant_scope(user=self.admin, workspace_id=self.b.pk):
+                self.assertFalse(
+                    DocumentExtractionJob.objects.filter(pk=job_id).exists()
+                )
+            viewer, viewer_token = self._credential_client(self.viewer)
+            self.assertEqual(viewer.get(extraction).status_code, 200)
+            self.assertEqual(
+                viewer.post(
+                    extraction, {}, format="json", HTTP_X_CSRFTOKEN=viewer_token
+                ).status_code,
+                403,
+            )
+            with self._write_scope(self.viewer):
+                self.assertEqual(
+                    DocumentExtractionJob.objects.filter(pk=job_id).update(
+                        status="running"
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    DocumentExtractionJob.objects.get(pk=job_id).status, "queued"
+                )
+            self._expect_error(
+                "42501",
+                self._write_scope(self.viewer),
+                lambda: DocumentExtractionJob.objects.create(
+                    organization=self.a,
+                    document_id=job_data["document"],
+                    requested_by=self.viewer,
+                    source_sha256=job_data["source_sha256"],
+                ),
+            )
+            self._expect_error(
+                "23514",
+                self._write_scope(),
+                lambda: DocumentExtractionJob.objects.filter(pk=job_id).update(
+                    source_sha256="a" * 64
+                ),
+            )
+            call_command(
+                "process_csv_extraction",
+                workspace=self.a.pk,
+                actor=self.reviewer.pk,
+                job=job_id,
+                verbosity=0,
+            )
+            body = client.get(extraction).json()
+            self.assertEqual(body["job"]["status"], "succeeded")
+            self.assertEqual(body["results"][0]["sku"]["value"], "0001")
+            self.assertEqual(body["results"][0]["quantity"]["raw"], "1.2500")
+            self._expect_error(
+                "23514",
+                self._write_scope(),
+                lambda: DocumentExtractionJob.objects.filter(pk=job_id).update(
+                    result=[]
+                ),
+            )
+            self._expect_error(
+                "42501",
+                self._write_scope(),
+                lambda: DocumentExtractionJob.objects.filter(pk=job_id).delete(),
+            )
+            self.assertEqual(
+                client.get(
+                    extraction.replace(str(self.a.pk), str(self.b.pk))
+                ).status_code,
+                404,
+            )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                user=self.admin, organization=self.a
+            ).update(is_active=False)
+            self.assertEqual(client.get(extraction).status_code, 403)
+            self._assert_clean()
+
     def setUp(self) -> None:
         self.user_ids: list[UUID] = []
         self.workspace_ids: list[UUID] = []
@@ -540,6 +646,9 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
     def _cleanup_fixtures(self) -> None:
         connection.close()
         with transaction.atomic(using=OWNER_ALIAS):
+            DocumentExtractionJob.objects.using(OWNER_ALIAS).filter(
+                organization_id__in=self.workspace_ids
+            ).delete()
             Session.objects.using(OWNER_ALIAS).filter(
                 session_key__in=self.session_keys
             ).delete()

@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from apps.orders.models import (
     MAX_DRAFT_QUANTITY,
+    DocumentExtractionJob,
     DraftOrder,
     DraftOrderLine,
     OrderDocument,
@@ -420,6 +421,7 @@ class PrivateDocumentSerializer(serializers.ModelSerializer):
     """Bounded scalar status; no storage paths or embedded review collections."""
 
     download_url = serializers.SerializerMethodField()
+    extraction_url = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderDocument
@@ -434,6 +436,7 @@ class PrivateDocumentSerializer(serializers.ModelSerializer):
             "uploaded_at",
             "status",
             "download_url",
+            "extraction_url",
         )
         read_only_fields = fields
 
@@ -444,6 +447,46 @@ class PrivateDocumentSerializer(serializers.ModelSerializer):
             f"/api/v1/workspaces/{document.organization_id}/orders/"
             f"{document.order_id}/documents/{document.pk}/download/"
         )
+
+    def get_extraction_url(self, document):
+        if document.content_type != "text/csv" or not document.file.name.startswith(
+            "intake/"
+        ):
+            return None
+        return (
+            f"/api/v1/workspaces/{document.organization_id}/orders/"
+            f"{document.order_id}/documents/{document.pk}/extraction/"
+        )
+
+
+class DocumentExtractionJobSerializer(serializers.ModelSerializer):
+    lease_expired = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DocumentExtractionJob
+        fields = (
+            "id",
+            "organization",
+            "document",
+            "requested_by",
+            "processed_by",
+            "source_sha256",
+            "parser_version",
+            "status",
+            "attempts",
+            "error_code",
+            "error_row",
+            "lease_expires_at",
+            "lease_expired",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_lease_expired(self, job):
+        from django.utils import timezone
+
+        return job.status == "running" and job.lease_expires_at <= timezone.now()
 
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):

@@ -112,6 +112,16 @@ services:
       DATABASE_MIGRATION_USER: ${DATABASE_MIGRATION_USER:-orderdesk_migrator}
       DATABASE_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:?Run scripts/init_env.py first}
 
+  # Explicit local worker: runtime credentials, private source volume, no broker.
+  extract:
+    <<: *backend
+    profiles: [tools]
+    command: [python, manage.py, process_csv_extraction, --help]
+    environment:
+      <<: *backend-environment
+      DATABASE_USER: ${DATABASE_APP_USER:-orderdesk_app}
+      DATABASE_PASSWORD: ${DATABASE_APP_PASSWORD:?Run scripts/init_env.py first}
+
   # Local-only, short-lived RLS verification. The API never receives these
   # owner credentials; this process populates only the dedicated test database.
   rlscheck:

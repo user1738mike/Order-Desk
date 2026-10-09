@@ -3,8 +3,9 @@
 Django backend for turning distributors' purchase orders into checked ERP-ready
 orders. We are building it collaboratively in small, verified steps.
 
-Current checkpoint: **Secure purchase-order document upload, status and authorized
-download**, alongside draft review, manual editing and conversion. See the
+Current checkpoint: **Durable local CSV extraction with provenance and visible
+failures**, alongside secure document intake, draft editing and conversion. See
+the [CSV extraction contract](docs/LOCAL_CSV_EXTRACTION.md) and
 [private intake contract](docs/SECURE_DOCUMENT_INTAKE.md).
 Open `http://127.0.0.1:8000/` after starting
 the API; see the [frontend guide](docs/FIRST_FRONTEND_WORKFLOW.md),

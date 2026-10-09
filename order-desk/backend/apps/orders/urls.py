@@ -1,6 +1,8 @@
 from django.urls import path
 
 from apps.orders.views import (
+    DocumentExtractionRetryView,
+    DocumentExtractionView,
     DraftOrderConversionView,
     DraftOrderDetailView,
     DraftOrderLineAttachmentView,
@@ -58,6 +60,16 @@ draft_urlpatterns = [
 ]
 
 urlpatterns = [
+    path(
+        "<uuid:order_id>/documents/<uuid:document_id>/extraction/",
+        DocumentExtractionView.as_view(),
+        name="document-extraction",
+    ),
+    path(
+        "<uuid:order_id>/documents/<uuid:document_id>/extraction/retry/",
+        DocumentExtractionRetryView.as_view(),
+        name="document-extraction-retry",
+    ),
     path(
         "<uuid:order_id>/documents/intake/",
         PrivateOrderDocumentIntakeView.as_view(),

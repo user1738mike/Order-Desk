@@ -27,7 +27,8 @@ upgrade, clean-install and local application evidence is in project state.
 | Implemented and verified locally | First frontend session login/logout, workspace discovery/selection and read-only catalogue search/filter/pagination; native modules and Django shell, same-origin cookies/CSRF. Real Chromium, 18 client tests, 721 native regressions and 115 restricted-role catalogue checks passed; remaining production/browser prerequisites are in project state and the frontend guide. |
 | Implemented locally; current verification in project state | Frontend draft list/detail/readiness, administrator conversion/replay, manual creation/header/line editing and catalogue attach/detach; aggregate revision/If-Match checks under the existing tenant write lock. No line deletion. See draft frontend contracts and current results rather than historical test totals. |
 | Implemented locally; verification in project state | Private purchase-order PDF/CSV intake, status pages and authorized original-byte download; persistent Linux volume, digest verification, rollback cleanup and leased local orphan recovery. Legacy adoption and production operations remain open. See SECURE_DOCUMENT_INTAKE.md. |
-| Planned only | PDF/order-CSV/OCR/AI extraction, automatic/fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. Catalogue CSV import is already implemented; order-document CSV extraction is separate. |
+| Planned only | PDF/OCR/AI and additional CSV formats, automatic/fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. Catalogue CSV import and explicit order-csv-v1 proposals are implemented separately. |
+| Implemented locally; verification in project state | Durable order-csv-v1 proposals with source digest, raw/exact values and row/column provenance; job leases, explicit bounded retry, visible failures, restricted one-job processor and operator status/proposal UI. No automatic order writes/review acceptance. See LOCAL_CSV_EXTRACTION.md. |
 
 ## Implemented backend increments
 
@@ -78,10 +79,10 @@ with the dedicated PostgreSQL test settings. Runtime checks are separate.
 The reconciliation increment delivers the existing verified work and the current
 documentation/runbook; its actual commit/push outcome is recorded in project state.
 
-1. Define an extraction result/review contract using immutable private sources;
-   decide content scanning requirements before introducing any parser execution.
-2. Implement one bounded extraction format with synthetic fixtures and mandatory
-   staff review; keep private sources and tenant permissions intact.
+1. Define staff acceptance/rejection of extracted proposals and the provenance
+   retained by any future application to editable drafts; converted copies stay immutable.
+2. Implement that explicit review workflow with tenant/concurrency safeguards;
+   decide content scanning requirements before adding PDF/OCR or other parsers.
 3. Define ERP export profiles before dependent automation. Remaining
    [storage prerequisites](STORAGE_FINDINGS.md) and production operations require
    their own verification; internal conversion is not ERP or launch readiness.

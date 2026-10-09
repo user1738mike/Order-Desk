@@ -13,9 +13,12 @@ read DRAFT_REVIEW_FRONTEND.md and MANUAL_DRAFT_EDITING_FRONTEND.md for the new
 aggregate revision protocol, collision/retry behavior and current verification.
 Secure purchase-order document upload/status/authorized download is implemented
 locally; read SECURE_DOCUMENT_INTAKE.md and the final candidate verification in
-PROJECT_STATE.md. Next, when requested: define durable authorized extraction jobs,
-source provenance and staff review before implementing one deterministic bounded
-format. Production storage/content scanning and proxy safety remain unverified.
+PROJECT_STATE.md. Durable local CSV jobs, exact field provenance and visible
+failures are implemented; read LOCAL_CSV_EXTRACTION.md for the supported contract,
+restricted one-job processor and recovery boundaries. Next, when requested:
+define staff acceptance/rejection and any application of proposals to editable
+drafts before adding that workflow. Production storage/content scanning and proxy
+safety remain unverified.
 Canonical checks use dedicated test_orderdesk and directly restricted runtime
 verifiers; owner-role and mocked client tests are separate evidence.
 Private audit files/logs remain ignored and must not be published. Preserve locks,

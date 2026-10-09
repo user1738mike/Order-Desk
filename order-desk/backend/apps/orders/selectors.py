@@ -178,6 +178,39 @@ def get_private_document(
     )
 
 
+def current_extraction_job(organization_id, order_id, document_id):
+    from apps.orders.csv_extraction import PARSER_VERSION
+    from apps.orders.models import DocumentExtractionJob
+
+    document = get_private_document(organization_id, order_id, document_id)
+    return DocumentExtractionJob.objects.filter(
+        organization_id=organization_id,
+        document=document,
+        source_sha256=document.source_sha256,
+        parser_version=PARSER_VERSION,
+    ).first()
+
+
+def get_extraction_job(organization_id, order_id, document_id):
+    job = current_extraction_job(organization_id, order_id, document_id)
+    if job is None:
+        from django.http import Http404
+
+        raise Http404
+    return job
+
+
+def get_extraction_job_by_id(organization_id, job_id):
+    from apps.orders.models import DocumentExtractionJob
+
+    return get_object_or_404(
+        DocumentExtractionJob.objects.select_related("document").filter(
+            organization_id=organization_id, document__organization_id=organization_id
+        ),
+        pk=job_id,
+    )
+
+
 def reviews_for_document(
     organization_id: UUID, order_id: UUID, document_id: UUID
 ) -> QuerySet[OrderDocumentReview]:

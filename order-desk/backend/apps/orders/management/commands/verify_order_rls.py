@@ -12,6 +12,7 @@ from apps.catalog.tests.runtime_rls import OWNER_ALIAS
 from apps.orders.tests.runtime_rls import RuntimeOrderRLSChecks
 
 TABLE_PREFIXES = {
+    "orders_documentextractionjob": "extraction",
     "orders_purchaseorder": "order",
     "orders_purchaseorderline": "orderline",
     "orders_orderdocument": "orderdocument",
@@ -73,8 +74,8 @@ class Command(CatalogVerifierCommand):
             self._audit_draft_boundary(cursor)
             self._audit_conversion_boundary(cursor)
         self.stdout.write(
-            "Order metadata verified: 4 tables, forced RLS, 20 policies, "
-            "restricted grants, 3 composite parent foreign keys."
+            "Order/extraction metadata verified: 5 tables, forced RLS, 25 policies, "
+            "restricted grants and composite parent references."
         )
         self.stdout.write(
             "Draft metadata verified: 2 tables, forced RLS, 10 policies, "
@@ -83,6 +84,26 @@ class Command(CatalogVerifierCommand):
 
     @staticmethod
     def _audit_conversion_boundary(cursor) -> None:
+        cursor.execute("""
+            SELECT convalidated, pg_get_constraintdef(oid) FROM pg_constraint
+            WHERE conname='extraction_document_org_fk'
+            AND conrelid='public.orders_documentextractionjob'::regclass
+        """)
+        row = cursor.fetchone()
+        if (
+            not row
+            or not row[0]
+            or "FOREIGN KEY (document_id, organization_id)" not in row[1]
+        ):
+            raise CommandError("Extraction tenant parent reference is incorrect.")
+        cursor.execute("""
+            SELECT t.tgenabled, p.prosecdef, pg_get_userbyid(p.proowner)
+            FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid
+            WHERE t.tgname='extraction_guard'
+            AND t.tgrelid='public.orders_documentextractionjob'::regclass
+        """)
+        if cursor.fetchone() != ("O", False, "orderdesk_migrator"):
+            raise CommandError("Extraction transition guard is incorrect.")
         cursor.execute("""
             SELECT convalidated, condeferrable, pg_get_constraintdef(oid)
             FROM pg_constraint WHERE conname = 'order_source_draft_org_fk'

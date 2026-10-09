@@ -20,11 +20,13 @@ from rest_framework.views import APIView
 from apps.orders import selectors, services
 from apps.orders.document_files import OrderDocumentTooLarge
 from apps.orders.document_intake import create_private_document
+from apps.orders.extraction_services import enqueue_extraction, retry_extraction
 from apps.orders.pagination import DraftOrderPagination, validate_draft_query
 from apps.orders.private_documents import open_document, original_filename
 from apps.orders.readiness import evaluate_draft_readiness
 from apps.orders.revisions import DraftRevisionConflict, draft_revision
 from apps.orders.serializers import (
+    DocumentExtractionJobSerializer,
     DocumentReviewResolveSerializer,
     DraftOrderConversionInputSerializer,
     DraftOrderConversionSerializer,
@@ -542,6 +544,49 @@ class PrivateOrderDocumentIntakeView(OrderDocumentListCreateView):
                 {"detail": "Private document storage is unavailable."}, status=503
             )
         return Response(result, status=201)
+
+
+class DocumentExtractionView(WorkspaceOrderView):
+    def get(self, request, workspace_id, order_id, document_id):
+        with tenant_scope(user=request.user, workspace_id=workspace_id):
+            job = selectors.current_extraction_job(workspace_id, order_id, document_id)
+            paginator = DraftOrderPagination()
+            rows = paginator.paginate_queryset(
+                job.result if job else [], request, view=self
+            )
+            response = paginator.get_paginated_response(rows)
+            response.data["job"] = (
+                DocumentExtractionJobSerializer(job).data if job else None
+            )
+            return response
+
+    def post(self, request, workspace_id, order_id, document_id):
+        validate_draft_query(request.query_params, allow_page=False)
+        serializer = DraftOrderConversionInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data, created = enqueue_extraction(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            document_id=document_id,
+            materialize=lambda job: DocumentExtractionJobSerializer(job).data,
+        )
+        return Response(data, status=202 if created else 200)
+
+
+class DocumentExtractionRetryView(WorkspaceOrderView):
+    def post(self, request, workspace_id, order_id, document_id):
+        validate_draft_query(request.query_params, allow_page=False)
+        serializer = DraftOrderConversionInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = retry_extraction(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            document_id=document_id,
+            materialize=lambda job: DocumentExtractionJobSerializer(job).data,
+        )
+        return Response(data, status=202)
 
 
 class OrderDocumentDownloadView(WorkspaceOrderView):

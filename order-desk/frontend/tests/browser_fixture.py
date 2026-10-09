@@ -16,6 +16,7 @@ from apps.accounts.login_limits import login_bucket_key
 from apps.accounts.models import LoginAttemptBucket, User
 from apps.catalog.models import CatalogItem
 from apps.orders.models import (
+    DocumentExtractionJob,
     DraftOrder,
     DraftOrderLine,
     OrderDocument,
@@ -192,6 +193,9 @@ elif action in (
                 )
             else:
                 # Remove only this user's sessions and this run's identities.
+                DocumentExtractionJob.objects.filter(
+                    organization_id__in=[data["a"], data["b"]]
+                ).delete()
                 OrderDocumentReview.objects.filter(
                     organization_id__in=[data["a"], data["b"]]
                 ).delete()

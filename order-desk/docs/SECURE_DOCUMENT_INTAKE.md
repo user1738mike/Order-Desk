@@ -6,6 +6,11 @@ Documents screen. Operators can also open a known purchase-order UUID. It reuses
 OrderDocument and its existing received/pending_review/rejected lifecycle; upload
 does not approve, extract, match, submit or export an order.
 
+The subsequent [local CSV extraction](LOCAL_CSV_EXTRACTION.md) increment adds an
+explicit separate job/proposal workflow. Upload itself still does not extract;
+private CSV metadata now includes its scoped extraction URL. Sources and order
+review status remain unchanged by extraction.
+
 ## Contract and authorization
 
 - GET/POST `/api/v1/workspaces/<workspace>/orders/<order>/documents/intake/`:

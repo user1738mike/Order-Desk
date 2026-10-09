@@ -59,6 +59,16 @@
         <p id="documents-message" role="status" aria-live="polite"></p><button id="documents-check" class="quiet" hidden>Check list before restarting upload</button><button id="documents-refresh" class="quiet">Refresh documents</button>
         <div class="table-scroll"><table><thead><tr><th>Original filename</th><th>Size</th><th>Status</th><th>Action</th></tr></thead><tbody id="documents-rows"></tbody></table></div><p id="documents-empty" role="status"></p>
         <nav class="pagination" aria-label="Document pages"><span id="documents-page"></span><div><button id="documents-previous" class="quiet">Previous</button><button id="documents-next" class="quiet">Next</button></div></nav>
+        <section id="document-extraction" hidden aria-label="CSV extraction proposals">
+          <h3>CSV proposals · staff review required</h3>
+          <p id="extraction-source"></p>
+          <p id="extraction-status" role="status" aria-live="polite"></p>
+          <p id="extraction-identity" class="muted"></p>
+          <p>Supported columns: sku and quantity; optional description and unit. Up to 500 lines. Source bytes stay unchanged.</p>
+          <div class="toolbar"><button id="extraction-queue">Queue extraction</button><button id="extraction-retry" hidden>Retry failed extraction</button><button id="extraction-refresh" class="quiet">Refresh extraction status</button></div>
+          <div id="extraction-fields"></div>
+          <nav class="pagination" aria-label="Extracted proposal pages"><button id="extraction-previous" class="quiet">Previous proposals</button><button id="extraction-next" class="quiet">Next proposals</button></nav>
+        </section>
       </section>
       <p id="route-missing" class="card empty" hidden>Page not found. Choose a workspace section above.</p>
     </section>

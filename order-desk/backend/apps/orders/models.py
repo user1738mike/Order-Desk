@@ -17,6 +17,46 @@ MAX_DRAFT_QUANTITY = Decimal("999999999.999")
 MAX_ORIGINAL_INTAKE_LENGTH = 10000
 
 
+class ExtractionApplication(models.Model):
+    """An immutable, committed human decision and its repeat-safe response."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT)
+    job = models.ForeignKey("DocumentExtractionJob", on_delete=models.PROTECT)
+    draft = models.ForeignKey("DraftOrder", on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    operation_key = models.UUIDField()
+    payload_hash = models.CharField(max_length=64)
+    request = models.JSONField()
+    decisions = models.JSONField()
+    response = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "operation_key"], name="application_org_key_unique"),
+            models.UniqueConstraint(fields=["id", "organization", "job", "draft"], name="application_identity_unique"),
+            models.CheckConstraint(condition=models.Q(payload_hash__regex=r"^[0-9a-f]{64}$"), name="application_hash_valid"),
+        ]
+
+
+class ExtractionCreatedRow(models.Model):
+    """A source row can create a line only once in a particular draft."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT)
+    application = models.ForeignKey(ExtractionApplication, on_delete=models.PROTECT)
+    job = models.ForeignKey("DocumentExtractionJob", on_delete=models.PROTECT)
+    draft = models.ForeignKey("DraftOrder", on_delete=models.PROTECT)
+    line = models.ForeignKey("DraftOrderLine", on_delete=models.PROTECT)
+    candidate_id = models.UUIDField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["job", "draft", "candidate_id"], name="extraction_row_create_unique"),
+        ]
+
+
 class DraftOrder(models.Model):
     """A manual request whose details may still be unresolved."""
 
@@ -123,6 +163,10 @@ class DraftOrderLine(models.Model):
 
     class Meta:
         constraints = [
+            models.UniqueConstraint(
+                fields=["id", "organization", "order"],
+                name="draftline_id_org_order_unique",
+            ),
             models.UniqueConstraint(
                 fields=["order", "position"], name="draftline_order_position_unique"
             ),
@@ -334,6 +378,13 @@ class OrderDocumentStatus(models.TextChoices):
     REJECTED = "rejected", "Rejected"
 
 
+class ExtractionJobStatus(models.TextChoices):
+    QUEUED = "queued", "Queued"
+    RUNNING = "running", "Running"
+    SUCCEEDED = "succeeded", "Succeeded; requires staff review"
+    FAILED = "failed", "Failed"
+
+
 class OrderDocument(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(
@@ -500,3 +551,102 @@ class OrderDocumentReview(models.Model):
             self.extracted_order_number = self.extracted_order_number.strip()
         if isinstance(self.notes, str):
             self.notes = self.notes.strip()
+
+
+class DocumentExtractionJob(models.Model):
+    """Durable bounded proposals; never purchase-order lines or approval."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT)
+    document = models.ForeignKey(
+        OrderDocument, on_delete=models.PROTECT, related_name="extraction_jobs"
+    )
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    processed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="processed_extraction_jobs",
+    )
+    source_sha256 = models.CharField(max_length=64)
+    parser_version = models.CharField(max_length=32, default="order-csv-v1")
+    status = models.CharField(
+        max_length=16,
+        choices=ExtractionJobStatus.choices,
+        default=ExtractionJobStatus.QUEUED,
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    claim_token = models.UUIDField(null=True, blank=True, editable=False)
+    lease_expires_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=32, blank=True, default="")
+    error_row = models.PositiveIntegerField(null=True, blank=True)
+    result = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["id", "organization"], name="extraction_id_org_unique"
+            ),
+            models.UniqueConstraint(
+                fields=("document", "source_sha256", "parser_version"),
+                name="extraction_source_version_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(source_sha256__regex=r"^[0-9a-f]{64}$"),
+                name="extraction_digest_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(parser_version="order-csv-v1"),
+                name="extraction_parser_supported",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=ExtractionJobStatus.values),
+                name="extraction_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(attempts__lte=3), name="extraction_attempts_bounded"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        status=ExtractionJobStatus.RUNNING,
+                        claim_token__isnull=False,
+                        lease_expires_at__isnull=False,
+                        processed_by__isnull=False,
+                        attempts__gt=0,
+                    )
+                    | (
+                        ~models.Q(status=ExtractionJobStatus.RUNNING)
+                        & models.Q(
+                            claim_token__isnull=True, lease_expires_at__isnull=True
+                        )
+                    )
+                ),
+                name="extraction_lease_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status=ExtractionJobStatus.SUCCEEDED, error_code="")
+                | (
+                    ~models.Q(status=ExtractionJobStatus.SUCCEEDED)
+                    & models.Q(result=[])
+                ),
+                name="extraction_result_state_valid",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(status=ExtractionJobStatus.FAILED)
+                    & ~models.Q(error_code="")
+                )
+                | (
+                    ~models.Q(status=ExtractionJobStatus.FAILED)
+                    & models.Q(error_code="", error_row__isnull=True)
+                ),
+                name="extraction_error_state_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.pk}:{self.status}"

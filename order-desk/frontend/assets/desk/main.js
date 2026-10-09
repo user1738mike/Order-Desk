@@ -154,6 +154,11 @@ $('documents-refresh').addEventListener('click', () => documents.list(documents.
 $('documents-check').addEventListener('click', async () => { const workspace = documents.state.workspace?.id; const generation = documents.state.generation; const order = documents.state.order; documents.update({ file: null }); const loaded = await documents.list(); if (loaded && documents.state.workspace?.id === workspace && documents.state.generation === generation && documents.state.order === order) documents.update({ uncertain: false, message: 'Compare listed filenames and sizes before deliberately selecting a file again.' }); });
 $('documents-previous').addEventListener('click', () => documents.list(documents.state.page - 1));
 $('documents-next').addEventListener('click', () => documents.list(documents.state.page + 1));
+$('extraction-queue').addEventListener('click', () => documents.queueExtraction());
+$('extraction-retry').addEventListener('click', () => documents.queueExtraction(true));
+$('extraction-refresh').addEventListener('click', () => { if (documents.state.extraction) documents.openExtraction(documents.state.extraction.row, documents.state.extraction.page); });
+$('extraction-previous').addEventListener('click', () => documents.openExtraction(documents.state.extraction.row, documents.state.extraction.page - 1));
+$('extraction-next').addEventListener('click', () => documents.openExtraction(documents.state.extraction.row, documents.state.extraction.page + 1));
 $('login-form').addEventListener('submit', async event => {
   event.preventDefault();
   const password = $('password').value;

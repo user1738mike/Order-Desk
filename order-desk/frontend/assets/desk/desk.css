@@ -434,3 +434,6 @@ textarea:focus-visible { outline: 3px solid #76b79f; outline-offset: 3px; }
 .line-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .line-actions button { font: inherit; font-size: 12px; padding: 7px; }
 .draft-actions { flex-wrap: wrap; gap: 8px; }
+#extraction-identity, #extraction-fields { overflow-wrap: anywhere; }
+#extraction-fields article { border-top: 1px solid var(--line); padding: 12px 0; }
+#document-extraction { margin-top: 24px; }
