@@ -2,6 +2,34 @@
 
 ## Active checkpoint: draft review, manual editing and aggregate conflict protection
 
+### Committed delivery recheck
+
+2026-10-09: main is now at efa90e7fec92d1d6cc83336449f98788a9f53cb7,
+"Merge origin/main; add draft revisions and manual draft editing frontend".
+This existing user commit contains the 26 implementation/documentation/test files
+described below. The working tree was clean on arrival. Manual creation, customer
+header editing, requested-line insertion/editing, catalogue attachment/detachment
+and aggregate conflict protection are present; no duplicate feature implementation
+was needed. Only this state record changed during the recheck.
+
+Fresh checks on the committed code:
+
+- `node --test frontend/tests/*.test.js`: 49 passed, zero failures/skips.
+- `docker compose run --rm manage python manage.py test apps.orders.tests.test_draft_revisions --settings=config.settings.test --keepdb --noinput -v 0`:
+  seven tests, 3.103s, OK, on dedicated PostgreSQL test_orderdesk. These include
+  independent connections, stale header/line/attach/detach rejection and conversion
+  replay; this maintenance-role suite is not separate runtime RLS proof.
+- Ruff check and format check across backend, scripts and frontend Python helpers:
+  passed; 167 files already formatted.
+- Private browser artifacts and prior verification logs remain ignored; temporary
+  browser credential fixture is absent. No commit or push was performed this turn.
+
+The earlier 728-test full regression, 46 restricted-role RLS checks and real
+two-profile Chromium workflow below remain evidence for the unchanged
+implementation. They were not rerun during this documentation-only recheck.
+
+### Original implementation record
+
 2026-10-09, main at 8f794bd (user commit "New Changes Made"). Work is in the
 working tree on top of that commit. While editing was underway, main advanced
 from aac1e4 and newer editor/revision additions disappeared. Existing committed

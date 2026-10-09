@@ -155,6 +155,29 @@ def get_order_document(
     )
 
 
+def private_document_parent(organization_id: UUID, order_id: UUID) -> PurchaseOrder:
+    return get_object_or_404(
+        PurchaseOrder.objects.filter(organization_id=organization_id), pk=order_id
+    )
+
+
+def private_documents_for_order(
+    organization_id: UUID, order_id: UUID
+) -> QuerySet[OrderDocument]:
+    private_document_parent(organization_id, order_id)
+    return OrderDocument.objects.filter(
+        organization_id=organization_id, order_id=order_id
+    ).order_by("-uploaded_at", "id")
+
+
+def get_private_document(
+    organization_id: UUID, order_id: UUID, document_id: UUID
+) -> OrderDocument:
+    return get_object_or_404(
+        private_documents_for_order(organization_id, order_id), pk=document_id
+    )
+
+
 def reviews_for_document(
     organization_id: UUID, order_id: UUID, document_id: UUID
 ) -> QuerySet[OrderDocumentReview]:

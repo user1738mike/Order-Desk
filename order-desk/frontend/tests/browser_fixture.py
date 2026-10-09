@@ -18,6 +18,8 @@ from apps.catalog.models import CatalogItem
 from apps.orders.models import (
     DraftOrder,
     DraftOrderLine,
+    OrderDocument,
+    OrderDocumentReview,
     PurchaseOrder,
     PurchaseOrderLine,
 )
@@ -190,6 +192,12 @@ elif action in (
                 )
             else:
                 # Remove only this user's sessions and this run's identities.
+                OrderDocumentReview.objects.filter(
+                    organization_id__in=[data["a"], data["b"]]
+                ).delete()
+                OrderDocument.objects.filter(
+                    organization_id__in=[data["a"], data["b"]]
+                ).delete()
                 for session in Session.objects.all().iterator():
                     if session.get_decoded().get("_auth_user_id") == data["user"]:
                         session.delete()

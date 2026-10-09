@@ -106,6 +106,13 @@ STATIC_ROOT = BASE_DIR / "var" / "static"
 STATICFILES_DIRS = [BASE_DIR.parent / "frontend" / "assets"]
 MEDIA_ROOT = BASE_DIR / "var" / "uploads"
 MEDIA_URL = "/media/"
+PRIVATE_DOCUMENT_ROOT = os.environ.get(
+    "PRIVATE_DOCUMENT_ROOT", str(BASE_DIR / "var" / "private_documents")
+)
+STORAGES = {
+    "default": {"BACKEND": "apps.orders.document_storage.DocumentSourceStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 DEFAULT_FROM_EMAIL = "orderdesk@localhost"
 
 SESSION_COOKIE_HTTPONLY = True

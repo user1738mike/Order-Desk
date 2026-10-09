@@ -4,8 +4,8 @@ import re
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError
-from django.http import Http404
+from django.db import DatabaseError, IntegrityError
+from django.http import FileResponse, Http404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework.authentication import SessionAuthentication
@@ -19,7 +19,9 @@ from rest_framework.views import APIView
 
 from apps.orders import selectors, services
 from apps.orders.document_files import OrderDocumentTooLarge
+from apps.orders.document_intake import create_private_document
 from apps.orders.pagination import DraftOrderPagination, validate_draft_query
+from apps.orders.private_documents import open_document, original_filename
 from apps.orders.readiness import evaluate_draft_readiness
 from apps.orders.revisions import DraftRevisionConflict, draft_revision
 from apps.orders.serializers import (
@@ -43,6 +45,7 @@ from apps.orders.serializers import (
     OrderDocumentReviewSerializer,
     OrderDocumentSerializer,
     OrderReviewActionSerializer,
+    PrivateDocumentSerializer,
     PurchaseOrderCreateSerializer,
     PurchaseOrderLineCreateSerializer,
     PurchaseOrderLineSerializer,
@@ -483,6 +486,95 @@ class OrderDocumentListCreateView(WorkspaceOrderView):
             materialize=lambda document: OrderDocumentSerializer(document).data,
         )
         return Response(result, status=201)
+
+
+class PrivateOrderDocumentIntakeView(OrderDocumentListCreateView):
+    """Reuse document metadata; private bounded eligibility is an explicit contract."""
+
+    def get(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        with tenant_scope(user=request.user, workspace_id=workspace_id):
+            paginator = DraftOrderPagination()
+            page = paginator.paginate_queryset(
+                selectors.private_documents_for_order(workspace_id, order_id),
+                request,
+                view=self,
+            )
+            return paginator.get_paginated_response(
+                PrivateDocumentSerializer(page, many=True).data
+            )
+
+    def post(self, request: Request, workspace_id: UUID, order_id: UUID) -> Response:
+        validate_draft_query(request.query_params, allow_page=False)
+
+        def upload():
+            if (
+                set(request.data) != {"file"}
+                or len(request.FILES.getlist("file")) != 1
+                or len(request.data.getlist("file")) != 1
+            ):
+                raise ValidationError(
+                    {"file": ["Supply exactly one file and no form fields."]}
+                )
+            return request.FILES["file"]
+
+        try:
+            result = create_private_document(
+                actor=request.user,
+                organization_id=workspace_id,
+                order_id=order_id,
+                upload=upload,
+                materialize=lambda document: PrivateDocumentSerializer(document).data,
+            )
+        except OrderDocumentTooLarge as error:
+            raise OrderDocumentUploadTooLarge() from error
+        except DatabaseError:
+            return Response(
+                {
+                    "detail": (
+                        "Document intake could not be confirmed. "
+                        "Check the list before retrying."
+                    )
+                },
+                status=503,
+            )
+        except OSError:
+            return Response(
+                {"detail": "Private document storage is unavailable."}, status=503
+            )
+        return Response(result, status=201)
+
+
+class OrderDocumentDownloadView(WorkspaceOrderView):
+    def get(
+        self, request: Request, workspace_id: UUID, order_id: UUID, document_id: UUID
+    ):
+        with tenant_scope(user=request.user, workspace_id=workspace_id):
+            document = selectors.get_private_document(
+                workspace_id, order_id, document_id
+            )
+            key, size, name, content_type = (
+                document.file.name,
+                document.size_bytes,
+                document.original_name,
+                document.content_type,
+            )
+            digest = document.source_sha256
+        # Metadata is authorized/materialized before any slow byte delivery.
+        try:
+            stream = open_document(key, size, digest)
+        except OSError:
+            return Response({"detail": "Document bytes are unavailable."}, status=503)
+        response = FileResponse(
+            stream,
+            as_attachment=True,
+            filename=original_filename(name),
+            content_type=content_type
+            if content_type in {"application/pdf", "text/csv"}
+            else "application/octet-stream",
+        )
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
 
 
 class OrderDocumentReviewListCreateView(WorkspaceOrderView):

@@ -107,6 +107,8 @@ export class OrdersApi {
   }
 }
 export function parseRoute(hash) {
+  const documentRoute = /^#\/workspaces\/([^/]+)\/(?:documents\/|orders\/([^/]+)\/documents\/)$/.exec(hash);
+  if (documentRoute && UUID.test(documentRoute[1]) && (!documentRoute[2] || UUID.test(documentRoute[2]))) return { screen: 'documents', workspace: documentRoute[1].toLowerCase(), order: documentRoute[2]?.toLowerCase() };
   if (!hash || hash === '#') return { screen: 'catalogue' };
   const match = /^#\/workspaces\/([^/]+)\/(catalogue|draft-orders)\/(?:([^/]+)\/)?$/.exec(hash);
   if (!match || !UUID.test(match[1]) || (match[3] && (!UUID.test(match[3]) || match[2] !== 'draft-orders'))) return { screen: 'missing' };

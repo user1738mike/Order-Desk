@@ -62,6 +62,7 @@ try {
   fixtures('create');
   const data = JSON.parse(await readFile(resolve(root, 'backend/var/frontend_browser_fixture.json'), 'utf8'));
   server = spawn('docker', ['compose', 'run', '--rm', '--name', container, '-p', '127.0.0.1:8001:8001',
+    '-e', 'PRIVATE_DOCUMENT_ROOT=/tmp/orderdesk-private-browser',
     'rlscheck', 'python', 'manage.py', 'shell', '-c',
     "import sys; from django.conf import settings; from django.core.management import call_command; sys.path.insert(0, '/frontend/tests'); settings.WSGI_APPLICATION = 'browser_server.application'; call_command('check_runtime_role'); call_command('runserver', '0.0.0.0:8001', use_reloader=False)"],
     { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -328,9 +329,52 @@ try {
   await waitFor(`location.hash===${JSON.stringify(manualHash)} && document.getElementById('draft-fields').textContent.includes('Other session winner')`);
   await evaluate("history.forward()");
   await waitFor("document.getElementById('draft-status').textContent.includes('Converted') && !document.getElementById('draft-content').hidden");
+  // Source documents belong to the confirmed purchase order, not its source draft.
+  await evaluate(`location.hash='#/workspaces/${data.a}/orders/${orderId}/documents/'`);
+  await waitFor("!document.getElementById('documents-screen').hidden && document.getElementById('documents-empty').textContent==='No source documents listed.' && !document.getElementById('documents-refresh').disabled");
+  const sourcePdf = '%PDF-1.7\nSynthetic local source\n%%EOF\n';
+  const sourceCsv = 'sku,quantity\r\n0001.Mixed-Case,1.234\r\n';
+  async function pickDocument(name, bytes) {
+    await evaluate(`(() => { const transfer = new DataTransfer(); transfer.items.add(new File([${JSON.stringify(bytes)}], ${JSON.stringify(name)}, {type:'application/octet-stream'})); const picker=document.getElementById('document-file'); picker.files=transfer.files; picker.dispatchEvent(new Event('change')); })()`);
+  }
+  await pickDocument('empty.pdf', ''); assert.match(await evaluate("document.getElementById('documents-message').textContent"), /nonempty/);
+  await pickDocument('unsafe.html', '<script>alert(1)</script>'); assert.equal(await evaluate("document.getElementById('document-upload').disabled"), true);
+  await pickDocument('malformed.pdf', 'not pdf'); await evaluate("document.getElementById('document-upload-form').requestSubmit()");
+  await waitFor("document.getElementById('documents-message').textContent.includes('supported signature') && !document.getElementById('document-upload').disabled");
+  for (const [name, bytes] of [['source.pdf', sourcePdf], ['0001.Mixed-Case.csv', sourceCsv]]) {
+    await pickDocument(name, bytes); await evaluate("document.getElementById('document-upload-form').requestSubmit()");
+    await waitFor(`document.getElementById('documents-rows').textContent.includes(${JSON.stringify(name)}) && document.getElementById('documents-message').textContent.includes('Source received')`);
+  }
+  assert.match(await evaluate("document.getElementById('documents-rows').textContent"), /Received.*not automatically reviewed/);
+  const documentBase = `/api/v1/workspaces/${data.a}/orders/${orderId}/documents/`;
+  const listedDocuments = await evaluate(`fetch(${JSON.stringify(documentBase + 'intake/')}).then(r=>r.json())`);
+  assert.equal(listedDocuments.count, 2);
+  for (const row of listedDocuments.results) {
+    const bytes = await evaluate(`fetch(${JSON.stringify(row.download_url)}).then(async r=>({status:r.status,bytes:await r.text(),disposition:r.headers.get('Content-Disposition'),cache:r.headers.get('Cache-Control'),nosniff:r.headers.get('X-Content-Type-Options')}))`);
+    assert.equal(bytes.status, 200); assert.equal(bytes.bytes, row.original_name.endsWith('.pdf') ? sourcePdf : sourceCsv);
+    assert.match(bytes.disposition, /^attachment;/); assert.match(bytes.cache, /no-store/); assert.equal(bytes.nosniff, 'nosniff');
+    assert.equal(await evaluate(`fetch(${JSON.stringify(row.download_url.replace(data.a, data.b))}).then(r=>r.status)`), 404);
+  }
+  // Invoke the actual Download control and verify the browser's saved source bytes.
+  const downloadDirectory = resolve(scratch, `downloads-${process.pid}`);
+  await mkdir(downloadDirectory, { recursive: true });
+  await command('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory });
+  await evaluate("document.querySelector('#documents-rows button').click()");
+  const firstDocument = listedDocuments.results[0];
+  for (let count=0; count<100 && !existsSync(resolve(downloadDirectory, firstDocument.original_name)); count++) await delay(100);
+  assert.equal(await readFile(resolve(downloadDirectory, firstDocument.original_name), 'utf8'), firstDocument.original_name.endsWith('.csv') ? sourceCsv : sourcePdf);
+  assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([new Uint8Array(10485761)],'too-large.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 413);
+  fixtures('viewer');
+  assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([${JSON.stringify(sourcePdf)}],'denied.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 403);
+  assert.equal(await evaluate(`fetch(${JSON.stringify(firstDocument.download_url)}).then(r=>r.status)`), 200);
+  await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Document mobile viewport overflows.');
+  const documentShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+  await writeFile(resolve(scratch, 'private-documents-mobile.png'), Buffer.from(documentShot.data, 'base64'));
   // Return to the existing catalogue revocation/logout regression.
   await choose(data.b);
   fixtures('revoke');
+  assert.equal(await evaluate(`fetch(${JSON.stringify(firstDocument.download_url)}).then(r=>r.status)`), 403);
   await search('BETA');
   await waitFor("document.getElementById('notice').textContent.includes('access changed')");
   assert.equal(await evaluate("document.getElementById('catalogue').hidden"), true);
@@ -341,6 +385,7 @@ try {
   assert.deepEqual(exceptions, []);
   console.log('PASS: real browser session/catalogue regressions; manual creation/header/line editing, validation and dirty navigation, two authenticated sessions with stale-write rejection/input preservation, active catalogue pagination/attach/detach, exact decimals and readiness invalidation; draft review, role denial, locked source, lost conversion response and same-order replay.');
   console.log('Runtime server: orderdesk_app; synthetic fixtures: test_orderdesk; screenshots: ignored backend/var/frontend-browser/.');
+  console.log('PASS: private PDF/CSV source intake, malformed and oversized rejection, exact browser attachment download, recorded status, viewer upload denial, cross-tenant/revoked download denial; isolated temporary storage.');
 } finally {
   if (secondarySocket?.readyState === WebSocket.OPEN) await closeSecondBrowser?.();
   secondarySocket?.close(); secondaryChrome?.kill();

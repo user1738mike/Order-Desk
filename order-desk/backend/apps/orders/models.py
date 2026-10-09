@@ -358,6 +358,9 @@ class OrderDocument(models.Model):
     original_name = models.CharField(max_length=255)
     content_type = models.CharField(max_length=128, blank=True, default="")
     size_bytes = models.PositiveBigIntegerField(default=0)
+    source_sha256 = models.CharField(
+        max_length=64, blank=True, default="", db_default="", editable=False
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=32,
@@ -370,6 +373,11 @@ class OrderDocument(models.Model):
             models.CheckConstraint(
                 condition=models.Q(size_bytes__gt=0),
                 name="orderdocument_size_positive",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(source_sha256__regex=r"^[0-9a-f]{64}$")
+                | (models.Q(source_sha256="") & ~models.Q(file__startswith="intake/")),
+                name="orderdocument_private_source_digest",
             ),
             models.UniqueConstraint(
                 fields=("id", "organization"), name="orderdocument_id_org_unique"

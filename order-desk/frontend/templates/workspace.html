@@ -19,7 +19,7 @@
     </section>
     <section id="desk" hidden>
       <div class="page-heading"><div><p class="eyebrow" id="breadcrumb">WORKSPACE / CATALOGUE</p><h1 id="page-title" tabindex="-1">Product catalogue</h1><p class="muted" id="page-subtitle">Browse your workspace’s products and catalogue status.</p></div><div class="workspace-picker"><label for="workspace">Workspace</label><select id="workspace"><option value="">Choose a workspace</option></select><button id="more-workspaces" class="quiet" hidden>Load more workspaces</button><span id="role" class="muted small"></span></div></div>
-      <nav id="workspace-tabs" class="workspace-tabs" aria-label="Workspace sections" hidden><a id="catalogue-tab" href="#">Catalogue</a><a id="drafts-tab" href="#">Draft orders</a></nav>
+      <nav id="workspace-tabs" class="workspace-tabs" aria-label="Workspace sections" hidden><a id="catalogue-tab" href="#">Catalogue</a><a id="drafts-tab" href="#">Draft orders</a><a id="documents-tab" href="#">Documents</a></nav>
       <div id="choose-workspace" class="card empty"><h2>Choose your workspace</h2><p class="muted">Select a workspace above to see its catalogue.</p></div>
       <section id="catalogue" class="card catalogue" hidden aria-label="Workspace catalogue">
         <form id="search-form" class="toolbar"><div class="search"><label for="search">Search catalogue</label><input id="search" type="search" maxlength="200" placeholder="Search SKU or description"><button type="submit">Search</button></div><div><label for="activity">Product status</label><select id="activity"><option value="">All products</option><option value="true">Active</option><option value="false">Inactive</option></select></div></form>
@@ -51,7 +51,16 @@
           </div>
         </section>
       </section>
-      <p id="route-missing" class="card empty" hidden>Page not found. Choose Catalogue or Draft orders above.</p>
+      <section id="documents-screen" class="card" hidden aria-label="Purchase-order source documents">
+        <h2>Source documents</h2><p id="documents-order"></p>
+        <form id="documents-open-form"><label for="documents-order-id">Purchase-order ID</label><input id="documents-order-id" maxlength="36" required><button>Open documents</button></form>
+        <p class="muted">PDF or UTF-8 CSV, up to 10 MiB. Source bytes stay private. Upload does not extract, match, review or approve an order. Downloaded files remain untrusted; no malware scan is performed.</p>
+        <form id="document-upload-form" hidden><label for="document-file">Source file</label><input id="document-file" type="file" accept=".pdf,.csv"><p id="documents-file-info"></p><button id="document-upload" disabled>Upload source</button></form>
+        <p id="documents-message" role="status" aria-live="polite"></p><button id="documents-check" class="quiet" hidden>Check list before restarting upload</button><button id="documents-refresh" class="quiet">Refresh documents</button>
+        <div class="table-scroll"><table><thead><tr><th>Original filename</th><th>Size</th><th>Status</th><th>Action</th></tr></thead><tbody id="documents-rows"></tbody></table></div><p id="documents-empty" role="status"></p>
+        <nav class="pagination" aria-label="Document pages"><span id="documents-page"></span><div><button id="documents-previous" class="quiet">Previous</button><button id="documents-next" class="quiet">Next</button></div></nav>
+      </section>
+      <p id="route-missing" class="card empty" hidden>Page not found. Choose a workspace section above.</p>
     </section>
     <button id="retry" class="quiet" hidden>Try again</button>
     <noscript><p class="card">Enable JavaScript to sign in and browse your workspace catalogue.</p></noscript>

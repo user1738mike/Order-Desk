@@ -5,11 +5,23 @@ import { DraftController } from './orders-controller.js';
 import { draftRoute, renderDrafts } from './orders-view.js';
 import { DraftEditor } from './editor.js';
 import { renderEditor } from './editor-view.js';
+import { DocumentController, documentRoute, renderDocuments } from './documents.js';
 
 const $ = id => document.getElementById(id);
 const client = new ApiClient();
 let desk;
 let editor;
+const documents = new DocumentController(client, () => { const route = parseRoute(location.hash); renderDocuments(documents, desk?.state.phase === 'desk' && route.screen === 'documents' && route.workspace === documents.state.workspace?.id); }, async action => {
+  const version = documents.version;
+  if (action && documents.state.workspace) {
+    try {
+      const data = await client.request(`/api/v1/workspaces/${documents.state.workspace.id}/context/`);
+      if (version !== documents.version) return;
+      desk.update({ workspace: data.workspace }); await documents.list(); return;
+    } catch { if (version !== documents.version) return; }
+  }
+  await desk.startWithoutSelection();
+});
 const orders = new DraftController(new OrdersApi(client), renderOrders, recheckAccess);
 editor = new DraftEditor(orders.api, orders, () => renderEditor(editor), async id => {
   if (orders.state.draftId === id) await orders.open(id, true);
@@ -19,6 +31,9 @@ function renderOrders(state) {
   const route = parseRoute(location.hash);
   editor?.context();
   renderDrafts(state, desk?.state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'drafts' && route.workspace === state.workspace.id, orders.canConvert(), (mode, line) => editor.begin(mode, line));
+  let documentLink = $('conversion-documents');
+  if (!documentLink) { documentLink = document.createElement('a'); documentLink.id = 'conversion-documents'; documentLink.textContent = 'Open purchase-order documents'; $('conversion-result').append(documentLink); }
+  documentLink.hidden = !state.result; documentLink.href = state.result ? documentRoute(state.workspace.id, state.result.id) : '#';
   if (editor) {
     $('new-draft').hidden = !editor.canEdit('create');
     $('edit-header').hidden = !editor.canEdit(); $('add-line').hidden = !editor.canEdit();
@@ -65,6 +80,7 @@ async function applyRoute() {
     if (route.draft) await orders.open(route.draft); else await orders.list();
     if (version === navigation) $('page-title').focus();
   }
+  if (route.screen === 'documents' && documents.state.workspace && route.order) await documents.list();
 }
 function render(state) {
   const route = parseRoute(location.hash);
@@ -92,6 +108,8 @@ function render(state) {
   $('workspace-tabs').hidden = !state.workspace;
   $('catalogue-tab').href = state.workspace ? `#/workspaces/${state.workspace.id}/catalogue/` : '#';
   $('drafts-tab').href = state.workspace ? draftRoute(state.workspace.id) : '#';
+  $('documents-tab').href = state.workspace ? documentRoute(state.workspace.id) : '#';
+  $('documents-tab').setAttribute('aria-current', route.screen === 'documents' ? 'page' : 'false');
   $('catalogue-tab').setAttribute('aria-current', route.screen === 'catalogue' ? 'page' : 'false');
   $('drafts-tab').setAttribute('aria-current', route.screen === 'drafts' ? 'page' : 'false');
   $('route-missing').hidden = route.screen !== 'missing';
@@ -99,6 +117,9 @@ function render(state) {
   $('page-title').textContent = route.screen === 'drafts' ? route.draft ? 'Draft review' : 'Draft orders' : 'Product catalogue';
   $('page-subtitle').textContent = route.screen === 'drafts' ? 'Inspect manual requests and their readiness for internal conversion.' : 'Browse your workspace’s products and catalogue status.';
   $('catalogue').setAttribute('aria-busy', String(state.catalogBusy));
+  if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = 'Document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
+  documents.context(state.phase === 'desk' ? state.workspace : null, state.generation, route.screen === 'documents' && route.workspace === state.workspace?.id ? route.order ?? null : null);
+  renderDocuments(documents, state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'documents' && route.workspace === state.workspace.id);
   // Preserve the user's unsent search text during loading/render updates.
   if (!state.workspace || state.phase === 'loading') { $('search').value = ''; $('activity').value = ''; }
   $('result-count').textContent = state.catalogBusy ? 'Loading products…' : `${state.count.toLocaleString()} ${state.count === 1 ? 'product' : 'products'}`;
@@ -126,6 +147,13 @@ function render(state) {
 }
 
 desk = new DeskController(client, render);
+$('documents-open-form').addEventListener('submit', event => { event.preventDefault(); const id = $('documents-order-id').value.trim().toLowerCase(); if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) && documents.state.workspace) location.hash = documentRoute(documents.state.workspace.id, id); else documents.update({ message: 'Enter a valid purchase-order UUID.' }); });
+$('document-file').addEventListener('change', event => documents.select(event.target.files[0] ?? null));
+$('document-upload-form').addEventListener('submit', event => { event.preventDefault(); documents.upload(); });
+$('documents-refresh').addEventListener('click', () => documents.list(documents.state.page));
+$('documents-check').addEventListener('click', async () => { const workspace = documents.state.workspace?.id; const generation = documents.state.generation; const order = documents.state.order; documents.update({ file: null }); const loaded = await documents.list(); if (loaded && documents.state.workspace?.id === workspace && documents.state.generation === generation && documents.state.order === order) documents.update({ uncertain: false, message: 'Compare listed filenames and sizes before deliberately selecting a file again.' }); });
+$('documents-previous').addEventListener('click', () => documents.list(documents.state.page - 1));
+$('documents-next').addEventListener('click', () => documents.list(documents.state.page + 1));
 $('login-form').addEventListener('submit', async event => {
   event.preventDefault();
   const password = $('password').value;

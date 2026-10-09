@@ -12,12 +12,14 @@ from apps.orders.views import (
     DraftOrderReviewView,
     DraftOrderRevisionView,
     OrderDetailView,
+    OrderDocumentDownloadView,
     OrderDocumentListCreateView,
     OrderDocumentReviewListCreateView,
     OrderDocumentReviewResolveView,
     OrderLineCreateView,
     OrderListCreateView,
     OrderReviewActionView,
+    PrivateOrderDocumentIntakeView,
 )
 
 app_name = "orders"
@@ -56,6 +58,16 @@ draft_urlpatterns = [
 ]
 
 urlpatterns = [
+    path(
+        "<uuid:order_id>/documents/intake/",
+        PrivateOrderDocumentIntakeView.as_view(),
+        name="private-document-intake",
+    ),
+    path(
+        "<uuid:order_id>/documents/<uuid:document_id>/download/",
+        OrderDocumentDownloadView.as_view(),
+        name="document-download",
+    ),
     path("", OrderListCreateView.as_view(), name="list-create"),
     path("<uuid:order_id>/", OrderDetailView.as_view(), name="detail"),
     path("<uuid:order_id>/lines/", OrderLineCreateView.as_view(), name="lines"),

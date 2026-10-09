@@ -416,6 +416,36 @@ class OrderDocumentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class PrivateDocumentSerializer(serializers.ModelSerializer):
+    """Bounded scalar status; no storage paths or embedded review collections."""
+
+    download_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderDocument
+        fields = (
+            "id",
+            "order",
+            "organization",
+            "uploaded_by",
+            "original_name",
+            "content_type",
+            "size_bytes",
+            "uploaded_at",
+            "status",
+            "download_url",
+        )
+        read_only_fields = fields
+
+    def get_download_url(self, document):
+        if not document.file.name.startswith("intake/"):
+            return None
+        return (
+            f"/api/v1/workspaces/{document.organization_id}/orders/"
+            f"{document.order_id}/documents/{document.pk}/download/"
+        )
+
+
 class PurchaseOrderSerializer(serializers.ModelSerializer):
     lines = PurchaseOrderLineSerializer(many=True, read_only=True)
     documents = OrderDocumentSerializer(many=True, read_only=True)
