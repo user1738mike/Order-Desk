@@ -7,6 +7,7 @@ dependencies = [
     "Django==5.2.17",
     "djangorestframework==3.18.1",
     "psycopg[binary]==3.3.6",
+    "pypdf==6.20.0",
 ]
 
 [dependency-groups]
@@ -30,4 +31,3 @@ select = ["E", "F", "I", "UP", "B", "S", "DJ"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-

@@ -9,11 +9,32 @@ from django.utils import timezone
 from apps.orders import selectors
 from apps.orders.csv_extraction import PARSER_VERSION, ExtractionFailure, extract_csv
 from apps.orders.models import DocumentExtractionJob, ExtractionJobStatus
+from apps.orders.pdf_extraction import extract_pdf
 from apps.orders.private_documents import open_document
 from apps.orders.services import _locked_order, _require_editable_order, _require_writer
 from apps.organizations.transactions import tenant_scope
 
 LEASE_SECONDS = 120
+PDF_RETRYABLE_ERRORS = frozenset(
+    {"source_unavailable", "parser_unavailable", "parser_timeout"}
+)
+
+
+def parser_version(content_type):
+    return {"text/csv": PARSER_VERSION, "application/pdf": "order-text-pdf-v1"}.get(
+        content_type
+    )
+
+
+def can_retry(job):
+    return (
+        job.status == ExtractionJobStatus.FAILED
+        and job.attempts < 3
+        and (
+            job.parser_version == PARSER_VERSION
+            or job.error_code in PDF_RETRYABLE_ERRORS
+        )
+    )
 
 
 def enqueue_extraction(*, actor, organization_id, order_id, document_id, materialize):
@@ -26,18 +47,21 @@ def enqueue_extraction(*, actor, organization_id, order_id, document_id, materia
             organization_id, order_id, document_id
         )
         if (
-            document.content_type != "text/csv"
+            parser_version(document.content_type) is None
             or not document.file.name.startswith("intake/")
             or not document.source_sha256
         ):
             raise ValidationError(
-                {"document": "Extraction requires a verified private CSV source."}
+                {
+                    "document": "Extraction requires a verified private "
+                    "CSV or PDF source."
+                }
             )
         job, created = DocumentExtractionJob.objects.get_or_create(
             organization_id=organization_id,
             document=document,
             source_sha256=document.source_sha256,
-            parser_version=PARSER_VERSION,
+            parser_version=parser_version(document.content_type),
             defaults={"requested_by": actor},
         )
         return materialize(job), created
@@ -50,7 +74,7 @@ def retry_extraction(*, actor, organization_id, order_id, document_id, materiali
             _locked_order(organization_id=organization_id, order_id=order_id)
         )
         job = selectors.get_extraction_job(organization_id, order_id, document_id)
-        if job.status != ExtractionJobStatus.FAILED or job.attempts >= 3:
+        if not can_retry(job):
             raise ValidationError(
                 {"job": "Only a failed job with attempts remaining can be retried."}
             )
@@ -87,12 +111,25 @@ def process_extraction(*, actor, organization_id, job_id):
         source = (document.file.name, document.size_bytes, job.source_sha256)
         order_id = document.order_id
         source_matches = document.source_sha256 == job.source_sha256
-    result, failure = [], None
+    result, pages, metrics, failure = [], [], {}, None
     try:
         if not source_matches:
             raise ExtractionFailure("source_changed")
         with open_document(*source) as stream:
-            result = extract_csv(stream)
+            if job.parser_version == PARSER_VERSION:
+                result = extract_csv(stream)
+            elif (
+                job.parser_version == "order-text-pdf-v1"
+                and document.content_type == "application/pdf"
+            ):
+                parsed = extract_pdf(stream)
+                result, pages, metrics = (
+                    parsed["result"],
+                    parsed["pages"],
+                    parsed["metrics"],
+                )
+            else:
+                raise ExtractionFailure("source_changed")
     except ExtractionFailure as error:
         failure = error
     except OSError:
@@ -119,6 +156,8 @@ def process_extraction(*, actor, organization_id, job_id):
         except ValidationError:
             failure = ExtractionFailure("order_locked")
         current.result = [] if failure else result
+        current.result_pages = [] if failure else pages
+        current.parser_metrics = {} if failure else metrics
         current.status = (
             ExtractionJobStatus.FAILED if failure else ExtractionJobStatus.SUCCEEDED
         )

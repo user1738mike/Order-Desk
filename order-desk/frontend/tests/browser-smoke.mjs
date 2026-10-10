@@ -17,6 +17,8 @@ let closeSecondBrowser;
 const pending = new Map();
 const exceptions = [];
 let dropConversionResponse = false;
+let dropApplicationResponse = false;
+let submittedApplication;
 let acceptNextDialog = false;
 // Refuse existing fixtures or occupied ports before entering owned cleanup.
 assert.ok(!existsSync(resolve(root, 'backend/var/frontend_browser_fixture.json')),
@@ -97,8 +99,9 @@ try {
       command('Page.handleJavaScriptDialog', { accept }).catch(error => exceptions.push(error.message));
     }
     if (reply.method === 'Fetch.requestPaused') {
-      if (dropConversionResponse && reply.params.responseStatusCode === 201) {
-        dropConversionResponse = false;
+      if ((dropConversionResponse || dropApplicationResponse) && reply.params.responseStatusCode === 201) {
+        if (dropApplicationResponse) submittedApplication = JSON.parse(reply.params.request.postData);
+        dropConversionResponse = false; dropApplicationResponse = false;
         command('Fetch.failRequest', { requestId: reply.params.requestId, errorReason: 'ConnectionClosed' }).then(() => command('Fetch.disable')).catch(error => exceptions.push(error.message));
       } else command('Fetch.continueRequest', { requestId: reply.params.requestId }).catch(error => exceptions.push(error.message));
     }
@@ -278,6 +281,32 @@ try {
   const detachedLine = (await secondRequest(manualPath + 'lines/')).data.results[0];
   for (const key of ['id', 'requested_sku', 'requested_description', 'quantity', 'unit']) assert.equal(detachedLine[key], matchedLine[key]);
   assert.equal(detachedLine.catalogue_item_id, null); assert.equal(detachedLine.catalogue_sku_snapshot, ''); assert.equal(detachedLine.catalogue_description_snapshot, '');
+  await evaluate("document.getElementById('matching-load').click()");
+  await waitFor("document.querySelector('#matching-results button') && !document.querySelector('#matching-results button').disabled");
+  assert.match(await evaluate("document.getElementById('matching-results').textContent"), /exact-sku-v1.*case, punctuation and leading zeros preserved/);
+  assert.match(await evaluate("document.getElementById('matching-results').textContent"), /Units and prices: not modeled/);
+  const matchingRevision = (await secondRequest(manualPath + 'revision/')).data.revision;
+  assert.equal((await secondRequest(manualPath, 'PATCH', { customer_reference: 'Matching concurrent edit' }, matchingRevision)).status, 200);
+  await evaluate("document.querySelector('#matching-results button').click()");
+  await waitFor("document.getElementById('matching-message').textContent.includes('Reload and compare')");
+  assert.equal((await secondRequest(`${manualPath}lines/${detachedLine.id}/`)).data.catalogue_item_id, null);
+  await evaluate("document.getElementById('matching-reload').click()");
+  await waitFor("document.querySelector('#matching-results button') && !document.querySelector('#matching-results button').disabled");
+  assert.equal((await secondRequest(`/api/v1/workspaces/${data.a}/catalog/items/${itemId}/`, 'PATCH', { is_active: false })).status, 200);
+  await evaluate("document.querySelector('#matching-results button').click()");
+  await waitFor("document.getElementById('matching-message').textContent.includes('Reload and compare')");
+  assert.equal((await secondRequest(`${manualPath}lines/${detachedLine.id}/`)).data.catalogue_item_id, null);
+  assert.equal((await secondRequest(`/api/v1/workspaces/${data.a}/catalog/items/${itemId}/`, 'PATCH', { is_active: true })).status, 200);
+  await evaluate("document.getElementById('matching-reload').click()");
+  await waitFor("document.querySelector('#matching-results button') && !document.querySelector('#matching-results button').disabled");
+  await evaluate("document.querySelector('#matching-results button').click()");
+  await waitFor("document.getElementById('matching-results').textContent.includes('already attached') && document.getElementById('draft-readiness-state').textContent==='Ready for internal conversion'");
+  const suggestedLine = (await secondRequest(`${manualPath}lines/${detachedLine.id}/`)).data;
+  assert.equal(suggestedLine.catalogue_item_id, itemId);
+  for (const fieldName of ['requested_sku', 'requested_description', 'quantity', 'unit']) assert.equal(suggestedLine[fieldName], detachedLine[fieldName]);
+  // Keep the following manual/unmatched regressions in their original state.
+  await evaluate("[...document.querySelectorAll('#draft-lines button')].find(b => b.textContent==='Detach catalogue').click()"); await editOpen(); await saveEdit();
+  await waitFor("document.getElementById('draft-blockers').textContent.includes('Attach unmatched')");
   const manualShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
   await writeFile(resolve(scratch, 'manual-draft-desktop.png'), Buffer.from(manualShot.data, 'base64'));
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
@@ -337,6 +366,17 @@ try {
   async function pickDocument(name, bytes) {
     await evaluate(`(() => { const transfer = new DataTransfer(); transfer.items.add(new File([${JSON.stringify(bytes)}], ${JSON.stringify(name)}, {type:'application/octet-stream'})); const picker=document.getElementById('document-file'); picker.files=transfer.files; picker.dispatchEvent(new Event('change')); })()`);
   }
+  // Independently author a tiny text PDF with explicit font/table layout. The
+  // browser uploads real bytes; no parser response or provenance is fabricated.
+  function syntheticTextPdf(lines) {
+    const escape = value => value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)');
+    const stream = ['BT /F1 10 Tf 14 TL 50 742 Td', ...lines.flatMap((line, index) => [...(index ? ['T*'] : []), `(${escape(line)}) Tj`]), 'ET'].join('\n');
+    const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Count 1 /Kids [4 0 R] >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>', `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+    let result = '%PDF-1.4\n'; const offsets = [0];
+    objects.forEach((object, index) => { offsets.push(result.length); result += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+    const xref = result.length;
+    return result + `xref\n0 ${offsets.length}\n0000000000 65535 f \n` + offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('') + `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  }
   await pickDocument('empty.pdf', ''); assert.match(await evaluate("document.getElementById('documents-message').textContent"), /nonempty/);
   await pickDocument('unsafe.html', '<script>alert(1)</script>'); assert.equal(await evaluate("document.getElementById('document-upload').disabled"), true);
   await pickDocument('malformed.pdf', 'not pdf'); await evaluate("document.getElementById('document-upload-form').requestSubmit()");
@@ -386,6 +426,123 @@ try {
   assert.match(await evaluate("document.getElementById('extraction-fields').textContent"), /0001.Mixed-Case.*source rows 2/);
   assert.match(await evaluate("document.getElementById('extraction-fields').textContent"), /1.234/);
   assert.equal(await evaluate(`fetch(${JSON.stringify(csvDocument.download_url)}).then(r=>r.text())`), sourceCsv);
+  // Explicit review starts with nothing selected. Keep the prior manual line,
+  // correct a selected quantity, reject a stale aggregate, then reconcile an
+  // actually committed application whose response was lost in this browser.
+  await field('review-draft-id', manualId);
+  await evaluate("document.getElementById('review-open-form').requestSubmit()");
+  await waitFor("!document.getElementById('review-content').hidden && document.querySelectorAll('#review-candidates article').length===1");
+  assert.equal(await evaluate("document.querySelectorAll('#review-candidates input[type=checkbox]:checked').length"), 0);
+  assert.equal(await evaluate("document.getElementById('review-apply').disabled"), true);
+  const reviewCandidate = await evaluate("document.querySelector('#review-candidates article').dataset.candidate");
+  async function selectValue(id, value) { await evaluate(`document.getElementById(${JSON.stringify(id)}).value=${JSON.stringify(value)};document.getElementById(${JSON.stringify(id)}).dispatchEvent(new Event('change',{bubbles:true}))`); }
+  async function checkValue(id) { await evaluate(`document.getElementById(${JSON.stringify(id)}).checked=true;document.getElementById(${JSON.stringify(id)}).dispatchEvent(new Event('change',{bubbles:true}))`); }
+  await selectValue(`review-action-${reviewCandidate}`, 'create');
+  await field(`review-position-${reviewCandidate}`, '2');
+  await checkValue(`review-select-${reviewCandidate}-sku`);
+  await checkValue(`review-select-${reviewCandidate}-quantity`);
+  await checkValue(`review-correct-${reviewCandidate}-quantity`);
+  await field(`review-value-${reviewCandidate}-quantity`, '1.250');
+  assert.match(await evaluate("document.getElementById('review-preview').textContent"), /1.250 \(deliberate correction\)/);
+  const applyRevision = (await secondRequest(manualPath + 'revision/')).data.revision;
+  assert.equal((await secondRequest(manualPath, 'PATCH', { customer_reference: 'Other-session apply revision' }, applyRevision)).status, 200);
+  acceptNextDialog = true; await evaluate("document.getElementById('review-apply').click()");
+  await waitFor("document.getElementById('review-message').textContent.includes('Your choices are kept') && document.getElementById('review-apply').disabled");
+  assert.equal(await evaluate(`document.getElementById('review-value-${reviewCandidate}-quantity').value`), '1.250');
+  assert.equal((await secondRequest(manualPath + 'lines/')).data.count, 1);
+  await evaluate("document.getElementById('review-refresh').click()");
+  await waitFor("!document.getElementById('review-comparison').hidden");
+  acceptNextDialog = true; await evaluate("document.getElementById('review-accept-comparison').click()");
+  await waitFor("!document.getElementById('review-apply').disabled");
+  dropApplicationResponse = true;
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*documents/*/extraction/apply/', requestStage: 'Response' }] });
+  acceptNextDialog = true; await evaluate("document.getElementById('review-apply').click()");
+  await waitFor("document.getElementById('review-message').textContent.includes('unconfirmed') && !document.getElementById('review-reconcile').hidden");
+  assert.equal(await evaluate("document.getElementById('review-receipt').textContent"), '');
+  assert.equal(await evaluate(`document.getElementById('review-value-${reviewCandidate}-quantity').disabled`), true);
+  await evaluate("document.getElementById('review-reconcile').click()");
+  await waitFor("document.getElementById('review-message').textContent.includes('confirmed by replay') && document.getElementById('review-readiness').textContent.includes('catalogue_unmatched')");
+  const appliedLines = (await secondRequest(manualPath + 'lines/')).data;
+  assert.equal(appliedLines.count, 2); assert.equal(appliedLines.results[0].id, detachedLine.id);
+  for (const key of ['requested_sku', 'requested_description', 'quantity', 'unit']) assert.equal(appliedLines.results[0][key], detachedLine[key]);
+  const appliedLine = appliedLines.results.find(row => row.position === 2);
+  assert.equal(appliedLine.requested_sku, '0001.Mixed-Case'); assert.equal(appliedLine.quantity, '1.250'); assert.equal(appliedLine.catalogue_item_id, null);
+  const csvApplyPath = `${csvDocument.extraction_url}apply/`;
+  const originalApplication = await secondRequest(csvApplyPath, 'POST', submittedApplication);
+  assert.equal(originalApplication.status, 200); assert.equal(originalApplication.data.decisions[0].fields.quantity.source.raw, '1.234'); assert.equal(originalApplication.data.decisions[0].fields.quantity.value, '1.250'); assert.equal(originalApplication.data.decisions[0].fields.quantity.corrected, true);
+  const editedRevision = (await secondRequest(manualPath + 'revision/')).data.revision;
+  assert.equal((await secondRequest(`${manualPath}lines/${appliedLine.id}/`, 'PATCH', { quantity: '9.875' }, editedRevision)).status, 200);
+  const replay = await secondRequest(csvApplyPath, 'POST', submittedApplication);
+  assert.equal(replay.status, 200); assert.equal(replay.data.application_id, originalApplication.data.application_id);
+  assert.equal((await secondRequest(`${manualPath}lines/${appliedLine.id}/`)).data.quantity, '9.875');
+  assert.equal((await secondRequest(manualPath)).data.status, 'draft');
+  // A late authorized read cannot refill private review state after workspace
+  // replacement. The delayed response is real HTTP, released after navigation.
+  let delayedReview;
+  const originalMessage = ws.onmessage;
+  ws.onmessage = event => { const reply = JSON.parse(event.data); if (reply.method === 'Fetch.requestPaused' && reply.params.request.url.includes('/extraction/review/')) { delayedReview = reply.params.requestId; return; } originalMessage(event); };
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*documents/*/extraction/review/*', requestStage: 'Response' }] });
+  await evaluate("document.getElementById('review-refresh').click()");
+  for (let count = 0; count < 100 && !delayedReview; count++) await delay(50);
+  assert.ok(delayedReview, 'Expected the authorized review response to be held.');
+  await choose(data.b);
+  await command('Fetch.continueRequest', { requestId: delayedReview }); await command('Fetch.disable'); ws.onmessage = originalMessage;
+  assert.equal(await evaluate("document.getElementById('extraction-review').hidden"), true);
+  assert.equal(await evaluate("document.getElementById('review-candidates').textContent.includes('0001.Mixed-Case')"), false);
+  await choose(data.a);
+  await evaluate(`location.hash=${JSON.stringify(`#/workspaces/${data.a}/orders/${orderId}/documents/`)}`);
+  await waitFor("document.getElementById('documents-rows').textContent.includes('0001.Mixed-Case.csv')");
+  // The supported text-PDF profile uses the same durable source/job/review
+  // boundary and records page/text offsets rather than invented coordinates.
+  const textPdf = syntheticTextPdf(['ORDER DESK TEXT PO v1', 'SKU | QUANTITY | UNIT | DESCRIPTION', 'PDF-REQUEST | 2.500 | each | Synthetic PDF request', 'END PAGE 1/1']);
+  await pickDocument('supported-text.pdf', textPdf);
+  await evaluate("document.getElementById('document-upload-form').requestSubmit()");
+  await waitFor("document.getElementById('documents-rows').textContent.includes('supported-text.pdf') && document.getElementById('documents-message').textContent.includes('Source received')");
+  await evaluate("[...document.querySelectorAll('#documents-rows tr')].find(r=>r.textContent.includes('supported-text.pdf')).querySelectorAll('button')[1].click()");
+  await waitFor("!document.getElementById('extraction-queue').disabled");
+  await evaluate("document.getElementById('extraction-queue').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('Queued')");
+  const pdfDocument = await evaluate(`fetch(${JSON.stringify(documentBase + 'intake/')}).then(r=>r.json()).then(d=>d.results.find(r=>r.original_name==='supported-text.pdf'))`);
+  const pdfQueued = await evaluate(`fetch(${JSON.stringify(pdfDocument.extraction_url)}).then(r=>r.json())`);
+  const processedPdf = spawnSync('docker', ['exec', container, 'python', 'manage.py', 'process_document_extraction', '--workspace', data.a, '--actor', data.user, '--job', pdfQueued.job.id], { cwd: root, windowsHide: true, encoding: 'utf8' });
+  assert.equal(processedPdf.status, 0, `Restricted PDF processor failed: ${processedPdf.stderr}`);
+  await evaluate("document.getElementById('extraction-refresh').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('ready for staff review')");
+  assert.match(await evaluate("document.getElementById('extraction-fields').textContent"), /PDF-REQUEST.*source page 1, line 3.*text offsets/);
+  const pdfResult = await evaluate(`fetch(${JSON.stringify(pdfDocument.extraction_url)}).then(r=>r.json())`);
+  assert.equal(pdfResult.job.parser_version, 'order-text-pdf-v1');
+  for (const sourceField of Object.values(pdfResult.results[0])) assert.equal([...pdfResult.job.result_pages[sourceField.page - 1]].slice(sourceField.span_start, sourceField.span_end).join(''), sourceField.raw);
+  assert.equal(await evaluate(`fetch(${JSON.stringify(pdfDocument.download_url)}).then(r=>r.text())`), textPdf);
+  await field('review-draft-id', manualId); await evaluate("document.getElementById('review-open-form').requestSubmit()");
+  await waitFor("!document.getElementById('review-content').hidden && document.querySelectorAll('#review-candidates article').length===1");
+  const pdfCandidate = await evaluate("document.querySelector('#review-candidates article').dataset.candidate");
+  await selectValue(`review-action-${pdfCandidate}`, 'update'); await selectValue(`review-target-${pdfCandidate}`, appliedLine.id);
+  await checkValue(`review-select-${pdfCandidate}-quantity`); await checkValue(`review-select-${pdfCandidate}-description`); await checkValue(`review-correct-${pdfCandidate}-description`); await field(`review-value-${pdfCandidate}-description`, 'Human PDF correction');
+  assert.match(await evaluate("document.getElementById('review-candidates').textContent"), /Current target: 9.875/);
+  acceptNextDialog = true; await evaluate("document.getElementById('review-apply').click()");
+  await waitFor("document.getElementById('review-message').textContent.includes('confirmed') && document.getElementById('review-message').textContent.includes('still need a decision')");
+  const pdfEdited = (await secondRequest(`${manualPath}lines/${appliedLine.id}/`)).data;
+  assert.equal(pdfEdited.quantity, '2.500'); assert.equal(pdfEdited.requested_description, 'Human PDF correction'); assert.equal(pdfEdited.requested_sku, '0001.Mixed-Case'); assert.equal(pdfEdited.unit, '');
+  const beforeReject = (await secondRequest(manualPath)).data.updated_at;
+  await selectValue(`review-action-${pdfCandidate}`, 'reject'); await checkValue(`review-select-${pdfCandidate}-sku`); await checkValue(`review-select-${pdfCandidate}-unit`);
+  acceptNextDialog = true; await evaluate("document.getElementById('review-apply').click()");
+  await waitFor("document.getElementById('review-message').textContent.includes('Every supported field has a recorded decision')");
+  assert.equal((await secondRequest(manualPath)).data.updated_at, beforeReject);
+  assert.equal((await secondRequest(manualPath)).data.status, 'draft');
+  const pdfAfter = await evaluate(`fetch(${JSON.stringify(documentBase + 'intake/')}).then(r=>r.json()).then(d=>d.results.find(r=>r.id===${JSON.stringify(pdfDocument.id)}))`);
+  assert.equal(pdfAfter.status, 'received');
+  // A real PDF without extractable text fails visibly and offers manual entry;
+  // it publishes no partial candidates and cannot be retried as a parser fix.
+  await pickDocument('no-text.pdf', syntheticTextPdf([])); await evaluate("document.getElementById('document-upload-form').requestSubmit()");
+  await waitFor("document.getElementById('documents-rows').textContent.includes('no-text.pdf') && document.getElementById('documents-message').textContent.includes('Source received')");
+  await evaluate("[...document.querySelectorAll('#documents-rows tr')].find(r=>r.textContent.includes('no-text.pdf')).querySelectorAll('button')[1].click()");
+  await waitFor("!document.getElementById('extraction-queue').disabled"); await evaluate("document.getElementById('extraction-queue').click()"); await waitFor("document.getElementById('extraction-status').textContent.includes('Queued')");
+  const blankPdf = await evaluate(`fetch(${JSON.stringify(documentBase + 'intake/')}).then(r=>r.json()).then(d=>d.results.find(r=>r.original_name==='no-text.pdf'))`);
+  const blankQueued = await evaluate(`fetch(${JSON.stringify(blankPdf.extraction_url)}).then(r=>r.json())`);
+  const failedPdf = spawnSync('docker', ['exec', container, 'python', 'manage.py', 'process_document_extraction', '--workspace', data.a, '--actor', data.user, '--job', blankQueued.job.id], { cwd: root, windowsHide: true, encoding: 'utf8' }); assert.equal(failedPdf.status, 0);
+  await evaluate("document.getElementById('extraction-refresh').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('no_text') && !document.getElementById('extraction-manual-link').hidden");
+  assert.equal(await evaluate("document.getElementById('extraction-review').hidden && document.getElementById('extraction-retry').disabled && document.getElementById('extraction-fields').children.length===0"), true);
   await pickDocument('invalid-quantity.csv', 'sku,quantity\nA,1\nB,invalid\n');
   await evaluate("document.getElementById('document-upload-form').requestSubmit()");
   await waitFor("document.getElementById('documents-rows').textContent.includes('invalid-quantity.csv') && document.getElementById('documents-message').textContent.includes('Source received')");
@@ -406,6 +563,7 @@ try {
   await waitFor("document.getElementById('extraction-identity').textContent.includes('attempt 2/3') && document.getElementById('extraction-status').textContent.includes('failed')");
   assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([new Uint8Array(10485761)],'too-large.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 413);
   fixtures('viewer');
+  assert.equal((await secondRequest(csvApplyPath, 'POST', submittedApplication)).status, 403);
   assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([${JSON.stringify(sourcePdf)}],'denied.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 403);
   assert.equal(await evaluate(`fetch(${JSON.stringify(firstDocument.download_url)}).then(r=>r.status)`), 200);
   assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();return(await fetch(${JSON.stringify(csvDocument.extraction_url)},{method:'POST',headers:{'X-CSRFToken':csrf_token,'Content-Type':'application/json'},body:'{}'})).status})()`), 403);
@@ -429,6 +587,9 @@ try {
   console.log('Runtime server: orderdesk_app; synthetic fixtures: test_orderdesk; screenshots: ignored backend/var/frontend-browser/.');
   console.log('PASS: private PDF/CSV source intake, malformed and oversized rejection, exact browser attachment download, recorded status, viewer upload denial, cross-tenant/revoked download denial; isolated temporary storage.');
   console.log('PASS: durable local CSV job, real processor exit/recovery, exact field provenance, immutable download, visible failure and explicit retry; restricted worker and viewer denial.');
+  console.log('PASS: explicit CSV source/target selection and corrected quantity with immutable provenance, stale revision preservation/comparison, lost application response and identical-key reconciliation, no duplicate lines or overwrite of later manual corrections, independent readiness/conversion, viewer replay denial and late workspace-response isolation.');
+  console.log('PASS: actual bounded text-PDF extraction and unchanged private bytes, verified page/text offset provenance, explicit existing-line correction, partial acceptance plus deliberate rejection, no automatic review/conversion, and visible no-text PDF failure with manual fallback.');
+  console.log('PASS: real exact-SKU suggestion evidence, unchecked units/prices, stale draft and deactivated catalogue rejection, deliberate acceptance with unchanged requested values and refreshed readiness; manual detach remains available.');
 } finally {
   if (secondarySocket?.readyState === WebSocket.OPEN) await closeSecondBrowser?.();
   secondarySocket?.close(); secondaryChrome?.kill();

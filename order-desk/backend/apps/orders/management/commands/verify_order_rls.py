@@ -13,10 +13,16 @@ from apps.orders.tests.runtime_rls import RuntimeOrderRLSChecks
 
 TABLE_PREFIXES = {
     "orders_documentextractionjob": "extraction",
+    "orders_extractionapplication": "application",
+    "orders_extractioncreatedrow": "createdrow",
     "orders_purchaseorder": "order",
     "orders_purchaseorderline": "orderline",
     "orders_orderdocument": "orderdocument",
     "orders_orderdocumentreview": "orderreview",
+}
+APPEND_ONLY_TABLES = {
+    "orders_extractionapplication",
+    "orders_extractioncreatedrow",
 }
 
 
@@ -40,20 +46,35 @@ class Command(CatalogVerifierCommand):
                 )
                 if cursor.fetchone() != ("orderdesk_migrator", True, True):
                     raise CommandError(f"Incorrect owner or forced RLS for {table}.")
-                for privilege in ("SELECT", "INSERT", "UPDATE"):
+                required = ("SELECT", "INSERT")
+                if table not in APPEND_ONLY_TABLES:
+                    required += ("UPDATE",)
+                for privilege in required:
                     cursor.execute(
                         "SELECT pg_catalog.has_table_privilege(current_user, %s, %s)",
                         [f"public.{table}", privilege],
                     )
                     if cursor.fetchone()[0] is not True:
                         raise CommandError(f"Missing runtime {privilege} for {table}.")
-                for privilege in (
+                forbidden = (
                     "DELETE",
                     "TRUNCATE",
                     "REFERENCES",
                     "TRIGGER",
                     "MAINTAIN",
-                ):
+                )
+                if table in APPEND_ONLY_TABLES:
+                    forbidden += ("UPDATE",)
+                    cursor.execute(
+                        "SELECT pg_catalog.has_any_column_privilege("
+                        "current_user, %s, 'UPDATE')",
+                        [f"public.{table}"],
+                    )
+                    if cursor.fetchone()[0]:
+                        raise CommandError(
+                            f"Unexpected runtime column UPDATE for {table}."
+                        )
+                for privilege in forbidden:
                     cursor.execute(
                         "SELECT pg_catalog.has_table_privilege(current_user, %s, %s)",
                         [f"public.{table}", privilege],
@@ -73,14 +94,90 @@ class Command(CatalogVerifierCommand):
             self._audit_parent_constraints(cursor)
             self._audit_draft_boundary(cursor)
             self._audit_conversion_boundary(cursor)
+            self._audit_application_boundary(cursor)
         self.stdout.write(
-            "Order/extraction metadata verified: 5 tables, forced RLS, 25 policies, "
+            "Order/extraction metadata verified: 7 tables, forced RLS, 35 policies, "
             "restricted grants and composite parent references."
         )
         self.stdout.write(
             "Draft metadata verified: 2 tables, forced RLS, 10 policies, "
             "2 composite tenant foreign keys."
         )
+
+    @staticmethod
+    def _audit_application_boundary(cursor) -> None:
+        expected = {
+            "application_job_org_fk": (
+                "orders_extractionapplication",
+                ["job_id", "organization_id"],
+                "orders_documentextractionjob",
+                ["id", "organization_id"],
+            ),
+            "application_draft_org_fk": (
+                "orders_extractionapplication",
+                ["draft_id", "organization_id"],
+                "orders_draftorder",
+                ["id", "organization_id"],
+            ),
+            "createdrow_application_identity_fk": (
+                "orders_extractioncreatedrow",
+                ["application_id", "organization_id", "job_id", "draft_id"],
+                "orders_extractionapplication",
+                ["id", "organization_id", "job_id", "draft_id"],
+            ),
+            "createdrow_line_identity_fk": (
+                "orders_extractioncreatedrow",
+                ["line_id", "organization_id", "draft_id"],
+                "orders_draftorderline",
+                ["id", "organization_id", "order_id"],
+            ),
+        }
+        cursor.execute(
+            """
+            SELECT c.conname, source.relname,
+                ARRAY(SELECT a.attname FROM unnest(c.conkey)
+                    WITH ORDINALITY AS k(attnum, n)
+                    JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.attnum
+                    ORDER BY k.n),
+                target.relname,
+                ARRAY(SELECT a.attname FROM unnest(c.confkey)
+                    WITH ORDINALITY AS k(attnum, n)
+                    JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=k.attnum
+                    ORDER BY k.n),
+                c.convalidated, c.condeferrable, c.condeferred
+            FROM pg_constraint c JOIN pg_class source ON source.oid=c.conrelid
+                JOIN pg_class target ON target.oid=c.confrelid
+            WHERE c.contype='f' AND c.conname=ANY(%s)
+                AND source.relnamespace='public'::regnamespace
+                AND target.relnamespace='public'::regnamespace
+            """,
+            [list(expected)],
+        )
+        rows = {row[0]: row[1:] for row in cursor.fetchall()}
+        if rows != {
+            name: (*definition, True, True, False)
+            for name, definition in expected.items()
+        }:
+            raise CommandError(
+                "Extraction application composite references are incorrect."
+            )
+        cursor.execute("""
+            SELECT t.tgenabled, p.prosecdef, pg_get_userbyid(p.proowner)
+            FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid
+            WHERE t.tgname='application_guard'
+                AND t.tgrelid='public.orders_extractionapplication'::regclass
+        """)
+        if cursor.fetchone() != ("O", False, "orderdesk_migrator"):
+            raise CommandError(
+                "Extraction application source/actor guard is incorrect."
+            )
+        cursor.execute("""
+            SELECT convalidated FROM pg_constraint
+            WHERE conname='application_json_bounded'
+                AND conrelid='public.orders_extractionapplication'::regclass
+        """)
+        if cursor.fetchone() != (True,):
+            raise CommandError("Extraction application JSON bounds are missing.")
 
     @staticmethod
     def _audit_conversion_boundary(cursor) -> None:

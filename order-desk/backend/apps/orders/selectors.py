@@ -179,7 +179,7 @@ def get_private_document(
 
 
 def current_extraction_job(organization_id, order_id, document_id):
-    from apps.orders.csv_extraction import PARSER_VERSION
+    from apps.orders.extraction_services import parser_version
     from apps.orders.models import DocumentExtractionJob
 
     document = get_private_document(organization_id, order_id, document_id)
@@ -187,7 +187,7 @@ def current_extraction_job(organization_id, order_id, document_id):
         organization_id=organization_id,
         document=document,
         source_sha256=document.source_sha256,
-        parser_version=PARSER_VERSION,
+        parser_version=parser_version(document.content_type),
     ).first()
 
 
@@ -230,4 +230,23 @@ def get_document_review(
     return get_object_or_404(
         reviews_for_document(organization_id, order_id, document_id),
         pk=review_id,
+    )
+
+
+def catalogue_items_for_draft_lines(organization_id, lines):
+    """One equality batch for a fixed-size page, including inactive attachments."""
+    from django.db.models import Q
+
+    from apps.catalog.models import CatalogItem
+
+    codes = {
+        line.requested_sku.strip()
+        for line in lines
+        if len(line.requested_sku) <= 4096 and line.requested_sku.strip()
+    }
+    attached = {line.catalogue_item_id for line in lines if line.catalogue_item_id}
+    return (
+        CatalogItem.objects.filter(organization_id=organization_id)
+        .filter(Q(sku__in=codes) | Q(pk__in=attached))
+        .order_by("sku", "id")
     )

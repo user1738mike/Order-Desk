@@ -17,10 +17,19 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.catalog.pagination import FixedPagePagination
 from apps.orders import selectors, services
 from apps.orders.document_files import OrderDocumentTooLarge
 from apps.orders.document_intake import create_private_document
+from apps.orders.extraction_apply import (
+    ExtractionApplicationConflict,
+    apply_extraction,
+    candidates,
+    result_revision,
+    reviewed_fields,
+)
 from apps.orders.extraction_services import enqueue_extraction, retry_extraction
+from apps.orders.matching import RULE_VERSION, CatalogueSuggestionConflict, assess_line
 from apps.orders.pagination import DraftOrderPagination, validate_draft_query
 from apps.orders.private_documents import open_document, original_filename
 from apps.orders.readiness import evaluate_draft_readiness
@@ -41,6 +50,7 @@ from apps.orders.serializers import (
     DraftOrderLineUpdateSerializer,
     DraftOrderReadinessSerializer,
     DraftOrderReviewSerializer,
+    DraftOrderSuggestionAcceptanceSerializer,
     DraftOrderSummarySerializer,
     OrderDocumentCreateSerializer,
     OrderDocumentReviewCreateSerializer,
@@ -81,6 +91,10 @@ class DraftOrderWriteView(DraftOrderReadView):
         # Translate only after the service has exited and rolled back its scope.
         if isinstance(exc, DraftRevisionConflict):
             return Response({"detail": "draft_revision_conflict"}, status=412)
+        if isinstance(exc, CatalogueSuggestionConflict):
+            return Response({"detail": "catalogue_suggestion_changed"}, status=409)
+        if isinstance(exc, services.DraftLineCatalogueAttachmentConflict):
+            return Response({"detail": "draft_line_already_attached"}, status=409)
         if isinstance(exc, services.DraftAlreadyConverted):
             return Response({"detail": "draft_already_converted"}, status=409)
         if isinstance(exc, services.DraftNotReady):
@@ -126,6 +140,74 @@ class DraftOrderRevisionView(DraftOrderReadView):
                 },
                 headers={"ETag": f'"{revision}"'},
             )
+
+
+class DraftOrderSuggestionsView(DraftOrderWriteView):
+    http_method_names = ["get", "head", "options"]
+
+    def get(self, request, workspace_id, order_id):
+        with tenant_scope(user=request.user, workspace_id=workspace_id):
+            draft = selectors.get_draft_order(workspace_id, order_id)
+            before = draft_revision(draft)
+            paginator = DraftOrderPagination()
+            lines = paginator.paginate_queryset(
+                selectors.draft_lines_for_order(workspace_id, order_id),
+                request,
+                view=self,
+            )
+            items = list(selectors.catalogue_items_for_draft_lines(workspace_id, lines))
+            results = [assess_line(line, items) for line in lines]
+            draft.refresh_from_db()
+            if draft_revision(draft) != before:
+                raise DraftRevisionConflict
+            response = paginator.get_paginated_response(results)
+            response.data.update(
+                id=str(draft.pk),
+                organization_id=str(workspace_id),
+                draft_revision=before,
+                rule_version=RULE_VERSION,
+            )
+            return response
+
+
+class DraftOrderSuggestionAcceptanceView(DraftOrderWriteView):
+    http_method_names = ["post", "options"]
+
+    def post(self, request, workspace_id, order_id, line_id):
+        validated = {}
+
+        def values():
+            if not validated:
+                validate_draft_query(request.query_params, allow_page=False)
+                if (
+                    request.content_type.split(";", 1)[0].strip().lower()
+                    != "application/json"
+                ):
+                    raise UnsupportedMediaType(request.content_type)
+                serializer = DraftOrderSuggestionAcceptanceSerializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                validated.update(serializer.validated_data)
+            return validated
+
+        def revision():
+            result = expected_draft_revision(request)
+            if result is None:
+                raise ValidationError(
+                    {"If-Match": ["Provide one quoted draft revision."]}
+                )
+            return result
+
+        data = services.attach_catalogue_item_to_draft_order_line(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            line_id=line_id,
+            catalogue_item_id=lambda: values()["catalogue_item_id"],
+            assessed_match=values,
+            expected_revision=revision,
+            materialize=lambda line: DraftOrderLineReadSerializer(line).data,
+        )
+        return Response(data)
 
 
 class DraftOrderListCreateView(DraftOrderWriteView):
@@ -587,6 +669,70 @@ class DocumentExtractionRetryView(WorkspaceOrderView):
             materialize=lambda job: DocumentExtractionJobSerializer(job).data,
         )
         return Response(data, status=202)
+
+
+class DocumentExtractionReviewView(DraftOrderWriteView):
+    def handle_exception(self, exc):
+        if isinstance(exc, ExtractionApplicationConflict):
+            return Response({"detail": exc.code}, status=409)
+        return super().handle_exception(exc)
+
+    def get(self, request, workspace_id, order_id, document_id):
+        with tenant_scope(user=request.user, workspace_id=workspace_id):
+            if set(request.query_params) - {"draft_id", "page"} or any(
+                len(request.query_params.getlist(key)) != 1
+                for key in request.query_params
+            ):
+                raise ValidationError(
+                    {"query": ["Unsupported or repeated query parameter."]}
+                )
+            try:
+                draft_id = UUID(request.query_params.get("draft_id", ""))
+            except ValueError as error:
+                raise ValidationError(
+                    {"draft_id": ["Provide a draft UUID."]}
+                ) from error
+            draft = selectors.get_draft_order(workspace_id, draft_id)
+            job = selectors.current_extraction_job(workspace_id, order_id, document_id)
+            if job is None or job.status != "succeeded":
+                raise ExtractionApplicationConflict("extraction_not_completed")
+            # This route already validates its additional draft_id parameter.
+            paginator = FixedPagePagination()
+            rows = paginator.paginate_queryset(candidates(job), request, view=self)
+            response = paginator.get_paginated_response(rows)
+            response.data.update(
+                job=DocumentExtractionJobSerializer(job).data,
+                result_revision=result_revision(job),
+                draft=DraftOrderDetailSerializer(
+                    draft, context={"request": request}
+                ).data,
+                draft_revision=draft_revision(draft),
+                reviewed_fields=reviewed_fields(job, draft),
+            )
+            return response
+
+
+class DocumentExtractionApplyView(DocumentExtractionReviewView):
+    http_method_names = ["post", "options"]
+
+    def post(self, request, workspace_id, order_id, document_id):
+        def input_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if (
+                request.content_type.split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise UnsupportedMediaType(request.content_type)
+            return request.data
+
+        data, created = apply_extraction(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            document_id=document_id,
+            data=input_data,
+        )
+        return Response(data, status=201 if created else 200)
 
 
 class OrderDocumentDownloadView(WorkspaceOrderView):

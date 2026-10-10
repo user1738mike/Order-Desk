@@ -21,7 +21,9 @@ class ExtractionApplication(models.Model):
     """An immutable, committed human decision and its repeat-safe response."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT)
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT
+    )
     job = models.ForeignKey("DocumentExtractionJob", on_delete=models.PROTECT)
     draft = models.ForeignKey("DraftOrder", on_delete=models.PROTECT)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -34,17 +36,31 @@ class ExtractionApplication(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["organization", "operation_key"], name="application_org_key_unique"),
-            models.UniqueConstraint(fields=["id", "organization", "job", "draft"], name="application_identity_unique"),
-            models.CheckConstraint(condition=models.Q(payload_hash__regex=r"^[0-9a-f]{64}$"), name="application_hash_valid"),
+            models.UniqueConstraint(
+                fields=["organization", "operation_key"],
+                name="application_org_key_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["id", "organization", "job", "draft"],
+                name="application_identity_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(payload_hash__regex=r"^[0-9a-f]{64}$"),
+                name="application_hash_valid",
+            ),
         ]
+
+    def __str__(self) -> str:
+        return str(self.pk)
 
 
 class ExtractionCreatedRow(models.Model):
     """A source row can create a line only once in a particular draft."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT)
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT
+    )
     application = models.ForeignKey(ExtractionApplication, on_delete=models.PROTECT)
     job = models.ForeignKey("DocumentExtractionJob", on_delete=models.PROTECT)
     draft = models.ForeignKey("DraftOrder", on_delete=models.PROTECT)
@@ -53,8 +69,14 @@ class ExtractionCreatedRow(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["job", "draft", "candidate_id"], name="extraction_row_create_unique"),
+            models.UniqueConstraint(
+                fields=["job", "draft", "candidate_id"],
+                name="extraction_row_create_unique",
+            ),
         ]
+
+    def __str__(self) -> str:
+        return str(self.pk)
 
 
 class DraftOrder(models.Model):
@@ -582,6 +604,8 @@ class DocumentExtractionJob(models.Model):
     error_code = models.CharField(max_length=32, blank=True, default="")
     error_row = models.PositiveIntegerField(null=True, blank=True)
     result = models.JSONField(default=list, blank=True)
+    result_pages = models.JSONField(default=list, blank=True)
+    parser_metrics = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -599,7 +623,9 @@ class DocumentExtractionJob(models.Model):
                 name="extraction_digest_valid",
             ),
             models.CheckConstraint(
-                condition=models.Q(parser_version="order-csv-v1"),
+                condition=models.Q(
+                    parser_version__in=["order-csv-v1", "order-text-pdf-v1"]
+                ),
                 name="extraction_parser_supported",
             ),
             models.CheckConstraint(

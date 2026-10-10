@@ -1,7 +1,9 @@
 from django.urls import path
 
 from apps.orders.views import (
+    DocumentExtractionApplyView,
     DocumentExtractionRetryView,
+    DocumentExtractionReviewView,
     DocumentExtractionView,
     DraftOrderConversionView,
     DraftOrderDetailView,
@@ -13,6 +15,8 @@ from apps.orders.views import (
     DraftOrderReadinessView,
     DraftOrderReviewView,
     DraftOrderRevisionView,
+    DraftOrderSuggestionAcceptanceView,
+    DraftOrderSuggestionsView,
     OrderDetailView,
     OrderDocumentDownloadView,
     OrderDocumentListCreateView,
@@ -27,6 +31,16 @@ from apps.orders.views import (
 app_name = "orders"
 
 draft_urlpatterns = [
+    path(
+        "<uuid:order_id>/suggestions/",
+        DraftOrderSuggestionsView.as_view(),
+        name="suggestions",
+    ),
+    path(
+        "<uuid:order_id>/lines/<uuid:line_id>/accept-suggestion/",
+        DraftOrderSuggestionAcceptanceView.as_view(),
+        name="line-accept-suggestion",
+    ),
     path("", DraftOrderListCreateView.as_view(), name="list"),
     path("<uuid:order_id>/", DraftOrderDetailView.as_view(), name="detail"),
     path(
@@ -60,6 +74,16 @@ draft_urlpatterns = [
 ]
 
 urlpatterns = [
+    path(
+        "<uuid:order_id>/documents/<uuid:document_id>/extraction/review/",
+        DocumentExtractionReviewView.as_view(),
+        name="document-extraction-review",
+    ),
+    path(
+        "<uuid:order_id>/documents/<uuid:document_id>/extraction/apply/",
+        DocumentExtractionApplyView.as_view(),
+        name="document-extraction-apply",
+    ),
     path(
         "<uuid:order_id>/documents/<uuid:document_id>/extraction/",
         DocumentExtractionView.as_view(),

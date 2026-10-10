@@ -47,6 +47,7 @@
               <section class="card review-panel"><h2>Conversion readiness</h2><p id="draft-readiness-state" role="status"></p><ul id="draft-blockers"></ul><p id="draft-assessed" class="muted small"></p><p class="muted small">This is a point-in-time assessment. Conversion checks current data again.</p></section>
             </div>
             <section id="draft-lines-section" class="card" tabindex="-1"><div class="catalogue-summary"><h2>Requested lines</h2><span id="draft-line-count" class="muted small"></span></div><div class="table-scroll"><table class="draft-lines"><thead><tr><th scope="col">Line</th><th scope="col">Requested SKU / description</th><th scope="col">Quantity / unit</th><th scope="col">Catalogue snapshot</th></tr></thead><tbody id="draft-lines"></tbody></table></div><p id="draft-lines-state" class="empty" role="status"></p><nav class="pagination" aria-label="Draft line pages"><span id="draft-line-page-label"></span><div><button id="draft-line-previous" class="quiet">← Previous</button><button id="draft-line-next" class="quiet">Next →</button></div></nav></section>
+            <section id="catalogue-suggestions" class="card" aria-labelledby="matching-heading" hidden><h2 id="matching-heading">Catalogue suggestions</h2><p>Assess exact requested SKUs for this page. A suggestion changes nothing until you accept it. The manual catalogue picker remains available.</p><button id="matching-load" type="button">Load exact suggestions</button><button id="matching-reload" type="button" class="quiet" hidden>Reload draft and compare suggestions</button><p id="matching-message" role="status" aria-live="polite"></p><div id="matching-results"></div></section>
             <section class="card conversion-panel"><h2>Internal purchase order</h2><p class="muted">Conversion creates an internal purchase-order record. Approval and ERP delivery are separate.</p><div id="conversion-result" hidden role="status"><h3 id="conversion-number"></h3><p id="conversion-id"></p><p class="muted small">The current purchase-order approval state is not shown here.</p></div><p id="conversion-permission" class="muted small"></p><button id="convert-draft" hidden>Convert to purchase order</button></section>
           </div>
         </section>
@@ -59,15 +60,36 @@
         <p id="documents-message" role="status" aria-live="polite"></p><button id="documents-check" class="quiet" hidden>Check list before restarting upload</button><button id="documents-refresh" class="quiet">Refresh documents</button>
         <div class="table-scroll"><table><thead><tr><th>Original filename</th><th>Size</th><th>Status</th><th>Action</th></tr></thead><tbody id="documents-rows"></tbody></table></div><p id="documents-empty" role="status"></p>
         <nav class="pagination" aria-label="Document pages"><span id="documents-page"></span><div><button id="documents-previous" class="quiet">Previous</button><button id="documents-next" class="quiet">Next</button></div></nav>
-        <section id="document-extraction" hidden aria-label="CSV extraction proposals">
-          <h3>CSV proposals · staff review required</h3>
+        <section id="document-extraction" hidden aria-label="Local extraction proposals">
+          <h3>Extracted proposals · staff review required</h3>
           <p id="extraction-source"></p>
           <p id="extraction-status" role="status" aria-live="polite"></p>
           <p id="extraction-identity" class="muted"></p>
-          <p>Supported columns: sku and quantity; optional description and unit. Up to 500 lines. Source bytes stay unchanged.</p>
+          <p>Supported local profiles: UTF-8 CSV, or the bounded text-PDF table profile. Fields: sku and quantity; optional description and unit. Source bytes stay unchanged. Scanned or unsupported PDFs require manual handling.</p>
+          <a id="extraction-manual-link" href="#" hidden>Open drafts for manual entry</a>
           <div class="toolbar"><button id="extraction-queue">Queue extraction</button><button id="extraction-retry" hidden>Retry failed extraction</button><button id="extraction-refresh" class="quiet">Refresh extraction status</button></div>
           <div id="extraction-fields"></div>
           <nav class="pagination" aria-label="Extracted proposal pages"><button id="extraction-previous" class="quiet">Previous proposals</button><button id="extraction-next" class="quiet">Next proposals</button></nav>
+          <section id="extraction-review" hidden aria-label="Human review and draft application">
+            <h3>Review selected fields for an existing draft</h3>
+            <p>Nothing is selected automatically. Choose a draft and explicit row actions, then inspect the exact preview. Catalogue attachment, readiness, document approval and conversion remain separate.</p>
+            <button id="review-load-drafts" class="quiet">Browse workspace drafts</button>
+            <div id="review-drafts" class="review-draft-options"></div>
+            <nav class="pagination" aria-label="Target draft pages"><span id="review-draft-page"></span><button id="review-draft-previous" class="quiet">Previous drafts</button><button id="review-draft-next" class="quiet">Next drafts</button></nav>
+            <form id="review-open-form"><label for="review-draft-id">Existing draft ID</label><input id="review-draft-id" maxlength="36" required><button id="review-open">Inspect target draft</button></form>
+            <p id="review-message" role="status" aria-live="polite"></p>
+            <section id="review-content" hidden>
+              <p id="review-current-draft"></p><a id="review-draft-link" href="#">Open current draft and readiness</a>
+              <p class="muted small">CSV/PDF quantities can exceed draft precision. Enter a deliberate correction when needed; quantities are exact strings and are never rounded automatically. Unselected fields and manual lines stay unchanged.</p>
+              <nav class="pagination" aria-label="Existing target line pages"><span id="review-line-page"></span><button id="review-line-previous" class="quiet">Previous target lines</button><button id="review-line-next" class="quiet">Next target lines</button></nav>
+              <div id="review-candidates"></div>
+              <nav class="pagination" aria-label="Review proposal pages"><span id="review-page"></span><button id="review-previous" class="quiet">Previous source rows</button><button id="review-next" class="quiet">Next source rows</button></nav>
+              <h4>Exact selection preview</h4><ul id="review-preview"></ul><ul id="review-errors" class="field-error" role="alert"></ul>
+              <div id="review-comparison" hidden><p>Compare the refreshed current target values with your kept corrections. The draft revision has not been accepted yet.</p><button id="review-accept-comparison" class="quiet">Confirm comparison and use refreshed revision</button></div>
+              <div class="toolbar"><button id="review-apply" disabled>Confirm and apply selection</button><button id="review-reconcile" hidden>Reconcile identical application request</button><button id="review-refresh" class="quiet">Refresh current values for comparison</button><button id="review-discard" class="quiet">Discard unsaved selection</button></div>
+              <p id="review-receipt" class="identity" role="status"></p><p id="review-readiness"></p>
+            </section>
+          </section>
         </section>
       </section>
       <p id="route-missing" class="card empty" hidden>Page not found. Choose a workspace section above.</p>

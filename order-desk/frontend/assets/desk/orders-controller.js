@@ -94,7 +94,7 @@ export class DraftController {
   }
   canConvert() {
     const s = this.state;
-    return Boolean(s.workspace?.role === 'admin' && s.draft && s.revision && !s.dirty && !s.loading && !s.linesLoading && !s.converting &&
+    return Boolean(s.workspace?.role === 'admin' && s.draft && s.revision && !s.dirty && !s.matchingPending && !s.loading && !s.linesLoading && !s.converting &&
       (s.draft.status === 'converted' || s.uncertain || (s.readiness?.ready_to_convert && s.review && !s.errors.lines && s.draft.line_count === s.readiness.line_count)));
   }
   async convert() {

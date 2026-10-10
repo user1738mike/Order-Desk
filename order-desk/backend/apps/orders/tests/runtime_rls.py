@@ -1,7 +1,7 @@
 """Direct runtime-role checks; run only through the guarded order RLS verifier.
 
 The default connection authenticates as orderdesk_app. Synthetic fixtures use
-the separate, audited maintenance connection. No source files are written.
+the separate, audited maintenance connection and temporary private source storage.
 """
 
 import unittest
@@ -43,6 +43,8 @@ from apps.orders.models import (
     DocumentExtractionJob,
     DraftOrder,
     DraftOrderLine,
+    ExtractionApplication,
+    ExtractionCreatedRow,
     ExtractionReviewStatus,
     OrderDocument,
     OrderDocumentReview,
@@ -64,6 +66,7 @@ BUSINESS_MODELS = (
     OrderDocumentReview,
 )
 DRAFT_MODELS = (DraftOrder, DraftOrderLine)
+EXTRACTION_MODELS = (DocumentExtractionJob, ExtractionApplication, ExtractionCreatedRow)
 
 
 class RuntimeOrderRLSChecks(unittest.TestCase):
@@ -590,6 +593,456 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
             self.assertEqual(client.get(extraction).status_code, 403)
             self._assert_clean()
 
+    def _completed_extraction_review(self, client, token, *, raw=None):
+        from django.core.management import call_command
+
+        is_pdf = raw is not None
+        if raw is None:
+            raw = b"sku,quantity\n0001.Mixed-Case,1.234\n"
+        order = self.rows[self.a.pk][PurchaseOrder]
+        path = f"/api/v1/workspaces/{self.a.pk}/orders/{order.pk}/documents/intake/"
+        response = client.post(
+            path,
+            {"file": SimpleUploadedFile("source.pdf" if is_pdf else "source.csv", raw)},
+            format="multipart",
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        extraction = response.json()["extraction_url"]
+        response = client.post(extraction, {}, format="json", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 202, response.content)
+        call_command(
+            "process_document_extraction" if is_pdf else "process_csv_extraction",
+            workspace=self.a.pk,
+            actor=self.reviewer.pk,
+            job=response.json()["id"],
+            verbosity=0,
+        )
+        draft = self.drafts[self.a.pk][DraftOrder]
+        response = client.get(f"{extraction}review/?draft_id={draft.pk}")
+        self.assertEqual(response.status_code, 200, response.content)
+        return extraction, response.json()
+
+    @staticmethod
+    def _extraction_application_payload(review, *, position=2):
+        return {
+            "job_id": review["job"]["id"],
+            "draft_id": review["draft"]["id"],
+            "result_revision": review["result_revision"],
+            "expected_draft_revision": review["draft_revision"],
+            "operation_key": str(uuid4()),
+            "mappings": [
+                {
+                    "candidate_id": review["results"][0]["candidate_id"],
+                    "action": "create",
+                    "position": position,
+                    "fields": ["sku", "quantity"],
+                }
+            ],
+        }
+
+    def test_csv_review_application_real_sessions_permissions_and_durable_replay(self):
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            viewer, viewer_token = self._credential_client(self.viewer)
+            outsider, outsider_token = self._credential_client(self.outsider)
+            for index, actor in enumerate((self.admin, self.reviewer), 2):
+                with self.subTest(role=actor.pk):
+                    client, token = self._credential_client(actor)
+                    extraction, review = self._completed_extraction_review(
+                        client, token
+                    )
+                    path = f"{extraction}apply/"
+                    payload = self._extraction_application_payload(
+                        review, position=index
+                    )
+                    self.assertEqual(
+                        viewer.get(
+                            f"{extraction}review/?draft_id={payload['draft_id']}"
+                        ).status_code,
+                        200,
+                    )
+                    for denied, csrf in (
+                        (viewer, viewer_token),
+                        (outsider, outsider_token),
+                    ):
+                        self.assertEqual(
+                            denied.post(
+                                path, payload, format="json", HTTP_X_CSRFTOKEN=csrf
+                            ).status_code,
+                            403,
+                        )
+                    self.assertEqual(
+                        client.post(path, payload, format="json").status_code, 403
+                    )
+                    foreign = {
+                        **payload,
+                        "draft_id": str(self.drafts[self.b.pk][DraftOrder].pk),
+                    }
+                    self.assertEqual(
+                        client.post(
+                            path, foreign, format="json", HTTP_X_CSRFTOKEN=token
+                        ).status_code,
+                        404,
+                    )
+                    self.assertEqual(
+                        client.post(
+                            path.replace(str(self.a.pk), str(self.b.pk)),
+                            payload,
+                            format="json",
+                            HTTP_X_CSRFTOKEN=token,
+                        ).status_code,
+                        # Admin is a member of B; reviewer has no membership
+                        # there, so workspace denial precedes resource lookup.
+                        404 if actor.pk == self.admin.pk else 403,
+                    )
+                    for changes, status in (
+                        ({"expected_draft_revision": "0" * 64}, 412),
+                        ({"result_revision": "0" * 64}, 409),
+                    ):
+                        response = client.post(
+                            path,
+                            {**payload, **changes},
+                            format="json",
+                            HTTP_X_CSRFTOKEN=token,
+                        )
+                        self.assertEqual(response.status_code, status, response.content)
+                    parent_lines = PurchaseOrderLine.objects.using(OWNER_ALIAS).count()
+                    response = client.post(
+                        path, payload, format="json", HTTP_X_CSRFTOKEN=token
+                    )
+                    self.assertEqual(response.status_code, 201, response.content)
+                    body = response.json()
+                    with self._write_scope(actor):
+                        receipt = ExtractionApplication.objects.get(
+                            pk=body["application_id"]
+                        )
+                        self.assertEqual(receipt.actor_id, actor.pk)
+                        link = ExtractionCreatedRow.objects.get(application=receipt)
+                        line = DraftOrderLine.objects.get(pk=link.line_id)
+                        self.assertEqual(
+                            (line.requested_sku, str(line.quantity)),
+                            ("0001.Mixed-Case", "1.234"),
+                        )
+                        self.assertIsNone(line.catalogue_item_id)
+                        DraftOrderLine.objects.filter(pk=line.pk).update(
+                            requested_description="Later manual correction",
+                            updated_at=timezone.now(),
+                        )
+                    retry = client.post(
+                        path, payload, format="json", HTTP_X_CSRFTOKEN=token
+                    )
+                    self.assertEqual(retry.status_code, 200, retry.content)
+                    self.assertEqual(retry.json(), body)
+                    with self._write_scope(actor):
+                        self.assertEqual(
+                            DraftOrderLine.objects.get(
+                                pk=line.pk
+                            ).requested_description,
+                            "Later manual correction",
+                        )
+                    fresh = client.get(
+                        f"{extraction}review/?draft_id={payload['draft_id']}"
+                    ).json()
+                    duplicate = {
+                        **payload,
+                        "expected_draft_revision": fresh["draft_revision"],
+                        "operation_key": str(uuid4()),
+                    }
+                    response = client.post(
+                        path, duplicate, format="json", HTTP_X_CSRFTOKEN=token
+                    )
+                    self.assertEqual(response.status_code, 409, response.content)
+                    self.assertEqual(
+                        response.json()["detail"], "source_row_already_created"
+                    )
+                    response = client.post(
+                        path,
+                        {**payload, "expected_draft_revision": fresh["draft_revision"]},
+                        format="json",
+                        HTTP_X_CSRFTOKEN=token,
+                    )
+                    self.assertEqual(response.status_code, 409, response.content)
+                    self.assertEqual(response.json()["detail"], "operation_key_reused")
+                    self.assertEqual(
+                        PurchaseOrderLine.objects.using(OWNER_ALIAS).count(),
+                        parent_lines,
+                    )
+                    self.assertEqual(fresh["job"]["status"], "succeeded")
+                    Membership.objects.using(OWNER_ALIAS).filter(
+                        user=actor, organization=self.a
+                    ).update(is_active=False)
+                    self.assertEqual(
+                        client.post(
+                            path, payload, format="json", HTTP_X_CSRFTOKEN=token
+                        ).status_code,
+                        403,
+                    )
+                    Membership.objects.using(OWNER_ALIAS).filter(
+                        user=actor, organization=self.a
+                    ).update(is_active=True)
+                    self._assert_clean()
+
+    def test_extraction_application_two_runtime_sessions_commit_one_source_row(self):
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            admin, admin_token = self._credential_client(self.admin)
+            reviewer, reviewer_token = self._credential_client(self.reviewer)
+            extraction, review = self._completed_extraction_review(admin, admin_token)
+            payload = self._extraction_application_payload(review)
+            ready = Barrier(2, timeout=10)
+
+            def attempt(client, token):
+                close_old_connections()
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute("SET lock_timeout='5s'")
+                        cursor.execute("SET statement_timeout='10s'")
+                        cursor.execute(
+                            "SELECT current_user, session_user, pg_backend_pid()"
+                        )
+                        identity = cursor.fetchone()
+                    self.assertEqual(identity[:2], ("orderdesk_app", "orderdesk_app"))
+                    ready.wait()
+                    response = client.post(
+                        f"{extraction}apply/",
+                        payload,
+                        format="json",
+                        HTTP_X_CSRFTOKEN=token,
+                    )
+                    self._assert_clean()
+                    return response.status_code, response.json(), identity[2]
+                finally:
+                    connections["default"].close()
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [
+                    pool.submit(attempt, client, token)
+                    for client, token in (
+                        (admin, admin_token),
+                        (reviewer, reviewer_token),
+                    )
+                ]
+                outcomes = [future.result(timeout=20) for future in futures]
+            self.assertCountEqual([outcome[0] for outcome in outcomes], [201, 200])
+            self.assertEqual(outcomes[0][1], outcomes[1][1])
+            self.assertEqual(len({outcome[2] for outcome in outcomes}), 2)
+            with self._write_scope():
+                self.assertEqual(
+                    ExtractionApplication.objects.filter(
+                        job_id=payload["job_id"]
+                    ).count(),
+                    1,
+                )
+                self.assertEqual(
+                    ExtractionCreatedRow.objects.filter(
+                        job_id=payload["job_id"]
+                    ).count(),
+                    1,
+                )
+                self.assertEqual(
+                    DraftOrderLine.objects.filter(
+                        order_id=payload["draft_id"], position=2
+                    ).count(),
+                    1,
+                )
+            self._assert_clean()
+
+    def test_extraction_receipt_runtime_tenant_references_grants_and_json_bounds(self):
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            client, token = self._credential_client(self.admin)
+            extraction, review = self._completed_extraction_review(client, token)
+            payload = self._extraction_application_payload(review)
+            response = client.post(
+                f"{extraction}apply/", payload, format="json", HTTP_X_CSRFTOKEN=token
+            )
+            self.assertEqual(response.status_code, 201, response.content)
+            application_id = UUID(response.json()["application_id"])
+            with self._write_scope():
+                application = ExtractionApplication.objects.get(pk=application_id)
+                created = ExtractionCreatedRow.objects.get(application=application)
+                application_data = {
+                    "organization_id": self.a.pk,
+                    "job_id": application.job_id,
+                    "draft_id": application.draft_id,
+                    "actor_id": self.admin.pk,
+                    "operation_key": uuid4(),
+                    "payload_hash": application.payload_hash,
+                    "request": application.request,
+                    "decisions": application.decisions,
+                    "response": application.response,
+                }
+                created_data = {
+                    "organization_id": self.a.pk,
+                    "application_id": application.pk,
+                    "job_id": application.job_id,
+                    "draft_id": application.draft_id,
+                    "line_id": created.line_id,
+                    "candidate_id": uuid4(),
+                }
+            for model in (ExtractionApplication, ExtractionCreatedRow):
+                self.assertEqual(self._visible_ids(model), set())
+                with tenant_scope(user=self.admin, workspace_id=self.b.pk):
+                    self.assertEqual(self._visible_ids(model), set())
+                with self._write_scope(self.viewer):
+                    self.assertEqual(
+                        self._visible_ids(model),
+                        {
+                            application.pk
+                            if model is ExtractionApplication
+                            else created.pk
+                        },
+                    )
+                with _forged_policy_context(self.a.pk, self.outsider.pk):
+                    self.assertEqual(self._visible_ids(model), set())
+                for verb in ("UPDATE", "DELETE"):
+                    statement = (
+                        sql.SQL("UPDATE {} SET id=id")
+                        if verb == "UPDATE"
+                        else sql.SQL("DELETE FROM {}")
+                    ).format(sql.Identifier("public", model._meta.db_table))
+                    self._expect_error(
+                        "42501",
+                        self._write_scope(),
+                        lambda statement=statement: self._execute(statement),
+                    )
+            self._expect_error(
+                "42501",
+                self._write_scope(self.viewer),
+                lambda: ExtractionCreatedRow.objects.create(**created_data),
+            )
+            self._expect_error(
+                "42501",
+                _forged_policy_context(None, None),
+                lambda: ExtractionCreatedRow.objects.create(**created_data),
+            )
+            self._expect_error(
+                "23503",
+                self._write_scope(),
+                lambda: ExtractionApplication.objects.create(
+                    **{
+                        **application_data,
+                        "draft_id": self.drafts[self.b.pk][DraftOrder].pk,
+                    }
+                ),
+            )
+            for changes in (
+                {"line_id": self.drafts[self.b.pk][DraftOrderLine].pk},
+                {"draft_id": self.drafts[self.b.pk][DraftOrder].pk},
+                {"job_id": uuid4()},
+            ):
+                with self.subTest(changes=changes):
+                    self._expect_error(
+                        "23503",
+                        self._write_scope(),
+                        lambda changes=changes: ExtractionCreatedRow.objects.create(
+                            **{**created_data, **changes}
+                        ),
+                    )
+            self._expect_error(
+                "23505",
+                self._write_scope(),
+                lambda: ExtractionCreatedRow.objects.create(
+                    **{**created_data, "candidate_id": created.candidate_id}
+                ),
+            )
+            for changes in (
+                {"actor_id": self.viewer.pk},
+                {"request": []},
+                {"decisions": []},
+                {"request": {"oversized": "x" * 1048576}},
+                {"response": []},
+            ):
+                with self.subTest(changes=tuple(changes)):
+                    self._expect_error(
+                        "23514",
+                        self._write_scope(),
+                        lambda changes=changes: ExtractionApplication.objects.create(
+                            **{**application_data, **changes}
+                        ),
+                    )
+            document_id = review["job"]["document"]
+            original_digest = review["job"]["source_sha256"]
+            OrderDocument.objects.using(OWNER_ALIAS).filter(pk=document_id).update(
+                source_sha256="f" * 64
+            )
+            self._expect_error(
+                "23514",
+                self._write_scope(),
+                lambda: ExtractionApplication.objects.create(**application_data),
+            )
+            OrderDocument.objects.using(OWNER_ALIAS).filter(pk=document_id).update(
+                source_sha256=original_digest
+            )
+            self._assert_clean()
+
+    def test_text_pdf_extraction_review_and_application_as_restricted_runtime_role(
+        self,
+    ):
+        from apps.orders.tests.pdf_fixtures import pdf_bytes
+
+        raw = pdf_bytes(
+            [
+                [
+                    "ORDER DESK TEXT PO v1",
+                    "SKU | QUANTITY | UNIT | DESCRIPTION",
+                    "0001.Mixed-Case | 1.234 | each | Synthetic",
+                    "END PAGE 1/1",
+                ]
+            ]
+        )
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            client, token = self._credential_client(self.admin)
+            extraction, review = self._completed_extraction_review(
+                client, token, raw=raw
+            )
+            self.assertEqual(review["job"]["parser_version"], "order-text-pdf-v1")
+            fields = review["results"][0]["fields"]
+            self.assertEqual(fields["sku"]["value"], "0001.Mixed-Case")
+            self.assertEqual(fields["quantity"]["value"], "1.234")
+            self.assertEqual(fields["sku"]["page"], 1)
+            self.assertEqual(fields["sku"]["line"], 3)
+            payload = self._extraction_application_payload(review)
+            response = client.post(
+                f"{extraction}apply/", payload, format="json", HTTP_X_CSRFTOKEN=token
+            )
+            self.assertEqual(response.status_code, 201, response.content)
+            with self._write_scope():
+                job = DocumentExtractionJob.objects.get(pk=review["job"]["id"])
+                self.assertIn("0001.Mixed-Case", job.result_pages[0])
+                created = ExtractionCreatedRow.objects.get(
+                    application_id=response.json()["application_id"]
+                )
+                line = DraftOrderLine.objects.get(pk=created.line_id)
+                self.assertEqual(
+                    (line.requested_sku, str(line.quantity)),
+                    ("0001.Mixed-Case", "1.234"),
+                )
+                self.assertIsNone(line.catalogue_item_id)
+            download = extraction.rsplit("extraction/", 1)[0] + "download/"
+            response = client.get(download)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(b"".join(response.streaming_content), raw)
+            response.close()
+            self._expect_error(
+                "23514",
+                self._write_scope(),
+                lambda: DocumentExtractionJob.objects.filter(
+                    pk=review["job"]["id"]
+                ).update(result_pages=[]),
+            )
+            self._assert_clean()
+
     def setUp(self) -> None:
         self.user_ids: list[UUID] = []
         self.workspace_ids: list[UUID] = []
@@ -646,6 +1099,12 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
     def _cleanup_fixtures(self) -> None:
         connection.close()
         with transaction.atomic(using=OWNER_ALIAS):
+            ExtractionCreatedRow.objects.using(OWNER_ALIAS).filter(
+                organization_id__in=self.workspace_ids
+            ).delete()
+            ExtractionApplication.objects.using(OWNER_ALIAS).filter(
+                organization_id__in=self.workspace_ids
+            ).delete()
             DocumentExtractionJob.objects.using(OWNER_ALIAS).filter(
                 organization_id__in=self.workspace_ids
             ).delete()
@@ -751,6 +1210,8 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         for model in BUSINESS_MODELS:
             self.assertEqual(self._visible_ids(model), set())
         for model in DRAFT_MODELS:
+            self.assertEqual(self._visible_ids(model), set())
+        for model in EXTRACTION_MODELS:
             self.assertEqual(self._visible_ids(model), set())
 
     def _write_scope(self, user: User | None = None) -> AbstractContextManager:
@@ -982,6 +1443,157 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         self.assertEqual(client.get(path).status_code, 403)
         self._assert_clean()
 
+    def test_exact_catalogue_suggestions_and_acceptance_use_runtime_tenant_boundary(
+        self,
+    ):
+        draft = self.drafts[self.a.pk][DraftOrder]
+        line = self.drafts[self.a.pk][DraftOrderLine]
+        code = "0001.Matching-Case"
+        with transaction.atomic(using=OWNER_ALIAS):
+            item = CatalogItem.objects.using(OWNER_ALIAS).create(
+                organization=self.a, sku=code, description="Local exact match"
+            )
+            foreign = CatalogItem.objects.using(OWNER_ALIAS).create(
+                organization=self.b, sku=code, description="FOREIGN-MATCH-PRIVATE"
+            )
+            CatalogItem.objects.using(OWNER_ALIAS).create(
+                organization=self.b,
+                sku="FOREIGN-ONLY",
+                description="FOREIGN-ONLY-PRIVATE",
+            )
+            DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+                requested_sku=" " + code + " ", quantity="1.234", unit="ea"
+            )
+        base = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{draft.pk}/"
+        endpoint = base + f"lines/{line.pk}/accept-suggestion/"
+        viewer, viewer_token = self._credential_client(self.viewer)
+        assessment = viewer.get(base + "suggestions/")
+        self.assertEqual(assessment.status_code, 200, assessment.content)
+        data = assessment.json()
+        row = data["results"][0]
+        self.assertEqual(row["state"], "exact")
+        self.assertEqual(row["candidate"]["id"], str(item.pk))
+        self.assertNotIn("FOREIGN-MATCH-PRIVATE", str(data))
+        self.assertEqual(row["checks"]["unit"], "not_modeled")
+        body = {
+            "catalogue_item_id": str(item.pk),
+            "rule_version": "exact-sku-v1",
+            "source_sku": code,
+            "catalogue_revision": row["candidate"]["revision"],
+        }
+        headers = {
+            "format": "json",
+            "HTTP_X_CSRFTOKEN": viewer_token,
+            "HTTP_IF_MATCH": f'"{data["draft_revision"]}"',
+        }
+        self.assertEqual(viewer.post(endpoint, body, **headers).status_code, 403)
+        reviewer, token = self._credential_client(self.reviewer)
+        headers["HTTP_X_CSRFTOKEN"] = token
+        self.assertEqual(
+            reviewer.post(
+                endpoint, {**body, "catalogue_item_id": str(foreign.pk)}, **headers
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            reviewer.post(
+                endpoint, body, format="json", HTTP_IF_MATCH=headers["HTTP_IF_MATCH"]
+            ).status_code,
+            403,
+        )
+        response = reviewer.post(endpoint, body, **headers)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["catalogue_item_id"], str(item.pk))
+        self.assertEqual(response.json()["quantity"], "1.234")
+        self.assertEqual(response.json()["unit"], "ea")
+        self.assertEqual(reviewer.post(endpoint, body, **headers).status_code, 412)
+        current = reviewer.get(base + "suggestions/").json()
+        self.assertEqual(current["results"][0]["state"], "already_attached")
+        headers["HTTP_IF_MATCH"] = f'"{current["draft_revision"]}"'
+        self.assertEqual(reviewer.post(endpoint, body, **headers).status_code, 200)
+        Membership.objects.using(OWNER_ALIAS).filter(
+            user=self.reviewer, organization=self.a
+        ).update(is_active=False)
+        self.assertEqual(reviewer.post(endpoint, body, **headers).status_code, 403)
+        self.assertEqual(reviewer.get(base + "suggestions/").status_code, 403)
+        self.assertEqual(
+            viewer.get(
+                base.replace(str(draft.pk), str(self.drafts[self.b.pk][DraftOrder].pk))
+                + "suggestions/"
+            ).status_code,
+            404,
+        )
+        DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+            requested_sku="FOREIGN-ONLY"
+        )
+        self.assertEqual(
+            viewer.get(base + "suggestions/").json()["results"][0]["state"], "no_match"
+        )
+        self._assert_clean()
+
+    def test_runtime_suggestion_acceptance_and_deactivation_serialize(self):
+        draft = self.drafts[self.a.pk][DraftOrder]
+        line = self.drafts[self.a.pk][DraftOrderLine]
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a,
+            sku="RACE.EXACT-0001",
+            description="Synthetic race item",
+        )
+        DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+            requested_sku=item.sku, quantity="2.500", unit="ea"
+        )
+        base = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{draft.pk}/"
+        reviewer, token = self._credential_client(self.reviewer)
+        admin, admin_token = self._credential_client(self.admin)
+        data = reviewer.get(base + "suggestions/").json()
+        row = data["results"][0]
+        body = {
+            "catalogue_item_id": str(item.pk),
+            "rule_version": "exact-sku-v1",
+            "source_sku": item.sku,
+            "catalogue_revision": row["candidate"]["revision"],
+        }
+        barrier = Barrier(2, timeout=10)
+
+        def accepting():
+            close_old_connections()
+            try:
+                barrier.wait()
+                return reviewer.post(
+                    base + f"lines/{line.pk}/accept-suggestion/",
+                    body,
+                    format="json",
+                    HTTP_X_CSRFTOKEN=token,
+                    HTTP_IF_MATCH=f'"{data["draft_revision"]}"',
+                ).status_code
+            finally:
+                connections["default"].close()
+
+        def deactivating():
+            close_old_connections()
+            try:
+                barrier.wait()
+                return admin.patch(
+                    f"/api/v1/workspaces/{self.a.pk}/catalog/items/{item.pk}/",
+                    {"is_active": False},
+                    format="json",
+                    HTTP_X_CSRFTOKEN=admin_token,
+                ).status_code
+            finally:
+                connections["default"].close()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            accepted, deactivated = pool.submit(accepting), pool.submit(deactivating)
+            outcome = accepted.result(timeout=20)
+            self.assertEqual(deactivated.result(timeout=20), 200)
+        self.assertIn(outcome, (200, 409))
+        line.refresh_from_db(using=OWNER_ALIAS)
+        self.assertEqual(line.catalogue_item_id, item.pk if outcome == 200 else None)
+        self.assertEqual(str(line.quantity), "2.500")
+        self.assertEqual(line.unit, "ea")
+        self.assertFalse(reviewer.get(base + "readiness/").json()["ready_to_convert"])
+        self._assert_clean()
+
     def test_draft_creation_validation_and_revocation_as_runtime_role(self) -> None:
         client, token = self._credential_client(self.admin)
         path = f"/api/v1/workspaces/{self.a.pk}/draft-orders/"
@@ -1016,6 +1628,54 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
             original_count + 1,
         )
         self._assert_clean()
+
+    def test_waiting_suggestion_acceptance_rechecks_committed_revocation(self):
+        draft = self.drafts[self.a.pk][DraftOrder]
+        line = self.drafts[self.a.pk][DraftOrderLine]
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(organization=self.a, sku="REVOKE.EXACT", description="Synthetic revocation")
+        DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(requested_sku=item.sku)
+        base = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{draft.pk}/"
+        client, token = self._credential_client(self.admin)
+        for change in ({"role": MembershipRole.VIEWER}, {"is_active": False}):
+            with self.subTest(change=change):
+                Membership.objects.using(OWNER_ALIAS).filter(pk=self.admin_membership.pk).update(role=MembershipRole.ADMIN, is_active=True)
+                data = client.get(base + "suggestions/").json(); candidate = data["results"][0]["candidate"]
+                body = {"catalogue_item_id": str(item.pk), "rule_version": "exact-sku-v1", "source_sku": item.sku, "catalogue_revision": candidate["revision"]}
+                ready = Queue()
+                def attempt():
+                    close_old_connections()
+                    observed = False
+                    def inspect(execute, statement, params, many, context):
+                        nonlocal observed
+                        if not observed and "organizations_organization" in statement and "FOR UPDATE" in statement:
+                            observed = True
+                            with connection.cursor() as cursor:
+                                cursor.execute("SELECT pg_backend_pid()")
+                                ready.put(cursor.fetchone()[0])
+                        return execute(statement, params, many, context)
+                    try:
+                        with connection.execute_wrapper(inspect):
+                            return client.post(base + f"lines/{line.pk}/accept-suggestion/", body, format="json", HTTP_X_CSRFTOKEN=token, HTTP_IF_MATCH=f'"{data["draft_revision"]}"').status_code
+                    finally: connections["default"].close()
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    with transaction.atomic(using=OWNER_ALIAS):
+                        Organization.objects.using(OWNER_ALIAS).select_for_update().get(pk=self.a.pk)
+                        with connections[OWNER_ALIAS].cursor() as cursor:
+                            cursor.execute("SELECT pg_backend_pid()")
+                            blocker = cursor.fetchone()[0]
+                        Membership.objects.using(OWNER_ALIAS).filter(pk=self.admin_membership.pk).update(**change)
+                        future = pool.submit(attempt)
+                        waiter = ready.get(timeout=10)
+                        deadline, pause = monotonic() + 5, Event()
+                        while monotonic() < deadline:
+                            with connection.cursor() as cursor:
+                                cursor.execute("SELECT pg_blocking_pids(%s)", [waiter])
+                                if blocker in cursor.fetchone()[0]: break
+                            pause.wait(0.02)
+                        else: self.fail("Expected suggestion organization lock wait was not observed.")
+                    self.assertEqual(future.result(timeout=15), 403)
+                line.refresh_from_db(using=OWNER_ALIAS); self.assertIsNone(line.catalogue_item_id)
+                self._assert_clean()
 
     def test_draft_customer_editing_as_runtime_role(self) -> None:
         order = self.drafts[self.a.pk][DraftOrder]

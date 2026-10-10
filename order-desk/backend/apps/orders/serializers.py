@@ -305,6 +305,22 @@ class DraftOrderLineAttachmentSerializer(StrictInputSerializer):
     catalogue_item_id = serializers.UUIDField()
 
 
+class DraftOrderSuggestionAcceptanceSerializer(StrictInputSerializer):
+    catalogue_item_id = serializers.UUIDField()
+    rule_version = serializers.ChoiceField(choices=["exact-sku-v1"])
+    source_sku = serializers.CharField(max_length=4096, trim_whitespace=False)
+    catalogue_revision = serializers.RegexField(r"^[0-9a-f]{64}$")
+
+    def to_internal_value(self, data):
+        if (
+            isinstance(data, Mapping)
+            and "source_sku" in data
+            and not isinstance(data["source_sku"], str)
+        ):
+            raise serializers.ValidationError({"source_sku": ["Not a valid string."]})
+        return super().to_internal_value(data)
+
+
 class DraftOrderLineDetachmentSerializer(StrictInputSerializer):
     """Only an empty object is valid for this explicit action."""
 
@@ -449,9 +465,10 @@ class PrivateDocumentSerializer(serializers.ModelSerializer):
         )
 
     def get_extraction_url(self, document):
-        if document.content_type != "text/csv" or not document.file.name.startswith(
-            "intake/"
-        ):
+        if document.content_type not in {
+            "text/csv",
+            "application/pdf",
+        } or not document.file.name.startswith("intake/"):
             return None
         return (
             f"/api/v1/workspaces/{document.organization_id}/orders/"
@@ -461,6 +478,7 @@ class PrivateDocumentSerializer(serializers.ModelSerializer):
 
 class DocumentExtractionJobSerializer(serializers.ModelSerializer):
     lease_expired = serializers.SerializerMethodField()
+    can_retry = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentExtractionJob
@@ -478,6 +496,9 @@ class DocumentExtractionJobSerializer(serializers.ModelSerializer):
             "error_row",
             "lease_expires_at",
             "lease_expired",
+            "can_retry",
+            "result_pages",
+            "parser_metrics",
             "created_at",
             "updated_at",
         )
@@ -487,6 +508,11 @@ class DocumentExtractionJobSerializer(serializers.ModelSerializer):
         from django.utils import timezone
 
         return job.status == "running" and job.lease_expires_at <= timezone.now()
+
+    def get_can_retry(self, job):
+        from apps.orders.extraction_services import can_retry
+
+        return can_retry(job)
 
 
 class PurchaseOrderSerializer(serializers.ModelSerializer):

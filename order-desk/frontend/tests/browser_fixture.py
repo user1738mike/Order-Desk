@@ -19,6 +19,8 @@ from apps.orders.models import (
     DocumentExtractionJob,
     DraftOrder,
     DraftOrderLine,
+    ExtractionApplication,
+    ExtractionCreatedRow,
     OrderDocument,
     OrderDocumentReview,
     PurchaseOrder,
@@ -193,6 +195,12 @@ elif action in (
                 )
             else:
                 # Remove only this user's sessions and this run's identities.
+                ExtractionCreatedRow.objects.filter(
+                    organization_id__in=[data["a"], data["b"]]
+                ).delete()
+                ExtractionApplication.objects.filter(
+                    organization_id__in=[data["a"], data["b"]]
+                ).delete()
                 DocumentExtractionJob.objects.filter(
                     organization_id__in=[data["a"], data["b"]]
                 ).delete()

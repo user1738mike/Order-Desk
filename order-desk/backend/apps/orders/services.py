@@ -19,6 +19,11 @@ from django.utils import timezone
 from apps.catalog.models import CatalogItem
 from apps.orders import selectors
 from apps.orders.document_files import bounded_document_file
+from apps.orders.matching import (
+    RULE_VERSION,
+    CatalogueSuggestionConflict,
+    catalogue_revision,
+)
 from apps.orders.models import (
     DraftOrder,
     DraftOrderLine,
@@ -371,6 +376,7 @@ def attach_catalogue_item_to_draft_order_line(
     catalogue_item_id: UUID | Callable[[], UUID],
     materialize: Materializer | None = None,
     expected_revision: str | Callable[[], str | None] | None = None,
+    assessed_match: Mapping[str, Any] | Callable[[], Mapping[str, Any]] | None = None,
 ):
     """Attach one active, same-workspace catalogue item to an unmatched line."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
@@ -389,8 +395,9 @@ def attach_catalogue_item_to_draft_order_line(
             ),
             pk=line_id,
         )
-        if line.catalogue_item_id is not None:
+        if line.catalogue_item_id is not None and assessed_match is None:
             raise DraftLineCatalogueAttachmentConflict
+        assessment = assessed_match() if callable(assessed_match) else assessed_match
         item_id = (
             catalogue_item_id() if callable(catalogue_item_id) else catalogue_item_id
         )
@@ -400,9 +407,27 @@ def attach_catalogue_item_to_draft_order_line(
             CatalogItem.objects.filter(
                 pk=item_id,
                 organization_id=context.organization_id,
-                is_active=True,
+                **({"is_active": True} if assessment is None else {}),
             )
         )
+        if assessment is not None:
+            if (
+                assessment.get("rule_version") != RULE_VERSION
+                or not item.is_active
+                or assessment.get("source_sku") != line.requested_sku.strip()
+                or item.sku != line.requested_sku.strip()
+                or len(line.requested_sku) > 4096
+                or assessment.get("catalogue_revision") != catalogue_revision(item)
+            ):
+                raise CatalogueSuggestionConflict
+            if line.catalogue_item_id is not None:
+                if (
+                    line.catalogue_item_id == item.pk
+                    and line.catalogue_sku_snapshot == item.sku
+                    and line.catalogue_description_snapshot == item.description
+                ):
+                    return _result(line, materialize)
+                raise DraftLineCatalogueAttachmentConflict
         line.catalogue_item_id = item.pk
         line.catalogue_sku_snapshot = item.sku
         line.catalogue_description_snapshot = item.description

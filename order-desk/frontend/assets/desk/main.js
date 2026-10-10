@@ -6,12 +6,16 @@ import { draftRoute, renderDrafts } from './orders-view.js';
 import { DraftEditor } from './editor.js';
 import { renderEditor } from './editor-view.js';
 import { DocumentController, documentRoute, renderDocuments } from './documents.js';
+import { ExtractionReviewController, renderExtractionReview } from './extraction-review.js';
+import { MatchingController, renderMatching } from './matching.js';
 
 const $ = id => document.getElementById(id);
 const client = new ApiClient();
 let desk;
 let editor;
-const documents = new DocumentController(client, () => { const route = parseRoute(location.hash); renderDocuments(documents, desk?.state.phase === 'desk' && route.screen === 'documents' && route.workspace === documents.state.workspace?.id); }, async action => {
+let extractionReview;
+let matching;
+const documents = new DocumentController(client, () => { const route = parseRoute(location.hash); const visible = desk?.state.phase === 'desk' && route.screen === 'documents' && route.workspace === documents.state.workspace?.id; renderDocuments(documents, visible); extractionReview?.context(documents.state.workspace, documents.state.generation, documents.state.order, documents.state.extraction); if (extractionReview) renderExtractionReview(extractionReview, visible); }, async action => {
   const version = documents.version;
   if (action && documents.state.workspace) {
     try {
@@ -23,6 +27,19 @@ const documents = new DocumentController(client, () => { const route = parseRout
   await desk.startWithoutSelection();
 });
 const orders = new DraftController(new OrdersApi(client), renderOrders, recheckAccess);
+matching = new MatchingController(client, orders, () => { renderMatching(matching); if (editor) renderOrders(orders.state); }, recheckAccess);
+extractionReview = new ExtractionReviewController(client, () => renderExtractionReview(extractionReview), async action => {
+  const version = extractionReview.version;
+  if (action && extractionReview.state.workspace) {
+    try { const data = await client.request(`/api/v1/workspaces/${extractionReview.state.workspace.id}/context/`); if (version !== extractionReview.version) return; desk.update({ workspace: data.workspace }); return; }
+    catch { if (version !== extractionReview.version) return; }
+  }
+  await desk.startWithoutSelection();
+}, async id => {
+  if (orders.state.draftId === id) await orders.open(id, true); else await orders.list(orders.state.page);
+  await documents.list(documents.state.page);
+});
+documents.beforeExtractionChange = row => row.id === extractionReview.state.source?.id || discardForNavigation();
 editor = new DraftEditor(orders.api, orders, () => renderEditor(editor), async id => {
   if (orders.state.draftId === id) await orders.open(id, true);
   else location.hash = draftRoute(orders.state.workspace.id, id);
@@ -30,6 +47,8 @@ editor = new DraftEditor(orders.api, orders, () => renderEditor(editor), async i
 function renderOrders(state) {
   const route = parseRoute(location.hash);
   editor?.context();
+  matching?.context();
+  if (matching) renderMatching(matching);
   renderDrafts(state, desk?.state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'drafts' && route.workspace === state.workspace.id, orders.canConvert(), (mode, line) => editor.begin(mode, line));
   let documentLink = $('conversion-documents');
   if (!documentLink) { documentLink = document.createElement('a'); documentLink.id = 'conversion-documents'; documentLink.textContent = 'Open purchase-order documents'; $('conversion-result').append(documentLink); }
@@ -61,9 +80,17 @@ async function recheckAccess(action) {
 let navigation = 0;
 let acceptedHash = location.hash;
 function discardForNavigation() {
-  if (!editor.state.open) return true;
-  if (editor.state.pending || (editor.state.dirty && !window.confirm('Discard unsaved draft values before leaving?'))) return false;
-  editor.discard(); return true;
+  if (matching?.state.pending) return false;
+  if (extractionReview.state.pending || extractionReview.state.uncertain) { extractionReview.update({ message: 'Reconcile the pending or unconfirmed application using the identical request before leaving.' }); return false; }
+  if (extractionReview.hasUnsaved()) {
+    if (!window.confirm('Discard unsaved extraction choices and corrections before leaving?')) return false;
+    extractionReview.discard();
+  }
+  if (editor.state.open) {
+    if (editor.state.pending || (editor.state.dirty && !window.confirm('Discard unsaved draft values before leaving?'))) return false;
+    editor.discard();
+  }
+  return true;
 }
 async function applyRoute() {
   if (location.hash !== acceptedHash && !discardForNavigation()) { history.replaceState(null, '', location.pathname + location.search + acceptedHash); return; }
@@ -120,6 +147,8 @@ function render(state) {
   if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = 'Document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
   documents.context(state.phase === 'desk' ? state.workspace : null, state.generation, route.screen === 'documents' && route.workspace === state.workspace?.id ? route.order ?? null : null);
   renderDocuments(documents, state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'documents' && route.workspace === state.workspace.id);
+  extractionReview.context(documents.state.workspace, documents.state.generation, documents.state.order, documents.state.extraction);
+  renderExtractionReview(extractionReview, state.phase === 'desk' && route.screen === 'documents' && route.workspace === state.workspace?.id);
   // Preserve the user's unsent search text during loading/render updates.
   if (!state.workspace || state.phase === 'loading') { $('search').value = ''; $('activity').value = ''; }
   $('result-count').textContent = state.catalogBusy ? 'Loading products…' : `${state.count.toLocaleString()} ${state.count === 1 ? 'product' : 'products'}`;
@@ -159,6 +188,19 @@ $('extraction-retry').addEventListener('click', () => documents.queueExtraction(
 $('extraction-refresh').addEventListener('click', () => { if (documents.state.extraction) documents.openExtraction(documents.state.extraction.row, documents.state.extraction.page); });
 $('extraction-previous').addEventListener('click', () => documents.openExtraction(documents.state.extraction.row, documents.state.extraction.page - 1));
 $('extraction-next').addEventListener('click', () => documents.openExtraction(documents.state.extraction.row, documents.state.extraction.page + 1));
+$('review-load-drafts').addEventListener('click', () => extractionReview.listDrafts());
+$('review-draft-previous').addEventListener('click', () => extractionReview.listDrafts(extractionReview.state.draftPage - 1));
+$('review-draft-next').addEventListener('click', () => extractionReview.listDrafts(extractionReview.state.draftPage + 1));
+$('review-open-form').addEventListener('submit', event => { event.preventDefault(); const id = $('review-draft-id').value.trim().toLowerCase(); if (extractionReview.hasUnsaved() && id !== extractionReview.state.draftId) { if (!window.confirm('Discard these unsaved selections before choosing another draft?')) return; extractionReview.discard(); } extractionReview.load(id); });
+$('review-previous').addEventListener('click', () => extractionReview.load(extractionReview.state.draftId, extractionReview.state.page - 1));
+$('review-next').addEventListener('click', () => extractionReview.load(extractionReview.state.draftId, extractionReview.state.page + 1));
+$('review-line-previous').addEventListener('click', () => extractionReview.loadLines(extractionReview.state.linePage - 1));
+$('review-line-next').addEventListener('click', () => extractionReview.loadLines(extractionReview.state.linePage + 1));
+$('review-refresh').addEventListener('click', () => extractionReview.load(extractionReview.state.draftId, extractionReview.state.page, true));
+$('review-accept-comparison').addEventListener('click', () => { if (window.confirm('Use the refreshed draft revision with these kept choices after comparing current target values?')) extractionReview.acceptComparison(); });
+$('review-discard').addEventListener('click', () => { if (!extractionReview.hasUnsaved() || window.confirm('Discard these unsaved selections and corrections?')) { extractionReview.discard(); extractionReview.load(extractionReview.state.draftId, extractionReview.state.page); } });
+$('review-apply').addEventListener('click', () => { if (extractionReview.canApply() && window.confirm('Apply exactly the selected fields and row mappings shown in the preview? Other lines stay unchanged. Conversion remains a separate action.')) extractionReview.apply(); });
+$('review-reconcile').addEventListener('click', () => extractionReview.apply(true));
 $('login-form').addEventListener('submit', async event => {
   event.preventDefault();
   const password = $('password').value;
@@ -184,11 +226,13 @@ $('next').addEventListener('click', () => desk.goToPage(desk.state.page + 1));
 $('retry').addEventListener('click', () => desk.state.catalogError ? desk.loadCatalogue() : desk.state.retryAction === 'logout' ? desk.logout() : desk.start());
 // Revalidate on return from another tab, where selection, auth or access changed.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !orders.state.converting && !editor.state.open) desk.start().then(applyRoute);
+  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !orders.state.converting && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
 });
 window.addEventListener('pageshow', event => { if (event.persisted) desk.start().then(applyRoute); });
 window.addEventListener('hashchange', applyRoute);
-window.addEventListener('beforeunload', event => { if (editor.state.dirty || editor.state.pending) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
+$('matching-load').addEventListener('click', () => matching.load());
+$('matching-reload').addEventListener('click', () => matching.reload());
 $('new-draft').addEventListener('click', () => editor.begin('create'));
 $('edit-header').addEventListener('click', () => editor.begin('header'));
 $('add-line').addEventListener('click', () => editor.begin('add-line'));

@@ -1,5 +1,6 @@
 import { ApiError } from './api.js';
 import { UUID } from './orders-api.js';
+import { validateProvenance, provenanceLocation } from './extraction-review.js';
 
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 export const documentRoute = (workspace, order = '') => `#/workspaces/${workspace}/${order ? `orders/${order}/documents/` : 'documents/'}`;
@@ -72,24 +73,25 @@ export class DocumentController {
   extractionPath(row) {
     this.validate(row);
     const path = `${this.path()}${row.id}/extraction/`;
-    if (row.extraction_url !== path) throw new Error('CSV extraction unavailable for this source.');
+    if (row.extraction_url !== path) throw new Error('Local extraction unavailable for this source.');
     return path;
   }
   validateExtraction(data, row) {
     if (!data || !Array.isArray(data.results) || data.results.length > 50 || !Number.isSafeInteger(data.count) || data.count < 0 || data.count > 500) throw new Error('Extraction response unavailable.');
     const job = data.job;
-    if (job !== null && (!UUID.test(job?.id) || job.document !== row.id || job.organization !== this.state.workspace.id || job.parser_version !== 'order-csv-v1' || !/^[0-9a-f]{64}$/.test(job.source_sha256) || !['queued', 'running', 'succeeded', 'failed'].includes(job.status) || !Number.isInteger(job.attempts) || job.attempts < 0 || job.attempts > 3 || typeof job.lease_expired !== 'boolean' || typeof job.error_code !== 'string' || (job.error_row !== null && (!Number.isInteger(job.error_row) || job.error_row < 1)))) throw new Error('Extraction response unavailable.');
+    if (job !== null && (!UUID.test(job?.id) || job.document !== row.id || job.organization !== this.state.workspace.id || !['order-csv-v1', 'order-text-pdf-v1'].includes(job.parser_version) || !/^[0-9a-f]{64}$/.test(job.source_sha256) || !['queued', 'running', 'succeeded', 'failed'].includes(job.status) || !Number.isInteger(job.attempts) || job.attempts < 0 || job.attempts > 3 || typeof job.lease_expired !== 'boolean' || typeof job.error_code !== 'string' || (job.error_row !== null && (!Number.isInteger(job.error_row) || job.error_row < 1)))) throw new Error('Extraction response unavailable.');
     if ((!job || job.status !== 'succeeded') && (data.count || data.results.length)) throw new Error('Extraction response unavailable.');
     for (const fields of data.results) {
       if (!fields || !fields.sku || !fields.quantity || Object.keys(fields).some(key => !['sku', 'quantity', 'description', 'unit'].includes(key))) throw new Error('Extraction response unavailable.');
-      for (const [key, field] of Object.entries(fields)) if (typeof field?.value !== 'string' || typeof field.raw !== 'string' || field.raw.length > 4096 || field.value.length > 4096 || field.column !== key || !Number.isInteger(field.row) || field.row < 2 || !Number.isInteger(field.end_row) || field.end_row < field.row || !Number.isInteger(field.column_index) || field.column_index < 1 || field.column_index > 4) throw new Error('Extraction response unavailable.');
+      for (const [key, field] of Object.entries(fields)) validateProvenance(field, key, job.parser_version, job.result_pages);
     }
     return data;
   }
   async openExtraction(row, page = 1) {
     if (this.state.busy || this.state.pending) return;
+    if (this.beforeExtractionChange && !this.beforeExtractionChange(row)) return;
     const abort = this.abort = new AbortController(); const version = ++this.version;
-    this.update({ busy: true, extraction: { row, page, job: null, rows: [], count: 0, loaded: false }, message: 'Loading CSV extraction status…' });
+    this.update({ busy: true, extraction: { row, page, job: null, rows: [], count: 0, loaded: false }, message: 'Loading local extraction status…' });
     try {
       const data = await this.client.request(`${this.extractionPath(row)}?page=${page}`, { signal: abort.signal });
       if (version !== this.version || abort.signal.aborted) return;
@@ -100,12 +102,12 @@ export class DocumentController {
   }
   canExtract(retry = false) {
     const e = this.state.extraction;
-    return ['admin', 'reviewer'].includes(this.state.workspace?.role) && e?.loaded && !this.state.busy && !this.state.pending && (retry ? e.job?.status === 'failed' && e.job.attempts < 3 : e.job === null);
+    return ['admin', 'reviewer'].includes(this.state.workspace?.role) && e?.loaded && !this.state.busy && !this.state.pending && (retry ? e.job?.status === 'failed' && e.job.attempts < 3 && e.job.can_retry !== false : e.job === null);
   }
   async queueExtraction(retry = false) {
     if (!this.canExtract(retry)) return;
     const row = this.state.extraction.row; const version = this.version; const abort = this.abort = new AbortController();
-    this.update({ pending: true, message: retry ? 'Requesting another extraction attempt…' : 'Queuing CSV extraction…' });
+    this.update({ pending: true, message: retry ? 'Requesting another extraction attempt…' : 'Queuing local extraction…' });
     try {
       await this.client.refreshCsrf(abort.signal);
       await this.client.request(`${this.extractionPath(row)}${retry ? 'retry/' : ''}`, { method: 'POST', body: {}, signal: abort.signal });
@@ -138,7 +140,7 @@ export function renderDocuments(controller, visible) {
       const version = controller.version; const blob = await controller.download(row); if (!blob || version !== controller.version) return;
       const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = row.original_name.replace(/[\r\n\\/]/g, '_'); link.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
     }); td.append(button);
-    if (row.extraction_url) { const extraction = document.createElement('button'); extraction.textContent = 'CSV extraction'; extraction.disabled = s.busy || s.pending; extraction.addEventListener('click', () => controller.openExtraction(row)); td.append(extraction); }
+    if (row.extraction_url) { const extraction = document.createElement('button'); extraction.textContent = /\.pdf$/i.test(row.original_name) ? 'PDF extraction' : 'CSV extraction'; extraction.disabled = s.busy || s.pending; extraction.addEventListener('click', () => controller.openExtraction(row)); td.append(extraction); }
     tr.append(td); return tr;
   }));
   $('documents-empty').textContent = s.busy ? 'Loading documents…' : s.rows.length ? '' : s.order ? 'No source documents listed.' : '';
@@ -154,9 +156,10 @@ function renderExtraction(controller) {
   if (!e) return;
   $('extraction-source').textContent = e.row.original_name;
   const job = e.job;
-  const status = !e.loaded ? 'Status unavailable. Refresh before requesting extraction.' : !job ? 'No extraction queued.' : job.status === 'queued' ? 'Queued; waiting for the local processor.' : job.status === 'running' ? (job.lease_expired ? 'Processing lease expired. An authorized processor can resume it.' : 'Processing CSV…') : job.status === 'failed' ? `Extraction failed: ${job.error_code}${job.error_row ? ` at source row ${job.error_row}` : ''}. No partial proposals were published.` : 'CSV proposals ready for staff review. No order lines or approvals were changed.';
+  const status = !e.loaded ? 'Status unavailable. Refresh before requesting extraction.' : !job ? 'No extraction queued.' : job.status === 'queued' ? 'Queued; waiting for the local processor.' : job.status === 'running' ? (job.lease_expired ? 'Processing lease expired. An authorized processor can resume it.' : 'Processing source…') : job.status === 'failed' ? `Extraction failed: ${job.error_code}${job.error_row ? ` at source row ${job.error_row}` : ''}. No partial proposals were published. Use manual draft editing for unsupported or scanned documents.` : 'Extracted proposals ready for staff review. No order lines or approvals were changed.';
   $('extraction-status').textContent = status;
   $('extraction-identity').textContent = job ? `Job ${job.id} · ${job.parser_version} · attempt ${job.attempts}/3 · source SHA-256 ${job.source_sha256}` : '';
+  $('extraction-manual-link').hidden = job?.status !== 'failed'; $('extraction-manual-link').href = s.workspace ? `#/workspaces/${s.workspace.id}/draft-orders/` : '#';
   $('extraction-queue').hidden = !!job; $('extraction-queue').disabled = !controller.canExtract();
   $('extraction-retry').hidden = job?.status !== 'failed'; $('extraction-retry').disabled = !controller.canExtract(true);
   $('extraction-refresh').disabled = s.busy || s.pending;
@@ -164,7 +167,7 @@ function renderExtraction(controller) {
   $('extraction-next').disabled = s.busy || s.pending || e.page * 50 >= e.count;
   for (const fields of e.rows) {
     const article = document.createElement('article');
-    for (const [name, field] of Object.entries(fields)) { const p = document.createElement('p'); p.textContent = `${name}: ${field.value} · source rows ${field.row}–${field.end_row}, column ${field.column_index} (${field.column}) · raw: ${field.raw}`; article.append(p); }
+    for (const [name, field] of Object.entries(fields)) { const p = document.createElement('p'); p.textContent = `${name}: ${field.value} · ${provenanceLocation(field, job.parser_version)} · raw: ${field.raw}`; article.append(p); }
     $('extraction-fields').append(article);
   }
 }

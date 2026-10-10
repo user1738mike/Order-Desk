@@ -13,7 +13,7 @@ export function renderDrafts(state, visible, canConvert, editLine = null) {
   $('draft-detail-panel').hidden = !state.draftId;
   $('draft-back').hidden = !state.draftId;
   $('draft-back').href = state.workspace ? draftRoute(state.workspace.id) : '#';
-  $('draft-refresh').disabled = state.loading || state.converting || state.linesLoading;
+  $('draft-refresh').disabled = state.loading || state.converting || state.linesLoading || state.matchingPending;
   $('draft-message').textContent = state.message || state.errors.revision || '';
   $('draft-conflict').replaceChildren(...state.conflict.map(reason => text('li', `Conversion rejection: ${blockers[reason.code][0]} (${reason.count})`)));
   $('draft-count').textContent = state.loading ? 'Loading drafts…' : `${state.count} draft orders`;
@@ -66,7 +66,7 @@ export function renderDrafts(state, visible, canConvert, editLine = null) {
       const actions = document.createElement('div'); actions.className = 'line-actions';
       for (const [label, mode] of [['Edit line', 'line'], [line.catalogue_item_id ? 'Detach catalogue' : 'Attach catalogue', line.catalogue_item_id ? 'detach' : 'attach']]) {
         const button = text('button', label, 'quiet'); button.type = 'button';
-        button.disabled = !state.revision || state.loading || state.dirty || state.converting;
+        button.disabled = !state.revision || state.loading || state.dirty || state.converting || state.matchingPending;
         button.addEventListener('click', () => editLine(mode, line)); actions.append(button);
       }
       match.append(actions);

@@ -280,18 +280,25 @@ class CSVExtractionTests(TransactionTestCase):
         self.assertEqual(self.client.get(self.extraction).status_code, 403)
         self.assertEqual(DocumentExtractionJob.objects.count(), 0)
 
-    def test_pdf_excluded_and_results_paginated(self):
+    def test_pdf_uses_shared_lifecycle_and_csv_results_are_paginated(self):
         response = self.upload()
         path = response.json()["download_url"].replace("download/", "extraction/")
         self.assertEqual(
             self.client.post(
                 path, {}, format="json", HTTP_X_CSRFTOKEN=self.csrf
             ).status_code,
-            400,
+            202,
         )
+        # Text-PDF support extends enqueue eligibility. This old byte-only PDF
+        # remains an invalid profile; it must fail visibly without proposals.
+        pdf_job = DocumentExtractionJob.objects.get()
+        self.assertEqual(self.process(pdf_job), "failed")
+        pdf_job.refresh_from_db()
+        self.assertEqual(pdf_job.result, [])
+        self.assertFalse(self.client.get(path).json()["job"]["can_retry"])
         self.source(b"sku,quantity\n" + b"A,1\n" * 51)
         self.queue()
-        self.process(DocumentExtractionJob.objects.get())
+        self.process(DocumentExtractionJob.objects.get(document_id=self.document["id"]))
         body = self.client.get(self.extraction).json()
         self.assertEqual(body["count"], 51)
         self.assertEqual(len(body["results"]), 50)
