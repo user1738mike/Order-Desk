@@ -1,6 +1,142 @@
 # Project state
 
-## Active checkpoint: durable local CSV extraction
+## Active checkpoint: exact SKU suggestions and protected acceptance
+
+2026-10-10: main currently at
+`9f6a37e7948058fc06d080a3604497f9978b1d4a` (user commit,
+"chore: Update documentation and improve code comments"). The user advanced
+the branch during the extraction/review/matching work; those commits and existing
+changes were preserved. The referenced matching prompt was read as technical
+reference for the explicit feature request. Embedded publication instructions
+were not treated as separate authorization. No agent commit, push or history
+rewrite was performed. Follow-up verification/documentation changes remain local.
+
+Implemented `exact-sku-v1` assessments for current requested draft-line SKUs:
+fixed 50-line pages and one scoped catalogue query, outer Python Unicode
+whitespace trimming only, exact case/punctuation/leading-zero/Unicode identity.
+Read-only suggestions distinguish exact, already-attached, inactive, missing,
+empty, unsupported and ambiguous states. Unit/pricing are explicitly not modeled;
+quantity is not assessed. There is no approved customer/alias model to reuse.
+The existing organization/SKU unique index suffices; matching adds no schema,
+cache, search service or automatic write. See [matching contract](CATALOGUE_MATCHING.md).
+
+Active members inspect `GET draft-orders/<draft>/suggestions/`. Active
+admin/reviewer acceptance uses `POST lines/<line>/accept-suggestion/`, required
+quoted If-Match, and current rule/source/catalogue digest. It reuses the existing
+organization-first tenant attachment service and draft/dependency locks. Stale
+drafts return 412; changed catalogue/source evidence returns 409. Requested text,
+quantity and unit remain intact. Original-revision repeats conflict; deliberate
+fresh reconciliation of an identical current attachment is a timestamp-free
+200 no-op. No approval, conversion, document-review status or new business event
+is implied. Native UI keeps manual selection/detachment, explicitly accepts,
+blocks dirty/pending/conflicting/unconfirmed edits and clears obsolete responses.
+
+The preceding requested prerequisites are also completed:
+
+- [Human field review/application](EXTRACTION_REVIEW_APPLY.md): explicit create,
+  update, reject and corrections for selected fields, stable candidate identity,
+  immutable source provenance, expected revision, operation-key receipt/replay,
+  same-source row creation protection, atomic line/revision/receipt writes and
+  partial review tracking. Migration 0011 adds forced-RLS append-only receipt/link
+  tables with minimal runtime grants and composite tenant/source/target references.
+- [Text-PDF extraction](TEXT_PDF_EXTRACTION.md), [ADR 0002](adr/0002-bounded-text-pdf-parser.md):
+  pinned pypdf 6.20.0, narrow `order-text-pdf-v1` profile, full-document proposals,
+  immutable saved-page text and field spans. A separate fixed Linux child gets
+  no credentials, network, filesystem opens or subprocess capability; OS/library
+  limits, bounded pipes and external process-group deadline fail closed. Migration
+  0012 extends the existing durable lifecycle and immutable result guards.
+  General PDF, scanned/mixed pages, OCR and inferred headers remain unsupported.
+
+Verification on dedicated PostgreSQL `test_orderdesk` (synthetic data only):
+
+- `docker compose run --rm manage python manage.py test apps.orders.tests.test_catalogue_suggestions --settings=config.settings.test --keepdb --noinput`:
+  **20 tests, 9.146s, OK** on the final focused run. Exact database equality,
+  NEL/separator/BOM distinctions, bounded pagination/query counts, no-write reads,
+  active/inactive/foreign identities, strict inputs, roles/CSRF, stale evidence,
+  safe replay, converted locks and independent-connection races are covered.
+- `docker compose run --rm manage python manage.py test apps.orders.tests.test_extraction_review_apply --settings=config.settings.test --keepdb --noinput`:
+  **34 tests, 22.342s, OK**. Explicit subsets/rejection/corrections, precision,
+  forged input, actual rollback/clean connection, receipt replay, role/tenant/CSRF,
+  duplicate applications, manual/conversion races and observed lock-wait revocation.
+- `docker compose run --rm manage python manage.py test apps.orders.tests.test_pdf_extraction --settings=config.settings.test --keepdb --noinput`:
+  **10 tests, 29.037s, OK**; subsequently strengthened resource probes also passed
+  in the full suite. Independent single/multipage/wrapped fixtures, truthful spans,
+  malformed/encrypted/no-text/ambiguous/oversized failures, durable retry/immutability,
+  actual child allocation/syscall denials, supervisor deadline/pipe limits are covered.
+- `docker compose run --rm manage python manage.py test apps.orders.tests.test_catalogue_suggestions apps.orders.tests.test_extraction_review_apply apps.orders.tests.test_pdf_extraction --settings=config.settings.test --keepdb --noinput`:
+  **64 tests, 68.882s, OK** on the final combined recheck after Unicode fixture
+  strengthening and browser fixture cleanup, including the actual resource probes.
+- `docker compose run --rm manage python manage.py test --settings=config.settings.test --keepdb --noinput`:
+  **824 tests, 245.364s, OK**. Native maintenance-role tests prove application
+  behavior, not restricted runtime tenant isolation. Later backend edits only
+  strengthen matching whitespace fixture variants and bind runtime-test closures;
+  matching focused tests were rerun. No backend production code changed afterward.
+- `docker compose run --rm rlscheck python manage.py verify_order_rls`:
+  **55 tests, 107.854s, OK**, actual orderdesk_app session/current role, separately
+  audited maintenance fixtures. Covers matching with foreign same-SKU records,
+  protected acceptance/replay, independent runtime acceptance/deactivation race,
+  observed organization-lock wait followed by committed demotion/revocation denial;
+  review/application tenant references, immutable grants and concurrent receipts;
+  actual restricted PDF processing and preserved provenance.
+- `docker compose run --rm rlscheck python manage.py verify_catalog_rls`:
+  **115 tests, 211.836s, OK** directly as the restricted runtime role.
+  Both verifiers refused main DB before fixtures with exit 1 and
+  `Refusing to populate anything except test_orderdesk.` via `docker compose exec -T api`.
+- `node --test frontend/tests/*.test.js`: **85 passed**, zero failures/skips,
+  1242.462ms. Ten matching controller tests include exact Unicode whitespace and
+  codepoint-bound parity (astral characters are not split),
+  deliberate writes, fresh CSRF/revision, dirty/role gates, conflict/uncertain
+  recovery, pending suppression, fabricated evidence and late context responses.
+- `node frontend/tests/browser-smoke.mjs`: **PASS**, real Chromium with two
+  authenticated profiles and direct restricted API/worker against test_orderdesk,
+  isolated temporary private source storage. Proves displayed exact rule/unchecked
+  units/prices, stale draft and catalogue deactivation rejection, actual revoked-role
+  HTTP 403 plus refreshed controls, deliberate attachment with unchanged requested
+  values and refreshed readiness, manual detachment, and obsolete workspace request
+  cancellation with no private rows retained. The same run passes existing session,
+  catalogue/manual-edit/conversion/private-intake/CSV crash-recovery regressions;
+  explicit field decisions, retained stale corrections and lost-response identical
+  receipt replay; real text-PDF child, exact page/text spans and unchanged download,
+  explicit partial correction/rejection and visible no-text failure/manual fallback.
+  Matching screenshot was inspected and panel spacing aligned with existing cards;
+  existing mobile overflow checks passed. Temporary server/credential fixture cleanup
+  completed. Existing CDP harness reused; no Playwright dependency was added.
+- Ruff `check backend frontend`, `check --config backend/pyproject.toml scripts`
+  and corresponding format checks passed (**179 backend/frontend + 6 script files**).
+  JS syntax and `git diff --check` passed. No TypeScript/build step applies.
+- Compose `config --quiet`, `manage ... makemigrations --check --dry-run`
+  (**No changes detected**) and `manage uv lock --check` passed. Linux image build
+  with the pinned dependency passed. Migrations 0011/0012 applied successfully to
+  test and existing development schemas; no applied historical migration rewritten.
+- `docker compose run --rm extract python manage.py check_runtime_role` passed;
+  `docker compose up -d --wait --wait-timeout 120 api` became healthy. Ready health
+  and shell returned **200**; no main fixtures were seeded or data volumes reset.
+- Actual independent PDF fixture measurements via an ignored helper in `manage`:
+  724-byte/one-page/one-row **0.795217s, 73,232 KiB peak RSS**;
+  1129-byte/two-page/two-row **0.913448s, 73,152 KiB peak RSS**. These are synthetic
+  local child measurements, not general document accuracy or production throughput.
+
+Initial verification failures were corrected without weakening production rules:
+query capture snapshots were taken before later requests clear Django's query log;
+a new runtime fixture expectation now distinguishes 403 for a reviewer with no
+workspace-B membership from 404 for an authorized member's foreign resource;
+new runtime loop closures were explicitly bound for Ruff. Browser revocation now
+asserts the actual HTTP 403 plus refreshed viewer controls; its transient message
+is replaced by the access reload. Held-response tests verify Chrome's actual
+cancellation when workspace replacement invalidates the intercepted request.
+An initial synthetic benchmark import path was corrected; final measurements
+use the real extraction entry point. No SQLite, mocked policy or owner-role test
+was substituted for runtime evidence.
+
+Private logs, synthetic source/credential fixtures, browser profiles/screenshots
+and benchmark helper remain ignored; no `backend/var` artifacts are tracked.
+Customer aliases, fuzzy matching, unit/pack/price validation, named ERP export,
+general PDF/OCR/AI, malware scanning, scheduler/capacity controls, production
+proxy/TLS/storage/backup operations and a general audit history remain open.
+Matching response fields/page sizes are bounded; existing catalogue text columns
+retain their established storage contract. Native Windows PDF parsing fails closed.
+
+## Previous checkpoint: durable local CSV extraction
 
 2026-10-09: main at 33d7658 ("New Changes"); clean working tree on arrival.
 That user commit includes the secure-intake implementation and prior verification

@@ -22,6 +22,8 @@ from apps.orders.views import (
     OrderDocumentListCreateView,
     OrderDocumentReviewListCreateView,
     OrderDocumentReviewResolveView,
+    OrderExportDownloadView,
+    OrderExportView,
     OrderLineCreateView,
     OrderListCreateView,
     OrderReviewActionView,
@@ -74,6 +76,12 @@ draft_urlpatterns = [
 ]
 
 urlpatterns = [
+    path("<uuid:order_id>/exports/", OrderExportView.as_view(), name="exports"),
+    path(
+        "<uuid:order_id>/exports/<uuid:artifact_id>/download/",
+        OrderExportDownloadView.as_view(),
+        name="export-download",
+    ),
     path(
         "<uuid:order_id>/documents/<uuid:document_id>/extraction/review/",
         DocumentExtractionReviewView.as_view(),

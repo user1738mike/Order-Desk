@@ -17,7 +17,7 @@ from django.core.exceptions import ValidationError
 
 from apps.orders.document_files import MAX_ORDER_DOCUMENT_BYTES, OrderDocumentTooLarge
 
-KEY = re.compile(r"intake/([0-9a-f]{32})\Z")
+KEY = re.compile(r"(?:intake|exports)/([0-9a-f]{32})\Z")
 logger = logging.getLogger(__name__)
 
 
@@ -117,8 +117,10 @@ def validate_content(stream, filename):
 
 
 @contextmanager
-def staged_document(upload):
+def staged_document(upload, *, namespace="intake"):
     """Hold an OS lease through commit; orphan recovery cannot unlink an active file."""
+    if namespace not in {"intake", "exports"}:
+        raise ValueError("Unsupported private namespace.")
     key = uuid4().hex
     with private_root() as root:
         descriptor = os.open(
@@ -149,7 +151,7 @@ def staged_document(upload):
                 os.fsync(stream.fileno())
                 os.fsync(root)
                 state = {
-                    "key": f"intake/{key}",
+                    "key": f"{namespace}/{key}",
                     "size": received,
                     "name": name,
                     "content_type": content_type,

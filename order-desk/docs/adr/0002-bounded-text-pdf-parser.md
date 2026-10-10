@@ -1,6 +1,7 @@
 # ADR 0002: pypdf with a bounded Linux child for the first text-PDF profile
 
-Accepted locally for `order-text-pdf-v1`, pending the recorded fixture checks.
+Accepted locally for `order-text-pdf-v1`; actual fixture, process-isolation,
+PostgreSQL and browser checks are recorded in PROJECT_STATE.md.
 
 The narrow delimiter/anchor profile needs page text and simple text-origin
 checks, not rendering or inferred tables. pypdf 6.20.0 is pure Python,

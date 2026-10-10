@@ -4,6 +4,10 @@ import { UUID } from './orders-api.js';
 const HEX = /^[0-9a-f]{64}$/;
 const STATES = ['exact', 'already_attached', 'inactive', 'no_match', 'empty_sku', 'unsupported_sku', 'ambiguous'];
 const ATTACHMENTS = ['none', 'current', 'source_changed', 'inactive', 'snapshot_changed', 'unavailable'];
+// Python str.strip uses Unicode whitespace plus the four separator controls;
+// JavaScript trim additionally strips BOM and omits NEL/separator controls.
+const trimSku = source => source.replace(/^[\p{White_Space}\u001c-\u001f]+|[\p{White_Space}\u001c-\u001f]+$/gu, '');
+const boundedSku = source => [...source].slice(0, 4096).join('');
 const valid = condition => { if (!condition) throw new Error('Catalogue assessment unavailable. Reload current draft values.'); };
 
 export class MatchingController {
@@ -24,11 +28,11 @@ export class MatchingController {
     const seen = new Set();
     for (const row of data.results) {
       const line = s.lines.find(item => item.id === row.line_id);
-      valid(line && !seen.has(row.line_id) && row.position === line.position && row.source_sku === line.requested_sku.slice(0, 4096) && typeof row.source_truncated === 'boolean' && row.normalized_sku === line.requested_sku.trim().slice(0, 4096) && STATES.includes(row.state)); seen.add(row.line_id);
+      valid(line && !seen.has(row.line_id) && row.position === line.position && row.source_sku === boundedSku(line.requested_sku) && typeof row.source_truncated === 'boolean' && row.normalized_sku === boundedSku(trimSku(line.requested_sku)) && STATES.includes(row.state)); seen.add(row.line_id);
       valid(row.attachment && ATTACHMENTS.includes(row.attachment.state) && row.attachment.id === line.catalogue_item_id);
       valid(row.checks?.unit === 'not_modeled' && row.checks?.pricing === 'not_modeled' && row.checks?.quantity === 'not_assessed');
       const item = row.candidate;
-      if (item !== null) valid(UUID.test(item?.id) && item.sku === row.normalized_sku && typeof item.description === 'string' && item.description.length <= 4096 && typeof item.description_truncated === 'boolean' && typeof item.is_active === 'boolean' && HEX.test(item.revision));
+      if (item !== null) valid(UUID.test(item?.id) && item.sku === row.normalized_sku && typeof item.description === 'string' && [...item.description].length <= 4096 && typeof item.description_truncated === 'boolean' && typeof item.is_active === 'boolean' && HEX.test(item.revision));
       valid(!['exact', 'already_attached'].includes(row.state) || item?.is_active === true);
       valid(row.state !== 'inactive' || item?.is_active === false);
     }

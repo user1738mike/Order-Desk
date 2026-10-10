@@ -4,7 +4,14 @@
 
 The active repository contains backend work through Step 4D.8 plus protected
 purchase-order upload byte limits and compensating rollback cleanup, Step 4D.9
-readiness and Step 4D.10 atomic repeat-safe internal conversion. The local
+readiness and Step 4D.10 atomic repeat-safe internal conversion. Later local
+increments provide durable CSV/text-PDF proposals, explicit field review and
+repeat-safe draft application, and current-draft exact SKU suggestions with
+protected deliberate acceptance. Their contracts are
+[LOCAL_CSV_EXTRACTION.md](LOCAL_CSV_EXTRACTION.md),
+[TEXT_PDF_EXTRACTION.md](TEXT_PDF_EXTRACTION.md),
+[EXTRACTION_REVIEW_APPLY.md](EXTRACTION_REVIEW_APPLY.md) and
+[CATALOGUE_MATCHING.md](CATALOGUE_MATCHING.md). The local
 secure purchase-order document intake/status/download contract is in
 [SECURE_DOCUMENT_INTAKE.md](SECURE_DOCUMENT_INTAKE.md), alongside the draft editor.
 See [project state](PROJECT_STATE.md) for actual delivery/results and
@@ -23,12 +30,14 @@ upgrade, clean-install and local application evidence is in project state.
 | --- | --- |
 | Implemented and verified locally | Locked Django/PostgreSQL backend, health and role checks; session/CSRF/login limits; workspace discovery/selection/current authorization; transaction-local tenant scopes; catalogue management/search/exact lookup/create/update/deactivation, CSV dry run and atomic create-only execution with durable retry receipts; draft work listed below; separate purchase-order/document-review APIs. Native and restricted-role PostgreSQL checks passed; results are recorded in project state. |
 | Implemented, deployment verification missing | Fail-closed production settings and ASGI/WSGI entry points. No production server/TLS/proxy/SMTP/backup evidence. Optional credential HTTP helpers exist but were not all rerun as live operator workflows in the audit. |
-| Partial | File capture and manually supplied extraction-review metadata; workspace administration through services/local provisioning; creator/reviewer/timestamp metadata. These do not establish automatic extraction, customer administration UI/API, an append-only audit history or external fulfillment. Private production storage and content handling prerequisites remain open; local upload byte limits and rollback cleanup are tested. |
-| Implemented and verified locally | First frontend session login/logout, workspace discovery/selection and read-only catalogue search/filter/pagination; native modules and Django shell, same-origin cookies/CSRF. Real Chromium, 18 client tests, 721 native regressions and 115 restricted-role catalogue checks passed; remaining production/browser prerequisites are in project state and the frontend guide. |
+| Partial | Workspace administration through services/local provisioning; creator/reviewer/timestamp metadata and narrowly scoped immutable application receipts. Customer administration UI/API, a general audit history, unattended document ingestion and external fulfillment are open. Production storage/content handling prerequisites remain open; local upload byte limits and rollback cleanup are tested. |
+| Implemented and verified locally | First frontend session login/logout, workspace discovery/selection and read-only catalogue search/filter/pagination; native modules and Django shell, same-origin cookies/CSRF. Current native/client/restricted-role/Chromium results are in project state; deployment prerequisites remain open. |
 | Implemented locally; current verification in project state | Frontend draft list/detail/readiness, administrator conversion/replay, manual creation/header/line editing and catalogue attach/detach; aggregate revision/If-Match checks under the existing tenant write lock. No line deletion. See draft frontend contracts and current results rather than historical test totals. |
 | Implemented locally; verification in project state | Private purchase-order PDF/CSV intake, status pages and authorized original-byte download; persistent Linux volume, digest verification, rollback cleanup and leased local orphan recovery. Legacy adoption and production operations remain open. See SECURE_DOCUMENT_INTAKE.md. |
-| Planned only | PDF/OCR/AI and additional CSV formats, automatic/fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. Catalogue CSV import and explicit order-csv-v1 proposals are implemented separately. |
-| Implemented locally; verification in project state | Durable order-csv-v1 proposals with source digest, raw/exact values and row/column provenance; job leases, explicit bounded retry, visible failures, restricted one-job processor and operator status/proposal UI. No automatic order writes/review acceptance. See LOCAL_CSV_EXTRACTION.md. |
+| Planned only | General PDF/OCR/AI and additional CSV formats, customer aliases, fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. |
+| Implemented locally; verification in project state | Durable order-csv-v1 and narrow order-text-pdf-v1 proposals with original digest, raw/exact values and row/column or saved-page provenance; job leases, explicit bounded retry, visible failures, restricted one-job processor and isolated PDF child. No automatic business writes. |
+| Implemented locally; verification in project state | Explicit field acceptance/rejection/corrections and repeat-safe application to an editable same-workspace draft; immutable receipts/creation links, revision conflicts and atomic rollback. No automatic approval, catalogue attachment or conversion. |
+| Implemented locally; verification in project state | Bounded read-only exact-sku-v1 suggestions from current draft lines; active members inspect, active admin/reviewer deliberately accept through protected attachment/revision checks. No alias model exists; units/prices are unchecked. |
 
 ## Implemented backend increments
 
@@ -73,17 +82,21 @@ with the dedicated PostgreSQL test settings. Runtime checks are separate.
 | Draft conversion | Existing orders models/services/API plus migration 0008; POST `draft-orders/<draft>/convert/`; active administrator/CSRF, unique tenant source link, fresh readiness, converted source/copy freeze, first 201/replay 200. | `test_draft_conversion`, `test_draft_conversion_concurrency`, `test_draft_conversion_migration`; direct-runtime races, access, completion, uniqueness and snapshot constraints. |
 | Draft frontend and edit preconditions | `frontend/assets/desk/{orders-api,orders-controller,orders-view,editor,editor-view,main}.js`, template/CSS; `backend/apps/orders/revisions.py`, services/views/URLs; GET revision and optional quoted If-Match on existing edits/new conversion. Browser always supplies revision; existing role/tenant/lifecycle rules retained. | Frontend orders/editor/API tests, real restricted-runtime Chromium harness with separate authenticated sessions, native `test_draft_revisions`; existing conversion races and runtime verifier. |
 | Document/manual review | Same orders layering, migrations 0003/0004/0005; order `documents/`, document `reviews/`, review `resolve/`; scoped parent and admin/reviewer mutations. File storage prerequisites are open. | orders service/constraint/concurrency tests and runtime four-table tenant boundary; separate storage finding reproduction. |
+| Extraction and field application | `backend/apps/orders/{csv_extraction,pdf_extraction,pdf_parser,extraction_services,extraction_apply}.py`, migrations 0010-0012; order document `extraction/`, `retry/`, `review/`, `apply/`; fresh active member reads, admin/reviewer mutations, explicit target/revision/operation key. Restricted worker and memory-only PDF child are separate from web requests. | `test_csv_extraction`, `test_pdf_extraction`, `test_extraction_review_apply`; immutable receipt/tenant/race runtime checks; native review controller tests and real Chromium. |
+| Exact SKU suggestions | `backend/apps/orders/matching.py`, selectors/services/serializers/views/URLs; GET draft `suggestions/`, POST line `accept-suggestion/`; fresh active members read, admin/reviewer accept, required quoted If-Match plus current source/catalogue digest under organization-first lock. No new schema. | `test_catalogue_suggestions`; restricted same-SKU tenant isolation, catalogue deactivation and observed revocation races; `frontend/assets/desk/matching.js`, controller tests and real Chromium. |
 
 ## Next dependency order
 
 The reconciliation increment delivers the existing verified work and the current
 documentation/runbook; its actual commit/push outcome is recorded in project state.
 
-1. Define staff acceptance/rejection of extracted proposals and the provenance
-   retained by any future application to editable drafts; converted copies stay immutable.
-2. Implement that explicit review workflow with tenant/concurrency safeguards;
-   decide content scanning requirements before adding PDF/OCR or other parsers.
-3. Define ERP export profiles before dependent automation. Remaining
+1. Define one versioned generic CSV export contract: eligible converted purchase
+   orders, immutable approved source fields, exact decimal/SKU semantics, and
+   separate machine-import versus spreadsheet-safe viewing behavior.
+2. Implement a bounded repeat-safe private export artifact and authorized download
+   with native PostgreSQL, runtime-role, storage/rollback and race checks.
+3. Add explicit operator generation/status/download and real-browser verification.
+   Named ERP compatibility needs an actual specification and import test. Remaining
    [storage prerequisites](STORAGE_FINDINGS.md) and production operations require
    their own verification; internal conversion is not ERP or launch readiness.
 

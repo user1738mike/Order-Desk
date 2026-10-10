@@ -15,10 +15,16 @@ Secure purchase-order document upload/status/authorized download is implemented
 locally; read SECURE_DOCUMENT_INTAKE.md and the final candidate verification in
 PROJECT_STATE.md. Durable local CSV jobs, exact field provenance and visible
 failures are implemented; read LOCAL_CSV_EXTRACTION.md for the supported contract,
-restricted one-job processor and recovery boundaries. Next, when requested:
-define staff acceptance/rejection and any application of proposals to editable
-drafts before adding that workflow. Production storage/content scanning and proxy
-safety remain unverified.
+restricted one-job processor and recovery boundaries. Explicit field decisions,
+corrections and repeat-safe application to editable drafts are implemented; read
+EXTRACTION_REVIEW_APPLY.md. TEXT_PDF_EXTRACTION.md and ADR 0002 define the narrow
+bounded Linux text-PDF profile and saved-page provenance. Current draft lines
+have read-only exact SKU suggestions and deliberate protected acceptance; read
+CATALOGUE_MATCHING.md. No approved customer-alias model exists. Units and prices
+are unchecked, and matching never approves or converts an order.
+Next, when requested: define one versioned generic export profile from immutable
+eligible converted purchase-order values. No named ERP compatibility is claimed.
+Production storage/content scanning and proxy safety remain unverified.
 Canonical checks use dedicated test_orderdesk and directly restricted runtime
 verifiers; owner-role and mocked client tests are separate evidence.
 Private audit files/logs remain ignored and must not be published. Preserve locks,

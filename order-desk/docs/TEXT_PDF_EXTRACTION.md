@@ -72,7 +72,10 @@ An external supervisor caps wall time at 15 seconds, stdout at 2 MiB and stderr
 at 4096 bytes, drains both pipes concurrently and terminates/reaps the process
 group on timeout or overflow. Input is at most 10 MiB; at most 10 pages,
 64 KiB saved text per page, 256 KiB total text, 4096 characters per field and
-500 candidate rows. Library decoding limits supplement OS memory/CPU limits.
+500 candidate rows. pypdf configuration caps individual decoded streams at 8 MiB,
+total decoding at 16 MiB, filters at four, page-tree nodes at 64/depth at 16,
+and disallows XForms and an external JBIG2 decoder. Library decoding limits
+supplement OS memory/CPU limits.
 Limits fail closed on unsupported OS/architecture. Native Windows parsing is
 not supported; Windows development uses the verified Compose Linux worker.
 These controls are process isolation and resource bounds, not malware scanning

@@ -2,8 +2,10 @@
 
 This increment produces immutable **proposals**, not purchase-order lines,
 catalogue matches, approval or ERP output. It uses verified private CSV documents
-already attached to a purchase order. PDF/OCR/AI and legacy-file adoption are
-unsupported. The referenced Downloads prompt was absent at implementation time;
+already attached to a purchase order. This CSV parser does not parse PDF/OCR/AI;
+the separate narrow [text-PDF profile](TEXT_PDF_EXTRACTION.md) shares its durable
+lifecycle. Legacy-file adoption remains unsupported. The referenced Downloads
+CSV prompt was absent at implementation time;
 the explicit user request and repository conventions define this local contract.
 
 ## CSV v1 contract
@@ -26,7 +28,8 @@ the record's starting/ending physical source lines (`row`, `end_row`). Multiline
 records therefore retain their physical line range. The job records the original
 source SHA-256, parser version and requesting/processing identities. Any invalid
 record fails the entire job; partial results are never published. Staff must review
-proposals separately before any future application to orders.
+proposals separately through [explicit review/application](EXTRACTION_REVIEW_APPLY.md)
+before changing an editable draft.
 
 ## Durable jobs and tenant boundary
 
@@ -69,7 +72,7 @@ Under `/api/v1/workspaces/<workspace>/orders/<order>/documents/<document>/`:
 
 Malformed/foreign identifiers return 404; revoked/anonymous or insufficient role
 is denied. Unknown input/query fields are 400. Intake metadata provides an
-`extraction_url` only for private CSV. The Documents screen shows queue/processing,
+`extraction_url` for eligible private CSV and PDF. The Documents screen shows queue/processing,
 expired lease, exact proposals/provenance and safe failure codes/row numbers.
 Refresh is explicit; no automatic POST retry or optimistic success. Workspace/session
 replacement clears proposals and rejects late responses. Downloads retain exact bytes.
@@ -101,9 +104,11 @@ after claim, observes the durable expired lease and resumes from a new invocatio
 Its short injected lease simulates expiry without waiting two minutes; the actual
 process death and PostgreSQL persistence are real.
 
-PDF parsing, confidence scores, autonomous matching, review acceptance/application,
-ERP export, daemon scheduling, global worker capacity/rate limits and production
-deployment remain separate increments. Backups must cover job metadata and private
+General PDF/OCR/AI, confidence scores, autonomous matching, ERP export, daemon
+scheduling, global worker capacity/rate limits and production deployment remain
+separate work. Bounded text-PDF, explicit review/application and read-only exact
+[SKU suggestions](CATALOGUE_MATCHING.md) have separate contracts. Backups must
+cover job/application metadata and private
 source volume; extraction cannot recover missing original bytes.
 
 Implementation: `csv_extraction.py` parses proposals; `extraction_services.py` owns
@@ -111,4 +116,5 @@ transitions; models/migration 0010 enforce persistence/boundaries; selectors,
 serializers/views/URLs expose scoped status/actions. `process_csv_extraction.py`
 and Compose extract run one restricted job. Existing document UI modules/template
 render proposals using text nodes. Native/controller/runtime/browser tests cover
-their respective behavior and evidence boundaries. No dependencies were added.
+their respective behavior and evidence boundaries. The CSV increment added no
+dependencies; the later text-PDF profile pins pypdf separately.

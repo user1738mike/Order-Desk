@@ -3,9 +3,13 @@
 Django backend for turning distributors' purchase orders into checked ERP-ready
 orders. We are building it collaboratively in small, verified steps.
 
-Current checkpoint: **Durable local CSV extraction with provenance and visible
-failures**, alongside secure document intake, draft editing and conversion. See
-the [CSV extraction contract](docs/LOCAL_CSV_EXTRACTION.md) and
+Current checkpoint: **Tenant-scoped exact SKU suggestions and deliberate
+catalogue attachment**, alongside human review/application of extracted fields
+and bounded local text-PDF extraction. See the
+[matching contract](docs/CATALOGUE_MATCHING.md),
+[review/application contract](docs/EXTRACTION_REVIEW_APPLY.md),
+[text-PDF profile](docs/TEXT_PDF_EXTRACTION.md),
+[CSV profile](docs/LOCAL_CSV_EXTRACTION.md) and
 [private intake contract](docs/SECURE_DOCUMENT_INTAKE.md).
 Open `http://127.0.0.1:8000/` after starting
 the API; see the [frontend guide](docs/FIRST_FRONTEND_WORKFLOW.md),
@@ -31,7 +35,10 @@ Use [project state](docs/PROJECT_STATE.md) for delivery and verification results
 The frontend includes session login/logout, workspace selection and read-only
 catalogue search/filter/pagination, draft list/detail/readiness, manual header/line
 editing, catalogue attachment/detachment and administrator conversion/replay.
-Automatic extraction/matching, secure document intake UI, ERP export,
+It also includes secure document intake/status/download, extraction proposals,
+explicit field decisions/corrections and exact SKU suggestions. Suggestions
+do not confirm quantities, units or prices, and do not approve or convert orders.
+General PDF/OCR/AI, customer aliases, fuzzy matching, ERP export,
 usage tracking and production deployment remain future work. Live email
 ingestion, real ERP compatibility and certification have not been demonstrated.
 

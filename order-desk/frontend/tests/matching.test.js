@@ -21,6 +21,28 @@ test('assessment is explicit, scoped and never writes on load', async () => {
   const { controller, calls } = fixture(); assert.deepEqual(controller.state.rows, []); assert.equal(calls.length, 0);
   await controller.load(); assert.equal(controller.state.rows[0].state, 'exact'); assert.match(calls[0].path, new RegExp(`${w}/draft-orders/${d}/suggestions/\\?page=1$`)); assert.equal(calls[0].options.method, undefined); assert.match(controller.state.message, /not checked/);
 });
+test('source normalization follows Python Unicode whitespace without discarding BOM', async () => {
+  for (const [source, normalized, state] of [
+    ['\u00850001.Mixed-Case\u0085', '0001.Mixed-Case', 'exact'],
+    ['\u001c0001.Mixed-Case\u001f', '0001.Mixed-Case', 'exact'],
+    ['\ufeff0001.Mixed-Case', '\ufeff0001.Mixed-Case', 'no_match'],
+  ]) {
+    const data = response(); Object.assign(data.results[0], { source_sku: source, normalized_sku: normalized, state });
+    if (state === 'no_match') data.results[0].candidate = null;
+    const { controller, drafts } = fixture(async () => data); drafts.state.lines[0].requested_sku = source;
+    await controller.load(); assert.equal(controller.state.rows[0].state, state); assert.equal(controller.state.blocked, false);
+  }
+});
+test('assessment bounds count Unicode codepoints without splitting astral SKU characters', async () => {
+  for (const length of [3000, 4097]) {
+    const source = '\u{1f600}'.repeat(length), bounded = '\u{1f600}'.repeat(Math.min(length, 4096));
+    const data = response(); Object.assign(data.results[0], { source_sku: bounded, normalized_sku: bounded, source_truncated: length > 4096, state: length > 4096 ? 'unsupported_sku' : 'exact' });
+    if (length > 4096) data.results[0].candidate = null;
+    else Object.assign(data.results[0].candidate, { sku: source, description: '\u{1f600}'.repeat(4096) });
+    const { controller, drafts } = fixture(async () => data); drafts.state.lines[0].requested_sku = source;
+    await controller.load(); assert.equal(controller.state.rows[0].source_sku, bounded); assert.equal(controller.state.blocked, false);
+  }
+});
 test('acceptance sends exact evidence, original revision and fresh CSRF then reloads actual state', async () => {
   const { controller, calls, opened } = fixture(async (path, options) => options?.method === 'POST' ? { id: l, organization_id: w, order_id: d, catalogue_item_id: c, catalogue_sku_snapshot: '0001.Mixed-Case' } : response());
   await controller.load(); await controller.accept(controller.state.rows[0]);

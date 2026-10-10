@@ -140,6 +140,13 @@ def get_purchase_order(organization_id: UUID, order_id: UUID) -> PurchaseOrder:
     )
 
 
+def get_export_order(organization_id: UUID, order_id: UUID) -> PurchaseOrder:
+    """Scalar parent only; export lines have their own bounded snapshot query."""
+    return get_object_or_404(
+        PurchaseOrder, organization_id=organization_id, pk=order_id
+    )
+
+
 def documents_for_order(
     organization_id: UUID, order_id: UUID
 ) -> QuerySet[OrderDocument]:

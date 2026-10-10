@@ -304,9 +304,46 @@ try {
   const suggestedLine = (await secondRequest(`${manualPath}lines/${detachedLine.id}/`)).data;
   assert.equal(suggestedLine.catalogue_item_id, itemId);
   for (const fieldName of ['requested_sku', 'requested_description', 'quantity', 'unit']) assert.equal(suggestedLine[fieldName], detachedLine[fieldName]);
+  const matchingShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+  await writeFile(resolve(scratch, 'catalogue-matching-desktop.png'), Buffer.from(matchingShot.data, 'base64'));
   // Keep the following manual/unmatched regressions in their original state.
   await evaluate("[...document.querySelectorAll('#draft-lines button')].find(b => b.textContent==='Detach catalogue').click()"); await editOpen(); await saveEdit();
   await waitFor("document.getElementById('draft-blockers').textContent.includes('Attach unmatched')");
+  await evaluate("document.getElementById('matching-load').click()");
+  await waitFor("document.querySelector('#matching-results button') && !document.querySelector('#matching-results button').disabled");
+  fixtures('viewer');
+  let deniedMatchingStatus;
+  const deniedMatchingHandler = ws.onmessage;
+  ws.onmessage = event => { const reply = JSON.parse(event.data); if (reply.method === 'Fetch.requestPaused' && reply.params.request.url.includes('/accept-suggestion/')) deniedMatchingStatus = reply.params.responseStatusCode; deniedMatchingHandler(event); };
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*accept-suggestion/*', requestStage: 'Response' }] });
+  await evaluate("document.querySelector('#matching-results button').click()");
+  for (let count = 0; count < 100 && deniedMatchingStatus === undefined; count++) await delay(50);
+  assert.equal(deniedMatchingStatus, 403);
+  await command('Fetch.disable'); ws.onmessage = deniedMatchingHandler;
+  // The access recheck reloads draft state, replacing the transient message.
+  await waitFor("document.getElementById('role').textContent.includes('viewer') && !document.querySelector('#matching-results button')");
+  assert.equal((await secondRequest(`${manualPath}lines/${detachedLine.id}/`)).data.catalogue_item_id, null);
+  fixtures('admin'); await command('Page.reload');
+  await waitFor("document.getElementById('draft-lines').textContent.includes('0001.Mixed-Case') && !document.getElementById('matching-load').disabled");
+  // Hold an actual authorized response until the workspace has changed.
+  let delayedMatching;
+  let matchingRequest, matchingCanceled = false;
+  const matchingMessageHandler = ws.onmessage;
+  ws.onmessage = event => { const reply = JSON.parse(event.data); if (reply.method === 'Network.requestWillBeSent' && reply.params.request.url.includes('/suggestions/')) matchingRequest = reply.params.requestId; if (reply.method === 'Network.loadingFailed' && reply.params.requestId === matchingRequest) matchingCanceled = reply.params.canceled === true; if (reply.method === 'Fetch.requestPaused' && reply.params.request.url.includes('/suggestions/')) { delayedMatching = reply.params.requestId; return; } matchingMessageHandler(event); };
+  await command('Network.enable');
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*draft-orders/*/suggestions/*', requestStage: 'Response' }] });
+  await evaluate("document.getElementById('matching-load').click()");
+  for (let count = 0; count < 100 && !delayedMatching; count++) await delay(50);
+  assert.ok(delayedMatching, 'Expected the authorized matching response to be held.');
+  await choose(data.b);
+  try { await command('Fetch.continueRequest', { requestId: delayedMatching }); }
+  catch (error) { assert.match(error.message, /Invalid InterceptionId/); assert.equal(matchingCanceled, true, 'The obsolete response must have been canceled by the browser.'); }
+  await command('Fetch.disable'); await command('Network.disable'); ws.onmessage = matchingMessageHandler;
+  assert.equal(await evaluate("document.getElementById('catalogue-suggestions').hidden"), true);
+  assert.equal(await evaluate("document.getElementById('matching-results').textContent.includes('0001.Mixed-Case')"), false);
+  await choose(data.a);
+  await evaluate(`location.hash=${JSON.stringify(`#/workspaces/${data.a}/draft-orders/${manualId}/`)}`);
+  await waitFor("document.getElementById('draft-lines').textContent.includes('0001.Mixed-Case') && !document.getElementById('edit-header').disabled");
   const manualShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
   await writeFile(resolve(scratch, 'manual-draft-desktop.png'), Buffer.from(manualShot.data, 'base64'));
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
@@ -479,14 +516,18 @@ try {
   // A late authorized read cannot refill private review state after workspace
   // replacement. The delayed response is real HTTP, released after navigation.
   let delayedReview;
+  let reviewRequest, reviewCanceled = false;
   const originalMessage = ws.onmessage;
-  ws.onmessage = event => { const reply = JSON.parse(event.data); if (reply.method === 'Fetch.requestPaused' && reply.params.request.url.includes('/extraction/review/')) { delayedReview = reply.params.requestId; return; } originalMessage(event); };
+  ws.onmessage = event => { const reply = JSON.parse(event.data); if (reply.method === 'Network.requestWillBeSent' && reply.params.request.url.includes('/extraction/review/')) reviewRequest = reply.params.requestId; if (reply.method === 'Network.loadingFailed' && reply.params.requestId === reviewRequest) reviewCanceled = reply.params.canceled === true; if (reply.method === 'Fetch.requestPaused' && reply.params.request.url.includes('/extraction/review/')) { delayedReview = reply.params.requestId; return; } originalMessage(event); };
+  await command('Network.enable');
   await command('Fetch.enable', { patterns: [{ urlPattern: '*documents/*/extraction/review/*', requestStage: 'Response' }] });
   await evaluate("document.getElementById('review-refresh').click()");
   for (let count = 0; count < 100 && !delayedReview; count++) await delay(50);
   assert.ok(delayedReview, 'Expected the authorized review response to be held.');
   await choose(data.b);
-  await command('Fetch.continueRequest', { requestId: delayedReview }); await command('Fetch.disable'); ws.onmessage = originalMessage;
+  try { await command('Fetch.continueRequest', { requestId: delayedReview }); }
+  catch (error) { assert.match(error.message, /Invalid InterceptionId/); assert.equal(reviewCanceled, true, 'The obsolete review must have been canceled by the browser.'); }
+  await command('Fetch.disable'); await command('Network.disable'); ws.onmessage = originalMessage;
   assert.equal(await evaluate("document.getElementById('extraction-review').hidden"), true);
   assert.equal(await evaluate("document.getElementById('review-candidates').textContent.includes('0001.Mixed-Case')"), false);
   await choose(data.a);
@@ -589,7 +630,7 @@ try {
   console.log('PASS: durable local CSV job, real processor exit/recovery, exact field provenance, immutable download, visible failure and explicit retry; restricted worker and viewer denial.');
   console.log('PASS: explicit CSV source/target selection and corrected quantity with immutable provenance, stale revision preservation/comparison, lost application response and identical-key reconciliation, no duplicate lines or overwrite of later manual corrections, independent readiness/conversion, viewer replay denial and late workspace-response isolation.');
   console.log('PASS: actual bounded text-PDF extraction and unchanged private bytes, verified page/text offset provenance, explicit existing-line correction, partial acceptance plus deliberate rejection, no automatic review/conversion, and visible no-text PDF failure with manual fallback.');
-  console.log('PASS: real exact-SKU suggestion evidence, unchecked units/prices, stale draft and deactivated catalogue rejection, deliberate acceptance with unchanged requested values and refreshed readiness; manual detach remains available.');
+  console.log('PASS: real exact-SKU suggestion evidence, unchecked units/prices, stale draft, deactivated catalogue and revoked-role rejection, deliberate acceptance with unchanged requested values and refreshed readiness, late workspace-response isolation; manual detach remains available.');
 } finally {
   if (secondarySocket?.readyState === WebSocket.OPEN) await closeSecondBrowser?.();
   secondarySocket?.close(); secondaryChrome?.kill();

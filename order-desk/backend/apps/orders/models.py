@@ -17,6 +17,63 @@ MAX_DRAFT_QUANTITY = Decimal("999999999.999")
 MAX_ORIGINAL_INTAKE_LENGTH = 10000
 
 
+class PurchaseOrderExport(models.Model):
+    """One leased generation from an immutable approved conversion snapshot."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT)
+    order = models.ForeignKey("PurchaseOrder", on_delete=models.PROTECT)
+    profile = models.CharField(max_length=64)
+    source_revision = models.CharField(max_length=64)
+    payload = models.JSONField()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_exports",
+    )
+    generated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="generated_exports",
+    )
+    status = models.CharField(max_length=16, default="running")
+    attempts = models.PositiveSmallIntegerField(default=1)
+    claim_token = models.UUIDField(null=True)
+    lease_expires_at = models.DateTimeField(null=True)
+    storage_key = models.CharField(max_length=64, blank=True, default="")
+    size_bytes = models.PositiveIntegerField(default=0)
+    sha256 = models.CharField(max_length=64, blank=True, default="")
+    error_code = models.CharField(max_length=32, blank=True, default="")
+    completed_at = models.DateTimeField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "order", "profile", "source_revision"],
+                name="export_source_profile_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["storage_key"],
+                condition=~models.Q(storage_key=""),
+                name="export_storage_key_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(profile="generic-po-csv-v1"),
+                name="export_profile_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(source_revision__regex=r"^[0-9a-f]{64}$"),
+                name="export_revision_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(attempts__gte=1, attempts__lte=3),
+                name="export_attempts_bounded",
+            ),
+        ]
+
+
 class ExtractionApplication(models.Model):
     """An immutable, committed human decision and its repeat-safe response."""
 

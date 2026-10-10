@@ -18,7 +18,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.catalog.pagination import FixedPagePagination
-from apps.orders import selectors, services
+from apps.orders import export_services, selectors, services
+from apps.orders.csv_export import HEADERS, PROFILE, ExportBlocked, ExportUnavailable
 from apps.orders.document_files import OrderDocumentTooLarge
 from apps.orders.document_intake import create_private_document
 from apps.orders.extraction_apply import (
@@ -491,6 +492,114 @@ class WorkspaceOrderView(APIView):
         paginator = PageNumberPagination()
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(serializer(page, many=True).data)
+
+
+class OrderExportView(WorkspaceOrderView):
+    http_method_names = ["get", "head", "post", "options"]
+
+    def handle_exception(self, exc):
+        if isinstance(exc, ExportBlocked):
+            return Response(
+                {
+                    "detail": "export_blocked",
+                    "blocking_reasons": exc.blockers,
+                    "blocker_count": exc.count,
+                },
+                status=400,
+            )
+        if isinstance(exc, ExportUnavailable):
+            return Response(
+                {
+                    "detail": "Export outcome is unconfirmed or bytes unavailable. "
+                    "Refresh authorized status before repeating."
+                },
+                status=503,
+            )
+        return super().handle_exception(exc)
+
+    def get(self, request, workspace_id, order_id):
+        payload, source_revision, errors, artifact, order = export_services.preview(
+            actor=request.user, organization_id=workspace_id, order_id=order_id
+        )
+        params = request.query_params
+        if set(params) - {"profile", "page"} or any(
+            len(params.getlist(key)) != 1 for key in params
+        ):
+            raise ValidationError({"query": ["Provide only one profile and page."]})
+        if params.get("profile", PROFILE) != PROFILE:
+            raise ValidationError({"profile": ["Unsupported export profile."]})
+        paginator = FixedPagePagination()
+        lines = paginator.paginate_queryset(payload["lines"], request, view=self)
+        rows = []
+        for line in lines:
+            rows.append(
+                {
+                    **line,
+                    "description": line["description"][:256],
+                    "description_truncated": len(line["description"]) > 256,
+                }
+            )
+        response = paginator.get_paginated_response(rows)
+        response.data.update(
+            profile=PROFILE,
+            headers=HEADERS,
+            order=order,
+            source_revision=source_revision,
+            artifact=artifact,
+            eligible=not errors,
+            blocking_reasons=errors[:100],
+            blocker_count=len(errors),
+        )
+        return response
+
+    def post(self, request, workspace_id, order_id):
+        def input_data():
+            validate_draft_query(request.query_params, allow_page=False)
+            if request.content_type.split(";", 1)[0] != "application/json":
+                raise UnsupportedMediaType(request.content_type)
+            if not isinstance(request.data, dict) or request.data != {
+                "profile": PROFILE
+            }:
+                raise ValidationError(
+                    {"profile": ["Supply only the supported profile."]}
+                )
+
+        data, code = export_services.generate_export(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            validate_input=input_data,
+        )
+        return Response(data, status=code)
+
+
+class OrderExportDownloadView(OrderExportView):
+    http_method_names = ["get", "head", "options"]
+
+    def get(self, request, workspace_id, order_id, artifact_id):
+        metadata = export_services.download_metadata(
+            actor=request.user,
+            organization_id=workspace_id,
+            order_id=order_id,
+            artifact_id=artifact_id,
+        )
+        validate_draft_query(request.query_params, allow_page=False)
+        if metadata is None:
+            return Response({"detail": "Export has not completed."}, status=409)
+        key, size, digest, name = metadata
+        try:
+            stream = open_document(key, size, digest)
+        except OSError:
+            return Response({"detail": "Export bytes are unavailable."}, status=503)
+        response = FileResponse(
+            stream,
+            as_attachment=True,
+            filename=name,
+            content_type="text/csv; charset=utf-8",
+        )
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
 
 
 class OrderListCreateView(WorkspaceOrderView):

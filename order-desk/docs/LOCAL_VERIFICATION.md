@@ -41,6 +41,24 @@ stale revision denial, catalogue attach/detach and lost-response conversion repl
 Run it sequentially with native and runtime suites against test_orderdesk; its
 temporary server connects directly as orderdesk_app, with separate owner fixtures.
 There is no TypeScript/compiler/production build step in this native-module stack.
+The harness also covers exact SKU suggestions/acceptance, rejected stale and
+deactivated evidence, refreshed viewer permissions and canceled workspace reads;
+explicit extracted-field review/application with lost-response reconciliation;
+and the actual isolated text-PDF child and saved-page provenance. See
+CATALOGUE_MATCHING.md, EXTRACTION_REVIEW_APPLY.md and TEXT_PDF_EXTRACTION.md.
+
+Focused checks for these increments:
+
+```powershell
+docker compose run --rm manage python manage.py test apps.orders.tests.test_catalogue_suggestions apps.orders.tests.test_extraction_review_apply apps.orders.tests.test_pdf_extraction --settings=config.settings.test --keepdb --noinput
+node --test frontend/tests/*.test.js
+node frontend/tests/browser-smoke.mjs
+```
+
+Run database fixture suites and the browser harness sequentially. The PDF tests
+must run in the Linux Compose image; native Windows does not establish the
+Linux resource-limit/seccomp evidence. Rebuild `api` after a dependency lock
+change; the text-PDF profile pins pypdf 6.20.0 without adding a remote service.
 
 ## Initial local setup
 

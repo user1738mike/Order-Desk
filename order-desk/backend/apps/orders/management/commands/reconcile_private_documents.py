@@ -10,7 +10,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
-from apps.orders.models import OrderDocument
+from apps.orders.models import OrderDocument, PurchaseOrderExport
 from apps.orders.private_documents import private_root
 
 
@@ -70,6 +70,8 @@ class Command(BaseCommand):
                         continue
                     if not OrderDocument.objects.filter(
                         file=f"intake/{entry.name}"
+                    ).exists() and not PurchaseOrderExport.objects.filter(
+                        storage_key=f"exports/{entry.name}"
                     ).exists():
                         os.unlink(entry.name, dir_fd=root)
                         removed += 1

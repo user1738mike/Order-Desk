@@ -1,6 +1,7 @@
-# Human review and repeat-safe CSV application
+# Human review and repeat-safe extracted-field application
 
-This increment applies explicit decisions from one completed `order-csv-v1` job
+This increment applies explicit decisions from one completed `order-csv-v1` or
+`order-text-pdf-v1` job
 to one existing editable draft in the same workspace. Documents belong to
 purchase orders; the target draft is selected separately. Nothing is selected,
 matched, linked to catalogue items, converted or approved automatically.
@@ -10,8 +11,10 @@ matched, linked to catalogue items, converted or approved automatically.
 `GET /api/v1/workspaces/<workspace>/orders/<order>/documents/<document>/extraction/review/?draft_id=<draft>&page=1`
 returns the current successful job, a digest of its immutable result, the target
 draft and its aggregate revision, and 50 candidates per page. Candidate UUIDs
-derive from job identity and the source record's physical start row. Each field
-retains exact value, raw cell, start/end row, column name and column index.
+derive from job identity and the source record's physical start row for CSV, or
+page/line for the supported text-PDF profile. CSV fields retain exact value, raw
+cell, start/end row, column name and column index. PDF fields retain raw fragments,
+page/line and saved-page text spans; immutable pages participate in result identity.
 Current draft lines use the existing paginated lines endpoint.
 
 `POST` to the sibling `extraction/apply/` requires JSON:
@@ -39,7 +42,7 @@ or corrections. Duplicate candidates/target lines, missing fields, unsupported
 keys, empty selections and forged provenance are rejected. Corrections must be
 bounded strings and apply only to selected fields. SKU maps to requested SKU,
 description to requested description, quantity and unit to their draft fields.
-The supported CSV profile has no customer-header proposals; header editing
+Neither supported profile has customer-header proposals; header editing
 continues through the existing manual editor. No header values are inferred.
 
 Draft quantities retain the existing positive 9 integer / 3 fractional digit
@@ -96,5 +99,7 @@ receipt as current state. Workspace changes discard late responses.
 Actual native PostgreSQL, restricted-role RLS, deterministic race, controller
 and Chromium evidence is recorded in PROJECT_STATE.md after execution. Private
 fixtures, source bytes, browser profiles and logs remain ignored. This increment
-does not add PDF/OCR/AI extraction, aliases, fuzzy matching, pricing, unit
-conversion, exports or bulk document-to-draft application.
+does not infer headers, catalogue links, pricing or unit conversions. The later
+[text-PDF profile](TEXT_PDF_EXTRACTION.md) and [exact SKU suggestions](CATALOGUE_MATCHING.md)
+are separate contracts. OCR/AI, customer aliases, fuzzy matching, exports and
+bulk document-to-draft application remain unsupported.

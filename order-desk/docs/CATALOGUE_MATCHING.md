@@ -15,6 +15,10 @@ customer/approved-alias model exists in this checkout.
 | ambiguous | More than one equal eligible identity exists; never choose the first. The current unique organization/SKU constraint prevents this normally. |
 
 Case, punctuation, leading zeros and Unicode codepoints remain significant.
+Outer whitespace follows Python Unicode `str.strip`, including NEL and the
+separator controls; BOM is retained as part of the identity. The browser validates
+the same rule rather than using JavaScript's different `trim` character set.
+The 4096-character bounds count Unicode codepoints, including astral characters.
 Substring/casefold/fuzzy matching, pack conversion and inferred customer data
 are unsupported. Unit/pricing data is not modeled in catalogue items and is
 explicitly unchecked; quantity is not assessed. Existing readiness policy still

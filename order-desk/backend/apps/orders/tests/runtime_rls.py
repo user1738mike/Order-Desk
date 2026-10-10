@@ -1632,49 +1632,86 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
     def test_waiting_suggestion_acceptance_rechecks_committed_revocation(self):
         draft = self.drafts[self.a.pk][DraftOrder]
         line = self.drafts[self.a.pk][DraftOrderLine]
-        item = CatalogItem.objects.using(OWNER_ALIAS).create(organization=self.a, sku="REVOKE.EXACT", description="Synthetic revocation")
-        DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(requested_sku=item.sku)
+        item = CatalogItem.objects.using(OWNER_ALIAS).create(
+            organization=self.a, sku="REVOKE.EXACT", description="Synthetic revocation"
+        )
+        DraftOrderLine.objects.using(OWNER_ALIAS).filter(pk=line.pk).update(
+            requested_sku=item.sku
+        )
         base = f"/api/v1/workspaces/{self.a.pk}/draft-orders/{draft.pk}/"
         client, token = self._credential_client(self.admin)
         for change in ({"role": MembershipRole.VIEWER}, {"is_active": False}):
             with self.subTest(change=change):
-                Membership.objects.using(OWNER_ALIAS).filter(pk=self.admin_membership.pk).update(role=MembershipRole.ADMIN, is_active=True)
-                data = client.get(base + "suggestions/").json(); candidate = data["results"][0]["candidate"]
-                body = {"catalogue_item_id": str(item.pk), "rule_version": "exact-sku-v1", "source_sku": item.sku, "catalogue_revision": candidate["revision"]}
+                Membership.objects.using(OWNER_ALIAS).filter(
+                    pk=self.admin_membership.pk
+                ).update(role=MembershipRole.ADMIN, is_active=True)
+                data = client.get(base + "suggestions/").json()
+                candidate = data["results"][0]["candidate"]
+                body = {
+                    "catalogue_item_id": str(item.pk),
+                    "rule_version": "exact-sku-v1",
+                    "source_sku": item.sku,
+                    "catalogue_revision": candidate["revision"],
+                }
                 ready = Queue()
-                def attempt():
+
+                def attempt(ready=ready, body=body, data=data):
                     close_old_connections()
                     observed = False
+
                     def inspect(execute, statement, params, many, context):
                         nonlocal observed
-                        if not observed and "organizations_organization" in statement and "FOR UPDATE" in statement:
+                        if (
+                            not observed
+                            and "organizations_organization" in statement
+                            and "FOR UPDATE" in statement
+                        ):
                             observed = True
                             with connection.cursor() as cursor:
                                 cursor.execute("SELECT pg_backend_pid()")
                                 ready.put(cursor.fetchone()[0])
                         return execute(statement, params, many, context)
+
                     try:
                         with connection.execute_wrapper(inspect):
-                            return client.post(base + f"lines/{line.pk}/accept-suggestion/", body, format="json", HTTP_X_CSRFTOKEN=token, HTTP_IF_MATCH=f'"{data["draft_revision"]}"').status_code
-                    finally: connections["default"].close()
+                            return client.post(
+                                base + f"lines/{line.pk}/accept-suggestion/",
+                                body,
+                                format="json",
+                                HTTP_X_CSRFTOKEN=token,
+                                HTTP_IF_MATCH=f'"{data["draft_revision"]}"',
+                            ).status_code
+                    finally:
+                        connections["default"].close()
+
                 with ThreadPoolExecutor(max_workers=1) as pool:
                     with transaction.atomic(using=OWNER_ALIAS):
-                        Organization.objects.using(OWNER_ALIAS).select_for_update().get(pk=self.a.pk)
+                        Organization.objects.using(OWNER_ALIAS).select_for_update().get(
+                            pk=self.a.pk
+                        )
                         with connections[OWNER_ALIAS].cursor() as cursor:
                             cursor.execute("SELECT pg_backend_pid()")
                             blocker = cursor.fetchone()[0]
-                        Membership.objects.using(OWNER_ALIAS).filter(pk=self.admin_membership.pk).update(**change)
+                        Membership.objects.using(OWNER_ALIAS).filter(
+                            pk=self.admin_membership.pk
+                        ).update(**change)
                         future = pool.submit(attempt)
                         waiter = ready.get(timeout=10)
                         deadline, pause = monotonic() + 5, Event()
                         while monotonic() < deadline:
                             with connection.cursor() as cursor:
                                 cursor.execute("SELECT pg_blocking_pids(%s)", [waiter])
-                                if blocker in cursor.fetchone()[0]: break
+                                if blocker in cursor.fetchone()[0]:
+                                    break
                             pause.wait(0.02)
-                        else: self.fail("Expected suggestion organization lock wait was not observed.")
+                        else:
+                            self.fail(
+                                "Expected suggestion organization lock wait "
+                                "was not observed."
+                            )
                     self.assertEqual(future.result(timeout=15), 403)
-                line.refresh_from_db(using=OWNER_ALIAS); self.assertIsNone(line.catalogue_item_id)
+                line.refresh_from_db(using=OWNER_ALIAS)
+                self.assertIsNone(line.catalogue_item_id)
                 self._assert_clean()
 
     def test_draft_customer_editing_as_runtime_role(self) -> None:

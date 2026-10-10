@@ -107,8 +107,15 @@ class CatalogueSuggestionTests(TransactionTestCase):
         self.assertIn("no-store", self.client.get(self.suggestions)["Cache-Control"])
 
     def test_database_exactness_preserves_case_punctuation_zeros_and_unicode(self):
+        CatalogItem.objects.create(
+            organization=self.organization, sku="\U0001f600" * 3000
+        )
         for code, expected in [
             ("  \t0001.Mixed-Case\u2003", "exact"),
+            ("\u00850001.Mixed-Case\u0085", "exact"),
+            ("\u001c0001.Mixed-Case\u001f", "exact"),
+            ("\ufeff0001.Mixed-Case", "no_match"),
+            ("\U0001f600" * 3000, "exact"),
             ("0001.mixed-case", "no_match"),
             ("1.Mixed-Case", "no_match"),
             ("0001.MixedCase", "no_match"),

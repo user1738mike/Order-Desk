@@ -446,6 +446,7 @@ textarea:focus-visible { outline: 3px solid #76b79f; outline-offset: 3px; }
 .review-draft-options { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 12px; }
 .review-draft-options button { text-align: left; overflow-wrap: anywhere; }
 #review-preview, #review-receipt, #review-errors, #review-current-draft { overflow-wrap: anywhere; }
+#catalogue-suggestions { padding: 24px; margin-bottom: 24px; }
 #matching-results { overflow-wrap: anywhere; }
 #matching-results article { border-top: 1px solid var(--line); padding: 12px 0; }
 #review-comparison { padding: 16px; background: #fff8e8; border: 1px solid #e6cf98; border-radius: 7px; }
