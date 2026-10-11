@@ -15,6 +15,11 @@ from apps.orders.models import (
     PurchaseOrder,
     PurchaseOrderLine,
 )
+from apps.orders.response_limits import (
+    MAX_DOCUMENT_REVIEWS,
+    MAX_ORDER_DOCUMENTS,
+    MAX_ORDER_LINES,
+)
 
 
 def draft_orders_for_workspace(organization_id: UUID) -> QuerySet[DraftOrder]:
@@ -112,7 +117,13 @@ def _documents(organization_id: UUID) -> QuerySet[OrderDocument]:
             organization_id=organization_id,
             order__organization_id=organization_id,
         )
-        .prefetch_related(Prefetch("reviews", queryset=_reviews(organization_id)))
+        .prefetch_related(
+            Prefetch(
+                "reviews",
+                queryset=_reviews(organization_id)[: MAX_DOCUMENT_REVIEWS + 1],
+                to_attr="_bounded_reviews",
+            )
+        )
         .order_by("-uploaded_at", "id")
     )
 
@@ -126,9 +137,14 @@ def purchase_orders_for_workspace(organization_id: UUID) -> QuerySet[PurchaseOrd
                 queryset=PurchaseOrderLine.objects.filter(
                     organization_id=organization_id,
                     order__organization_id=organization_id,
-                ).order_by("line_number", "id"),
+                ).order_by("line_number", "id")[: MAX_ORDER_LINES + 1],
+                to_attr="_bounded_lines",
             ),
-            Prefetch("documents", queryset=_documents(organization_id)),
+            Prefetch(
+                "documents",
+                queryset=_documents(organization_id)[: MAX_ORDER_DOCUMENTS + 1],
+                to_attr="_bounded_documents",
+            ),
         )
         .order_by("-created_at", "id")
     )

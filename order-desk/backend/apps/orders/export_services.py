@@ -1,6 +1,7 @@
 """Capture/claim/publish in short tenant scopes; format and stream outside locks."""
 
 import io
+import logging
 from datetime import UTC, timedelta
 from uuid import uuid4
 
@@ -24,6 +25,7 @@ from apps.orders.services import _require_writer
 from apps.organizations.transactions import tenant_scope
 
 LEASE_SECONDS = 120
+logger = logging.getLogger(__name__)
 
 
 def snapshot(order):
@@ -293,7 +295,8 @@ def generate_export(*, actor, organization_id, order_id, validate_input):
                 "generation_unavailable",
             )
         except Exception:
-            pass  # Fresh denial/disconnect leaves durable lease for explicit recovery.
+            # Fresh denial/disconnect leaves durable lease for explicit recovery.
+            logger.warning("Export failure reconciliation deferred: %s", record_id)
         raise ExportUnavailable() from error
 
 

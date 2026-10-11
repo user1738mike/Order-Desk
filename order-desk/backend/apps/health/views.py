@@ -1,7 +1,9 @@
 """Public, minimal probes. Never expose exception text or infrastructure details."""
 
 import logging
+import os
 
+from django.conf import settings
 from django.db import DatabaseError
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -37,4 +39,14 @@ class ReadinessView(HealthView):
         except DatabaseError:
             logger.warning("Database readiness check failed.")
             return self.status_response("unavailable", status_code=503)
+        if getattr(settings, "REQUIRE_PRIVATE_STORAGE_READY", False):
+            from apps.orders.private_documents import private_root
+
+            try:
+                with private_root():
+                    if not os.access(settings.PRIVATE_DOCUMENT_ROOT, os.W_OK):
+                        raise OSError("Private storage unavailable.")
+            except OSError:
+                logger.warning("Private storage readiness check failed.")
+                return self.status_response("unavailable", status_code=503)
         return self.status_response("ok")

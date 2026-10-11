@@ -19,7 +19,7 @@
     </section>
     <section id="desk" hidden>
       <div class="page-heading"><div><p class="eyebrow" id="breadcrumb">WORKSPACE / CATALOGUE</p><h1 id="page-title" tabindex="-1">Product catalogue</h1><p class="muted" id="page-subtitle">Browse your workspace’s products and catalogue status.</p></div><div class="workspace-picker"><label for="workspace">Workspace</label><select id="workspace"><option value="">Choose a workspace</option></select><button id="more-workspaces" class="quiet" hidden>Load more workspaces</button><span id="role" class="muted small"></span></div></div>
-      <nav id="workspace-tabs" class="workspace-tabs" aria-label="Workspace sections" hidden><a id="catalogue-tab" href="#">Catalogue</a><a id="drafts-tab" href="#">Draft orders</a><a id="documents-tab" href="#">Documents</a></nav>
+      <nav id="workspace-tabs" class="workspace-tabs" aria-label="Workspace sections" hidden><a id="catalogue-tab" href="#">Catalogue</a><a id="drafts-tab" href="#">Draft orders</a><a id="documents-tab" href="#">Documents</a><a id="purchase-tab" href="#">Approval &amp; export</a></nav>
       <div id="choose-workspace" class="card empty"><h2>Choose your workspace</h2><p class="muted">Select a workspace above to see its catalogue.</p></div>
       <section id="catalogue" class="card catalogue" hidden aria-label="Workspace catalogue">
         <form id="search-form" class="toolbar"><div class="search"><label for="search">Search catalogue</label><input id="search" type="search" maxlength="200" placeholder="Search SKU or description"><button type="submit">Search</button></div><div><label for="activity">Product status</label><select id="activity"><option value="">All products</option><option value="true">Active</option><option value="false">Inactive</option></select></div></form>
@@ -91,6 +91,22 @@
             </section>
           </section>
         </section>
+      </section>
+      <section id="purchase-screen" class="card" hidden aria-label="Purchase-order approval and CSV export">
+        <form id="purchase-open-form"><label for="purchase-open-id">Purchase-order ID</label><input id="purchase-open-id" maxlength="36" required><button>Open order</button></form>
+        <button id="purchase-refresh" class="quiet">Check current order and export status</button><p id="purchase-message" role="status" aria-live="polite"></p>
+        <div id="purchase-content" hidden>
+          <h2 id="purchase-summary"></h2><p>Inspect the copied order lines before approval. Catalogue matching does not verify units, pack factors or prices.</p>
+          <div class="table-scroll"><table><thead><tr><th>Line</th><th>SKU</th><th>Description</th><th>Quantity</th><th>Unit</th></tr></thead><tbody id="purchase-lines"></tbody></table></div>
+          <div class="toolbar"><button id="purchase-submit" hidden>Submit for review</button><button id="purchase-approve" hidden>Approve order</button></div>
+          <section id="purchase-export" hidden aria-label="Generic machine CSV export">
+            <h3>Generic purchase-order CSV</h3><p>Machine-import profile generic-po-csv-v1. No named ERP compatibility, spreadsheet-opening safety or external delivery is implied. Unsupported values remain blockers.</p>
+            <p id="purchase-export-status" role="status"></p><ul id="purchase-blockers"></ul>
+            <div class="table-scroll"><table><thead><tr><th>Line</th><th>SKU</th><th>Description preview</th><th>Quantity</th><th>Unit</th></tr></thead><tbody id="purchase-preview"></tbody></table></div>
+            <nav class="pagination" aria-label="Export preview pages"><span id="purchase-page"></span><button id="purchase-previous" class="quiet">Previous preview</button><button id="purchase-next" class="quiet">Next preview</button></nav>
+            <div class="toolbar"><button id="purchase-generate">Generate or retrieve CSV</button><button id="purchase-download">Download verified CSV</button></div>
+          </section>
+        </div>
       </section>
       <p id="route-missing" class="card empty" hidden>Page not found. Choose a workspace section above.</p>
     </section>

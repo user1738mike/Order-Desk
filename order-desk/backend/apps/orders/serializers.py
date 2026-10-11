@@ -17,6 +17,28 @@ from apps.orders.models import (
     PurchaseOrder,
     PurchaseOrderLine,
 )
+from apps.orders.response_limits import (
+    MAX_DOCUMENT_REVIEWS,
+    MAX_ORDER_DOCUMENTS,
+    MAX_ORDER_LINES,
+    OrderResponseLimitExceeded,
+)
+
+
+class BoundedNestedListSerializer(serializers.ListSerializer):
+    def get_attribute(self, instance):
+        attribute = f"_bounded_{self.field_name}"
+        if hasattr(instance, attribute):
+            return getattr(instance, attribute)
+        return super().get_attribute(instance)
+
+    def to_representation(self, data):
+        if hasattr(data, "all"):
+            data = data.all()
+        records = list(data[: self.child.response_limit + 1])
+        if len(records) > self.child.response_limit:
+            raise OrderResponseLimitExceeded()
+        return super().to_representation(records)
 
 
 class DraftOrderSummarySerializer(serializers.ModelSerializer):
@@ -376,8 +398,11 @@ class OrderReviewActionSerializer(StrictInputSerializer):
 
 
 class PurchaseOrderLineSerializer(serializers.ModelSerializer):
+    response_limit = MAX_ORDER_LINES
+
     class Meta:
         model = PurchaseOrderLine
+        list_serializer_class = BoundedNestedListSerializer
         fields = (
             "id",
             "line_number",
@@ -392,8 +417,11 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
 
 
 class OrderDocumentReviewSerializer(serializers.ModelSerializer):
+    response_limit = MAX_DOCUMENT_REVIEWS
+
     class Meta:
         model = OrderDocumentReview
+        list_serializer_class = BoundedNestedListSerializer
         fields = (
             "id",
             "document",
@@ -414,10 +442,12 @@ class OrderDocumentReviewSerializer(serializers.ModelSerializer):
 
 
 class OrderDocumentSerializer(serializers.ModelSerializer):
+    response_limit = MAX_ORDER_DOCUMENTS
     reviews = OrderDocumentReviewSerializer(many=True, read_only=True)
 
     class Meta:
         model = OrderDocument
+        list_serializer_class = BoundedNestedListSerializer
         fields = (
             "id",
             "order",

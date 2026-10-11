@@ -450,3 +450,5 @@ textarea:focus-visible { outline: 3px solid #76b79f; outline-offset: 3px; }
 #matching-results { overflow-wrap: anywhere; }
 #matching-results article { border-top: 1px solid var(--line); padding: 12px 0; }
 #review-comparison { padding: 16px; background: #fff8e8; border: 1px solid #e6cf98; border-radius: 7px; }
+#purchase-summary, #purchase-message, #purchase-export-status, #purchase-blockers { overflow-wrap: anywhere; }
+#purchase-content .toolbar { margin: 16px 0; }

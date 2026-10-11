@@ -3,6 +3,13 @@
 Django backend for turning distributors' purchase orders into checked ERP-ready
 orders. We are building it collaboratively in small, verified steps.
 
+Local production-like serving is being verified in a separate isolated project:
+[setup and trust](docs/LOCAL_PRODUCTION.md),
+[deployment decision](docs/adr/0004-local-production-serving.md) and
+[local automated quality gates](docs/CI_QUALITY_GATES.md).
+The development commands below remain unchanged. Actual results and remaining
+gates are recorded in [project state](docs/PROJECT_STATE.md).
+
 Current checkpoint: **Tenant-scoped exact SKU suggestions and deliberate
 catalogue attachment**, alongside human review/application of extracted fields
 and bounded local text-PDF extraction. See the
@@ -85,4 +92,12 @@ The second command preserves the named database volume. Do not add `-v` or
 `--volumes`. Schema commands use the temporary `manage` service; the API has
 restricted database credentials. This Compose file and Django's development
 server are for local work only; production serving and deployment are a later
-step. Never commit `.env`, virtual environments, customer files, or database data.
+step for this development Compose file. The separate isolated local WSGI/TLS
+topology is documented in [LOCAL_PRODUCTION.md](docs/LOCAL_PRODUCTION.md).
+Never commit `.env`, virtual environments, customer files, or database data.
+
+The [11 October release audit](docs/RELEASE_AUDIT_2026-10-11.md) compares the
+original launch requirements with verified local capabilities and records missing,
+failed, blocked and deliberately deferred work. It does not approve a customer
+release. [COORDINATED_RECOVERY.md](docs/COORDINATED_RECOVERY.md) documents the
+encrypted synthetic restore drill and its production limitations.

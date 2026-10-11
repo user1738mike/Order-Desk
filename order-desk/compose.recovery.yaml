@@ -1,0 +1,34 @@
+# Deliberately limited to synthetic test_orderdesk in run-owned deployments.
+services:
+  recovery:
+    image: orderdesk-recovery:1
+    build: {context: ., dockerfile: deployment/Recovery.Dockerfile}
+    profiles: [tools]
+    user: "10001:10001"
+    networks: [database]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=536870912,uid=10001,gid=10001,mode=700"]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 32
+    environment:
+      PGHOST: db
+      PGDATABASE: test_orderdesk
+      PGUSER: orderdesk_bootstrap
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Missing bootstrap credential}
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /trust/ca.crt
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Missing application secret}
+    volumes:
+      - public_ca:/trust:ro
+      - private_data:/files:ro
+      - ${RECOVERY_BACKUP:?Specify protected backup directory}:/backup
+      - ${RECOVERY_KEYS:?Specify separately protected key directory}/recipient.txt:/keys/recipient.txt:ro
+  recovery-restore:
+    extends: {service: recovery}
+    volumes:
+      - private_data:/files
+      - ${RECOVERY_RUN:?Specify target run directory}:/run-state
+      - ${RECOVERY_KEYS:?Specify separately protected key directory}/identity.txt:/keys/identity.txt:ro

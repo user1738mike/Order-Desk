@@ -29,12 +29,14 @@ upgrade, clean-install and local application evidence is in project state.
 | Status | Scope and evidence |
 | --- | --- |
 | Implemented and verified locally | Locked Django/PostgreSQL backend, health and role checks; session/CSRF/login limits; workspace discovery/selection/current authorization; transaction-local tenant scopes; catalogue management/search/exact lookup/create/update/deactivation, CSV dry run and atomic create-only execution with durable retry receipts; draft work listed below; separate purchase-order/document-review APIs. Native and restricted-role PostgreSQL checks passed; results are recorded in project state. |
-| Implemented, deployment verification missing | Fail-closed production settings and ASGI/WSGI entry points. No production server/TLS/proxy/SMTP/backup evidence. Optional credential HTTP helpers exist but were not all rerun as live operator workflows in the audit. |
+| Verified local WSGI topology | Fail-closed settings, isolated Gunicorn/Nginx serving, certificate-validating HTTPS probes and local quality gates. Current results belong in project state and RELEASE_AUDIT_2026-10-11.md. Public hosting, SMTP and customer production recovery remain open; ASGI serving is not proven by these WSGI checks. |
 | Partial | Workspace administration through services/local provisioning; creator/reviewer/timestamp metadata and narrowly scoped immutable application receipts. Customer administration UI/API, a general audit history, unattended document ingestion and external fulfillment are open. Production storage/content handling prerequisites remain open; local upload byte limits and rollback cleanup are tested. |
 | Implemented and verified locally | First frontend session login/logout, workspace discovery/selection and read-only catalogue search/filter/pagination; native modules and Django shell, same-origin cookies/CSRF. Current native/client/restricted-role/Chromium results are in project state; deployment prerequisites remain open. |
 | Implemented locally; current verification in project state | Frontend draft list/detail/readiness, administrator conversion/replay, manual creation/header/line editing and catalogue attach/detach; aggregate revision/If-Match checks under the existing tenant write lock. No line deletion. See draft frontend contracts and current results rather than historical test totals. |
 | Implemented locally; verification in project state | Private purchase-order PDF/CSV intake, status pages and authorized original-byte download; persistent Linux volume, digest verification, rollback cleanup and leased local orphan recovery. Legacy adoption and production operations remain open. See SECURE_DOCUMENT_INTAKE.md. |
-| Planned only | General PDF/OCR/AI and additional CSV formats, customer aliases, fuzzy matching, pricing/unit conversions/inventory rules, ERP export profile, usage tracking, CI and production serving/operations. |
+| Planned only | General PDF/OCR/AI and additional CSV formats, customer aliases, fuzzy matching, pricing/unit conversions/inventory rules, named ERP compatibility, usage tracking, hosted CI and public production operations. |
+| Verified synthetic scope only | Coordinated encrypted PostgreSQL/private-file backup and guarded fresh-cluster restore, including restored sessions, private bytes and native RLS. Customer production backup, off-site custody, retention and key escrow remain missing. See COORDINATED_RECOVERY.md. |
+| Implemented and verified locally | Protected approved converted-order generic-po-csv-v1 preview/generation/private download with bounded immutable snapshots, lease/replay and RLS contracts. Explicit submit/approve/export controls passed trusted real-browser confirmation, lost-response reconciliation, private byte download and context-race checks; see OPERATOR_APPROVAL_EXPORT.md and actual results in project state. |
 | Implemented locally; verification in project state | Durable order-csv-v1 and narrow order-text-pdf-v1 proposals with original digest, raw/exact values and row/column or saved-page provenance; job leases, explicit bounded retry, visible failures, restricted one-job processor and isolated PDF child. No automatic business writes. |
 | Implemented locally; verification in project state | Explicit field acceptance/rejection/corrections and repeat-safe application to an editable same-workspace draft; immutable receipts/creation links, revision conflicts and atomic rollback. No automatic approval, catalogue attachment or conversion. |
 | Implemented locally; verification in project state | Bounded read-only exact-sku-v1 suggestions from current draft lines; active members inspect, active admin/reviewer deliberately accept through protected attachment/revision checks. No alias model exists; units/prices are unchecked. |
@@ -86,6 +88,29 @@ with the dedicated PostgreSQL test settings. Runtime checks are separate.
 | Exact SKU suggestions | `backend/apps/orders/matching.py`, selectors/services/serializers/views/URLs; GET draft `suggestions/`, POST line `accept-suggestion/`; fresh active members read, admin/reviewer accept, required quoted If-Match plus current source/catalogue digest under organization-first lock. No new schema. | `test_catalogue_suggestions`; restricted same-SKU tenant isolation, catalogue deactivation and observed revocation races; `frontend/assets/desk/matching.js`, controller tests and real Chromium. |
 
 ## Next dependency order
+
+### Reconciled continuation, 2026-10-11
+
+The export backend and local production/quality tooling exist in the current
+working tree. Local serving was verified in resumed native/runtime/proxy/browser/
+restart stages after the cache/verifier/harness fixes. The original uninterrupted
+runner failed; its exit is not rewritten. Preserve the pre-existing dirty files.
+
+1. Local serving stage verification completed; current commands/results are in
+   PROJECT_STATE.md. Public hosting/launch is outside this local proof.
+2. Operator approval/export controls completed and verified locally, including
+   ambiguous outcome reconciliation and late-response context clearing.
+3. Coordinated encrypted synthetic backup/restore is implemented and verified,
+   including native restored-data RLS and private-byte/workflow recovery proof.
+   Extend its contract to customer production custody, retention and recovery
+   ownership before claiming operational readiness.
+4. Continue the bounded hardening, reliability, pilot administration, specified
+   exceptions/limits, capacity, release and pilot measurement scope in
+   [CODEX_BUILD_SPEC.md](CODEX_BUILD_SPEC.md).
+
+The original export sequence below remains historical context for that contract;
+the reconciled order above governs continuation. Recovery has its own fresh-cluster
+drill evidence; container restart checks alone do not prove backup/restore.
 
 The reconciliation increment delivers the existing verified work and the current
 documentation/runbook; its actual commit/push outcome is recorded in project state.

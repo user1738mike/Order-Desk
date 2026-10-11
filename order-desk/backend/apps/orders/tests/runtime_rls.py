@@ -49,6 +49,7 @@ from apps.orders.models import (
     OrderDocument,
     OrderDocumentReview,
     PurchaseOrder,
+    PurchaseOrderExport,
     PurchaseOrderLine,
 )
 from apps.orders.services import (
@@ -70,6 +71,73 @@ EXTRACTION_MODELS = (DocumentExtractionJob, ExtractionApplication, ExtractionCre
 
 
 class RuntimeOrderRLSChecks(unittest.TestCase):
+    def test_export_actual_runtime_private_replay_and_fresh_denial(self):
+        from apps.orders import services
+
+        draft, _, _ = self._ready_conversion_source()
+        order, _ = convert_draft_to_purchase_order(
+            actor=self.admin, organization_id=self.a.pk, order_id=draft.pk, data={}
+        )
+        services.submit_purchase_order_for_review(
+            actor=self.admin, organization_id=self.a.pk, order_id=order.pk
+        )
+        services.approve_purchase_order(
+            actor=User.objects.get(pk=self.reviewer.pk),
+            organization_id=self.a.pk,
+            order_id=order.pk,
+        )
+        path = f"/api/v1/workspaces/{self.a.pk}/orders/{order.pk}/exports/"
+        client, token = self._credential_client(self.admin)
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            first = client.post(
+                path,
+                {"profile": "generic-po-csv-v1"},
+                format="json",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(first.status_code, 201, first.data)
+            again = client.post(
+                path,
+                {"profile": "generic-po-csv-v1"},
+                format="json",
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(again.status_code, 200, again.data)
+            self.assertEqual(first.data, again.data)
+            download = client.get(first.data["download_url"])
+            self.assertEqual(download.status_code, 200)
+            content = b"".join(download.streaming_content)
+            download.close()
+            self.assertIn(b"000-Conversion,Historical,2.1250,", content)
+            self.assertEqual(PurchaseOrderExport.objects.count(), 0)
+            with tenant_scope(user=self.admin, workspace_id=self.b.pk):
+                self.assertEqual(PurchaseOrderExport.objects.count(), 0)
+            with tenant_scope(user=self.viewer, workspace_id=self.a.pk):
+                self.assertEqual(PurchaseOrderExport.objects.count(), 0)
+            viewer, _ = self._credential_client(self.viewer)
+            self.assertEqual(viewer.get(path).status_code, 403)
+            self.assertEqual(viewer.get(first.data["download_url"]).status_code, 403)
+            self.assertEqual(
+                client.get(path.replace(str(self.a.pk), str(self.b.pk))).status_code,
+                404,
+            )
+            with (
+                self._write_scope(self.admin),
+                self.assertRaises(DatabaseError),
+                transaction.atomic(),
+            ):
+                PurchaseOrderExport.objects.filter(pk=first.data["id"]).update(
+                    payload={}
+                )
+            Membership.objects.using(OWNER_ALIAS).filter(
+                pk=self.admin_membership.pk
+            ).update(is_active=False)
+            self.assertEqual(client.get(first.data["download_url"]).status_code, 403)
+        self._assert_clean()
+
     def test_conversion_waiting_on_revocation_or_demotion_rechecks_runtime_role(self):
         draft, _, _ = self._ready_conversion_source()
         for changes in ({"role": MembershipRole.REVIEWER}, {"is_active": False}):
@@ -1099,6 +1167,9 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
     def _cleanup_fixtures(self) -> None:
         connection.close()
         with transaction.atomic(using=OWNER_ALIAS):
+            PurchaseOrderExport.objects.using(OWNER_ALIAS).filter(
+                organization_id__in=self.workspace_ids
+            ).delete()
             ExtractionCreatedRow.objects.using(OWNER_ALIAS).filter(
                 organization_id__in=self.workspace_ids
             ).delete()

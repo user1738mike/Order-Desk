@@ -8,6 +8,7 @@ import { renderEditor } from './editor-view.js';
 import { DocumentController, documentRoute, renderDocuments } from './documents.js';
 import { ExtractionReviewController, renderExtractionReview } from './extraction-review.js';
 import { MatchingController, renderMatching } from './matching.js';
+import { PurchaseController, purchaseRoute, renderPurchase } from './purchase.js';
 
 const $ = id => document.getElementById(id);
 const client = new ApiClient();
@@ -15,6 +16,15 @@ let desk;
 let editor;
 let extractionReview;
 let matching;
+const purchase = new PurchaseController(client, () => { const route = parseRoute(location.hash); renderPurchase(purchase, desk?.state.phase === 'desk' && route.screen === 'purchase' && route.workspace === purchase.state.workspace?.id); }, async () => {
+  const version = purchase.version, workspace = purchase.state.workspace?.id;
+  try {
+    const data = await client.request(`/api/v1/workspaces/${workspace}/context/`);
+    if (version !== purchase.version) return;
+    desk.update({ workspace: data.workspace });
+    purchase.update({ order: null, preview: null, message: 'Access refreshed. Check current order status before another action.' });
+  } catch { if (version === purchase.version) await desk.startWithoutSelection(); }
+});
 const documents = new DocumentController(client, () => { const route = parseRoute(location.hash); const visible = desk?.state.phase === 'desk' && route.screen === 'documents' && route.workspace === documents.state.workspace?.id; renderDocuments(documents, visible); extractionReview?.context(documents.state.workspace, documents.state.generation, documents.state.order, documents.state.extraction); if (extractionReview) renderExtractionReview(extractionReview, visible); }, async action => {
   const version = documents.version;
   if (action && documents.state.workspace) {
@@ -53,6 +63,9 @@ function renderOrders(state) {
   let documentLink = $('conversion-documents');
   if (!documentLink) { documentLink = document.createElement('a'); documentLink.id = 'conversion-documents'; documentLink.textContent = 'Open purchase-order documents'; $('conversion-result').append(documentLink); }
   documentLink.hidden = !state.result; documentLink.href = state.result ? documentRoute(state.workspace.id, state.result.id) : '#';
+  let purchaseLink = $('conversion-purchase');
+  if (!purchaseLink) { purchaseLink = document.createElement('a'); purchaseLink.id = 'conversion-purchase'; purchaseLink.textContent = 'Review approval and CSV export'; $('conversion-result').append(purchaseLink); }
+  purchaseLink.hidden = !state.result; purchaseLink.href = state.result ? purchaseRoute(state.workspace.id, state.result.id) : '#';
   if (editor) {
     $('new-draft').hidden = !editor.canEdit('create');
     $('edit-header').hidden = !editor.canEdit(); $('add-line').hidden = !editor.canEdit();
@@ -80,6 +93,7 @@ async function recheckAccess(action) {
 let navigation = 0;
 let acceptedHash = location.hash;
 function discardForNavigation() {
+  if (purchase.state.pending) return false;
   if (matching?.state.pending) return false;
   if (extractionReview.state.pending || extractionReview.state.uncertain) { extractionReview.update({ message: 'Reconcile the pending or unconfirmed application using the identical request before leaving.' }); return false; }
   if (extractionReview.hasUnsaved()) {
@@ -108,6 +122,7 @@ async function applyRoute() {
     if (version === navigation) $('page-title').focus();
   }
   if (route.screen === 'documents' && documents.state.workspace && route.order) await documents.list();
+  if (route.screen === 'purchase' && purchase.state.workspace && route.order) await purchase.load();
 }
 function render(state) {
   const route = parseRoute(location.hash);
@@ -136,6 +151,8 @@ function render(state) {
   $('catalogue-tab').href = state.workspace ? `#/workspaces/${state.workspace.id}/catalogue/` : '#';
   $('drafts-tab').href = state.workspace ? draftRoute(state.workspace.id) : '#';
   $('documents-tab').href = state.workspace ? documentRoute(state.workspace.id) : '#';
+  $('purchase-tab').href = state.workspace ? purchaseRoute(state.workspace.id) : '#';
+  $('purchase-tab').setAttribute('aria-current', route.screen === 'purchase' ? 'page' : 'false');
   $('documents-tab').setAttribute('aria-current', route.screen === 'documents' ? 'page' : 'false');
   $('catalogue-tab').setAttribute('aria-current', route.screen === 'catalogue' ? 'page' : 'false');
   $('drafts-tab').setAttribute('aria-current', route.screen === 'drafts' ? 'page' : 'false');
@@ -145,6 +162,9 @@ function render(state) {
   $('page-subtitle').textContent = route.screen === 'drafts' ? 'Inspect manual requests and their readiness for internal conversion.' : 'Browse your workspace’s products and catalogue status.';
   $('catalogue').setAttribute('aria-busy', String(state.catalogBusy));
   if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = 'Document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
+  if (route.screen === 'purchase') { $('breadcrumb').textContent = 'WORKSPACE / PURCHASE ORDER'; $('page-title').textContent = 'Approval and CSV export'; $('page-subtitle').textContent = 'Inspect the internal order, approve deliberately and download the supported CSV.'; }
+  purchase.context(state.phase === 'desk' ? state.workspace : null, state.generation, route.screen === 'purchase' && route.workspace === state.workspace?.id ? route.order ?? null : null);
+  renderPurchase(purchase, state.phase === 'desk' && route.screen === 'purchase' && route.workspace === state.workspace?.id);
   documents.context(state.phase === 'desk' ? state.workspace : null, state.generation, route.screen === 'documents' && route.workspace === state.workspace?.id ? route.order ?? null : null);
   renderDocuments(documents, state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'documents' && route.workspace === state.workspace.id);
   extractionReview.context(documents.state.workspace, documents.state.generation, documents.state.order, documents.state.extraction);
@@ -176,6 +196,19 @@ function render(state) {
 }
 
 desk = new DeskController(client, render);
+$('purchase-open-form').addEventListener('submit', event => { event.preventDefault(); const id = $('purchase-open-id').value.trim().toLowerCase(); if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) && purchase.state.workspace) location.hash = purchaseRoute(purchase.state.workspace.id, id); else purchase.update({ message: 'Enter a valid purchase-order UUID.' }); });
+$('purchase-refresh').addEventListener('click', () => purchase.load());
+$('purchase-previous').addEventListener('click', () => purchase.load(purchase.state.page - 1));
+$('purchase-next').addEventListener('click', () => purchase.load(purchase.state.page + 1));
+for (const action of ['submit', 'approve']) $(`purchase-${action}`).addEventListener('click', () => {
+  if (purchase.can(action) && window.confirm(`${action === 'approve' ? 'Approve' : 'Submit for review'} ${purchase.state.order.purchase_order_number} for ${purchase.state.order.customer_name}? Inspect the displayed quantities and units first. Pricing and ERP delivery remain separate.`)) purchase.mutate(action);
+});
+$('purchase-generate').addEventListener('click', () => purchase.mutate('generate'));
+$('purchase-download').addEventListener('click', async () => {
+  const version = purchase.version, order = purchase.state.orderId;
+  const blob = await purchase.download(); if (!blob || version !== purchase.version || order !== purchase.state.orderId) return;
+  const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = `order-${purchase.state.orderId}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
 $('documents-open-form').addEventListener('submit', event => { event.preventDefault(); const id = $('documents-order-id').value.trim().toLowerCase(); if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) && documents.state.workspace) location.hash = documentRoute(documents.state.workspace.id, id); else documents.update({ message: 'Enter a valid purchase-order UUID.' }); });
 $('document-file').addEventListener('change', event => documents.select(event.target.files[0] ?? null));
 $('document-upload-form').addEventListener('submit', event => { event.preventDefault(); documents.upload(); });
@@ -226,11 +259,11 @@ $('next').addEventListener('click', () => desk.goToPage(desk.state.page + 1));
 $('retry').addEventListener('click', () => desk.state.catalogError ? desk.loadCatalogue() : desk.state.retryAction === 'logout' ? desk.logout() : desk.start());
 // Revalidate on return from another tab, where selection, auth or access changed.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !orders.state.converting && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
+  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !orders.state.converting && !purchase.state.pending && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
 });
 window.addEventListener('pageshow', event => { if (event.persisted) desk.start().then(applyRoute); });
 window.addEventListener('hashchange', applyRoute);
-window.addEventListener('beforeunload', event => { if (editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (purchase.state.pending || editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
 $('matching-load').addEventListener('click', () => matching.load());
 $('matching-reload').addEventListener('click', () => matching.reload());
 $('new-draft').addEventListener('click', () => editor.begin('create'));

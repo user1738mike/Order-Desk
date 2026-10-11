@@ -71,6 +71,32 @@ class Command(BaseCommand):
                 )
             for table, mutable, immutable in (
                 (
+                    "orders_purchaseorderexport",
+                    (
+                        "status",
+                        "attempts",
+                        "claim_token",
+                        "lease_expires_at",
+                        "generated_by_id",
+                        "storage_key",
+                        "size_bytes",
+                        "sha256",
+                        "error_code",
+                        "completed_at",
+                        "updated_at",
+                    ),
+                    (
+                        "id",
+                        "organization_id",
+                        "order_id",
+                        "profile",
+                        "source_revision",
+                        "payload",
+                        "created_by_id",
+                        "created_at",
+                    ),
+                ),
+                (
                     "orders_draftorder",
                     (
                         "customer_name",

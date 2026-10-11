@@ -1,0 +1,182 @@
+# Separate project; never an override of the developer ports or data volumes.
+x-app: &app
+  image: orderdesk-serving:${DEPLOYMENT_ID:?Initialize a deployment run}
+  build:
+    context: .
+    dockerfile: deployment/Dockerfile
+    target: runtime
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:rw,nosuid,nodev,size=67108864,uid=10001,gid=10001,mode=700"]
+  volumes: [private_data:/private-documents, public_ca:/trust:ro]
+  networks: [application, database]
+  mem_limit: 512m
+  cpus: 1.0
+  pids_limit: 64
+  stop_grace_period: 20s
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+x-runtime: &runtime
+  DJANGO_SETTINGS_MODULE: config.settings.local_production
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Missing deployment secret}
+  DJANGO_ALLOWED_HOSTS: orderdesk.localhost
+  DJANGO_CSRF_TRUSTED_ORIGINS: https://orderdesk.localhost:8443
+  DJANGO_TRUST_PROXY_HTTPS: "true"
+  DATABASE_NAME: orderdesk
+  DATABASE_HOST: db
+  DATABASE_PORT: "5432"
+  DATABASE_USER: orderdesk_app
+  DATABASE_PASSWORD: ${DATABASE_APP_PASSWORD:?Missing runtime credential}
+  DATABASE_SSLMODE: verify-full
+  DATABASE_SSLROOTCERT: /trust/ca.crt
+  PGSSLMODE: verify-full
+  PGSSLROOTCERT: /trust/ca.crt
+  PRIVATE_DOCUMENT_ROOT: /private-documents
+services:
+  initialize:
+    image: orderdesk-initialize:${DEPLOYMENT_ID:?Initialize a deployment run}
+    build: {context: ., dockerfile: deployment/Dockerfile, target: initialize}
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=16777216"]
+    volumes: [issuer_data:/issuer, public_ca:/trust, db_tls:/db-tls, proxy_tls:/proxy-tls, private_data:/private-documents]
+  db:
+    image: postgres:18.6-bookworm
+    depends_on:
+      initialize: {condition: service_completed_successfully}
+    environment:
+      POSTGRES_DB: orderdesk
+      POSTGRES_USER: orderdesk_bootstrap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Missing bootstrap credential}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    command: [postgres, -c, ssl=on, -c, ssl_cert_file=/db-tls/server.crt, -c, ssl_key_file=/db-tls/server.key]
+    volumes: [database_data:/var/lib/postgresql, db_tls:/db-tls:ro]
+    networks: [database]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  api:
+    <<: *app
+    # Measured eight-client workload saturated one CPU with two sync workers.
+    cpus: 2.0
+    environment: *runtime
+    depends_on:
+      db: {condition: service_healthy}
+    restart: unless-stopped
+    healthcheck:
+      # Private in-container check passes the fixed proxy headers, never published.
+      test: [CMD, python, -c, "import urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/api/v1/health/ready/',headers={'Host':'orderdesk.localhost:8443','X-Forwarded-Proto':'https'}); urllib.request.urlopen(r,timeout=5).close()"]
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 15s
+  proxy:
+    image: orderdesk-proxy:${DEPLOYMENT_ID:?Initialize a deployment run}
+    build: {context: ., dockerfile: deployment/Dockerfile, target: proxy}
+    depends_on:
+      api: {condition: service_healthy}
+    ports: [127.0.0.1:8443:8443, 127.0.0.1:8080:8080]
+    volumes: [proxy_tls:/proxy-tls:ro, public_ca:/trust:ro]
+    networks:
+      browser_edge: {}
+      application:
+        aliases: [orderdesk.localhost]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=33554432,uid=101,gid=101,mode=700"]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 32
+    restart: unless-stopped
+    stop_grace_period: 15s
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --cacert, /trust/ca.crt, --resolve, "orderdesk.localhost:8443:127.0.0.1", "https://orderdesk.localhost:8443/api/v1/health/live/"]
+      interval: 10s
+      timeout: 6s
+      retries: 6
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  manage:
+    <<: *app
+    profiles: [tools]
+    cpus: 2.0
+    mem_limit: 1024m
+    command: [python, manage.py, check, --deploy, --fail-level, WARNING]
+    environment:
+      <<: *runtime
+      DATABASE_USER: orderdesk_migrator
+      DATABASE_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:?Missing migrator credential}
+  dbsetup:
+    <<: *app
+    profiles: [tools]
+    command: [python, scripts/bootstrap_database.py]
+    environment:
+      DATABASE_NAME: orderdesk
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /trust/ca.crt
+      DATABASE_ADMIN_USER: orderdesk_bootstrap
+      DATABASE_ADMIN_PASSWORD: ${POSTGRES_PASSWORD:?Missing bootstrap credential}
+      DATABASE_APP_USER: orderdesk_app
+      DATABASE_APP_PASSWORD: ${DATABASE_APP_PASSWORD:?Missing runtime credential}
+      DATABASE_MIGRATION_USER: orderdesk_migrator
+      DATABASE_MIGRATION_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:?Missing migrator credential}
+  extract:
+    <<: *app
+    profiles: [tools]
+    environment: *runtime
+    command: [python, manage.py, process_document_extraction, --help]
+  rlscheck:
+    <<: *app
+    profiles: [tools]
+    environment:
+      <<: *runtime
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      # In-process verifier clients use localhost; serving retains its exact host.
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DATABASE_NAME: test_orderdesk
+      RLS_VERIFIER_OWNER_USER: orderdesk_migrator
+      RLS_VERIFIER_OWNER_PASSWORD: ${DATABASE_MIGRATION_PASSWORD:?Missing verifier fixture credential}
+    command: [python, manage.py, verify_order_rls]
+  client:
+    image: orderdesk-serving:${DEPLOYMENT_ID:?Initialize a deployment run}
+    profiles: [tools]
+    environment: {PYTHONDONTWRITEBYTECODE: "1"}
+    networks: [application]
+    read_only: true
+    cap_drop: [ALL]
+    volumes: [public_ca:/trust:ro]
+    command: [python, /deployment/probe.py]
+  quality:
+    image: orderdesk-quality:${DEPLOYMENT_ID:?Initialize a deployment run}
+    build: {context: ., dockerfile: deployment/Dockerfile, target: quality}
+    profiles: [tools]
+    network_mode: none
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=16777216"]
+    environment: {RUFF_NO_CACHE: "true", UV_CACHE_DIR: /tmp/uv-cache}
+volumes:
+  database_data:
+  private_data:
+  issuer_data:
+  public_ca:
+  db_tls:
+  proxy_tls:
+networks:
+  # Only the proxy joins this bridge so Docker Desktop can publish localhost ports.
+  browser_edge: {}
+  application: {internal: true}
+  database: {internal: true}

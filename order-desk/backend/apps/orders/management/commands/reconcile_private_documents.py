@@ -68,11 +68,14 @@ class Command(BaseCommand):
                         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     except BlockingIOError:
                         continue
-                    if not OrderDocument.objects.filter(
-                        file=f"intake/{entry.name}"
-                    ).exists() and not PurchaseOrderExport.objects.filter(
-                        storage_key=f"exports/{entry.name}"
-                    ).exists():
+                    if (
+                        not OrderDocument.objects.filter(
+                            file=f"intake/{entry.name}"
+                        ).exists()
+                        and not PurchaseOrderExport.objects.filter(
+                            storage_key=f"exports/{entry.name}"
+                        ).exists()
+                    ):
                         os.unlink(entry.name, dir_fd=root)
                         removed += 1
                 finally:

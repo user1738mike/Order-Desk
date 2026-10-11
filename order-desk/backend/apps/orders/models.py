@@ -73,6 +73,9 @@ class PurchaseOrderExport(models.Model):
             ),
         ]
 
+    def __str__(self) -> str:
+        return f"{self.profile} ({self.pk})"
+
 
 class ExtractionApplication(models.Model):
     """An immutable, committed human decision and its repeat-safe response."""

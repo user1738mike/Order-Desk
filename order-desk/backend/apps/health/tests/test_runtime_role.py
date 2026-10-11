@@ -20,10 +20,16 @@ class RuntimeRoleTests(SimpleTestCase):
             False,
         ),
         conversion_guard_state: tuple[bool] = (True,),
+        export_source_writable: bool = False,
     ) -> None:
         cursor = MagicMock()
         cursor.__enter__.return_value.fetchone.side_effect = [
             flags,
+            (True, True, True, True, True, False, False),
+            *([(True,)] * 11),
+            *([(False,)] * 5),
+            (export_source_writable,),
+            *([(False,)] * 2),
             draft_table_state,
             *([(True,)] * 5),
             *([(False,)] * 5),
@@ -49,6 +55,10 @@ class RuntimeRoleTests(SimpleTestCase):
 
     def test_restricted_role_is_accepted(self) -> None:
         self.check_flags((False,) * 7)
+
+    def test_writable_export_payload_prevents_startup(self) -> None:
+        with self.assertRaises(CommandError):
+            self.check_flags((False,) * 7, export_source_writable=True)
 
     def test_missing_conversion_guards_prevent_status_grant_acceptance(self) -> None:
         with self.assertRaises(CommandError):

@@ -95,6 +95,7 @@ class Command(CatalogVerifierCommand):
             self._audit_draft_boundary(cursor)
             self._audit_conversion_boundary(cursor)
             self._audit_application_boundary(cursor)
+            self._audit_export_boundary(cursor)
         self.stdout.write(
             "Order/extraction metadata verified: 7 tables, forced RLS, 35 policies, "
             "restricted grants and composite parent references."
@@ -103,6 +104,51 @@ class Command(CatalogVerifierCommand):
             "Draft metadata verified: 2 tables, forced RLS, 10 policies, "
             "2 composite tenant foreign keys."
         )
+
+    @staticmethod
+    def _audit_export_boundary(cursor):
+        cursor.execute(
+            "SELECT pg_get_userbyid(relowner), relrowsecurity, relforcerowsecurity "
+            "FROM pg_class WHERE oid='public.orders_purchaseorderexport'::regclass"
+        )
+        if cursor.fetchone() != ("orderdesk_migrator", True, True):
+            raise CommandError("Export owner/forced RLS is unsafe.")
+        cursor.execute(
+            "SELECT policyname, permissive, roles, cmd, qual, with_check "
+            "FROM pg_policies WHERE schemaname='public' "
+            "AND tablename='orders_purchaseorderexport'"
+        )
+        policies = {row[0]: row[1:] for row in cursor.fetchall()}
+        if set(policies) != {
+            "export_tenant_boundary",
+            "export_member_read",
+            "export_reviewer_insert",
+            "export_reviewer_update",
+            "export_owner_maintenance",
+        }:
+            raise CommandError("Export policies are missing or unexpected.")
+        read = policies["export_member_read"]
+        if read[:3] != ("PERMISSIVE", ["orderdesk_app"], "SELECT") or not all(
+            role in read[3] for role in ("admin", "reviewer")
+        ):
+            raise CommandError("Export read role restriction is missing.")
+        boundary = policies["export_tenant_boundary"]
+        if boundary[:3] != ("RESTRICTIVE", ["orderdesk_app"], "ALL"):
+            raise CommandError("Export tenant boundary is not restrictive.")
+        for term in ("orderdesk.organization_id", "orderdesk.user_id", "is_active"):
+            if term not in boundary[3] or term not in boundary[4]:
+                raise CommandError("Export active identity boundary is incomplete.")
+        cursor.execute(
+            "SELECT count(*)=2 AND bool_and(t.tgenabled='O' AND NOT p.prosecdef) "
+            "FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid "
+            "WHERE NOT t.tgisinternal AND t.tgname=ANY(%s)",
+            [["export_source_guard", "approved_conversion_guard"]],
+        )
+        if cursor.fetchone() != (True,):
+            raise CommandError("Export immutable-source guards are missing.")
+        from django.core.management import call_command
+
+        call_command("check_runtime_role")
 
     @staticmethod
     def _audit_application_boundary(cursor) -> None:

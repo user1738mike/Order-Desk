@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from django.db import OperationalError
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -45,3 +45,14 @@ class ReadinessTests(TestCase):
         self.assertNotContains(
             response, "private database connection details", status_code=503
         )
+
+    @override_settings(REQUIRE_PRIVATE_STORAGE_READY=True)
+    def test_required_private_storage_failure_is_safe_and_live_stays_available(self):
+        with patch(
+            "apps.orders.private_documents.private_root",
+            side_effect=OSError("private path"),
+        ):
+            response = self.client.get(reverse("health:ready"))
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"status": "unavailable"})
+        self.assertEqual(self.client.get(reverse("health:live")).status_code, 200)

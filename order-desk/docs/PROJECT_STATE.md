@@ -1,5 +1,370 @@
 # Project state
 
+## Active checkpoint: host browser connectivity repaired
+
+2026-10-11: user requested browser access and reported the URL unreachable.
+Container health/probes had passed, but the proxy attached only to an internal
+network: configured HostConfig bindings existed while NetworkSettings port mappings
+were empty, and Windows TCP 127.0.0.1:8443 returned connection refused. Recreating
+the proxy alone reproduced the failure. Added a separate `browser_edge` bridge
+joined only by the proxy; API/database networks remain internal and only proxy
+ports bind 127.0.0.1. This permits outbound connectivity for the proxy itself.
+No app code, credentials, tenant data or database schema changed.
+
+Recreated proxy in the existing synthetic run
+`deployment-b14a8c83d7384d0689f40eaf2ddf5709`. Actual `docker port` now reports
+127.0.0.1:8080 and :8443. Windows Python connected to 127.0.0.1 with TLS SNI
+orderdesk.localhost, verified the public CA and hostname, and received HTTP 200
+with the Order Desk shell. Standard Windows DNS lookup for orderdesk.localhost
+failed; the host probe deliberately uses the loopback address with canonical SNI.
+`scripts/local_deploy.py probe --run backend/var/deployment-b14a8c83d7384d0689f40eaf2ddf5709`
+PASS, exit 0; `backend/var/browser-host-port-probe.log`. Services remain running
+for user viewing. Browser open was queued in Codex; visual page success is not
+claimed. Browser inspection of its internal error page was rejected by browser
+URL policy; no internal-page workaround or certificate bypass was attempted.
+Host certificate trust has not been installed and requires explicit operator action.
+
+This Compose change follows the frozen release audit; its recorded source manifest
+and full test result remain historical evidence, not a full gate for this updated
+topology. Next action: confirm host browser access/trust, then resume the secure
+tenant administration/audit/usage contract identified in the release report.
+
+## Active checkpoint: release audit and local remediation verified
+
+2026-10-11: audited the dirty working tree on `main` at `4648dea`, preserving
+arrival changes. The user's six explicit audit requests govern this work; attached
+prompts were reference material, not independent authorization to publish or spend.
+See [RELEASE_AUDIT_2026-10-11.md](RELEASE_AUDIT_2026-10-11.md) for the original-plan
+comparison, evidence, failures, blockers and explicit deferrals. **No overall
+customer release PASS.** The two older Downloads handoff files were absent; the
+available original launch-plan DOCX and release-audit reference were read.
+
+Delivered in this checkpoint: Django 5.2.18 security update/lock; bounded legacy
+order nested responses with five native API regressions; coordinated encrypted
+synthetic PostgreSQL/private-file recovery with guarded fresh targets; application
+SQL/read-load/resource measurements; health-checked local WSGI connection reuse
+and two API CPUs; browser reload-race repair and actual unsupported-CSV-to-manual
+fallback verification. Generic production/ASGI tuning and customer backup are open.
+
+Final commands/results from app-root PowerShell:
+
+- `..\.venv\Scripts\python.exe -u scripts/quality_gates.py`: **PASS, exit 0**, fresh
+  `backend/var/deployment-b14a8c83d7384d0689f40eaf2ddf5709`; evidence
+  `backend/var/release-quality-candidate.log`. 845 native tests/326.120s,
+  56 direct-runtime order checks/143.914s, 115 direct-runtime catalogue
+  checks/228.174s, 97 frontend tests/1.626s, no reported skips. Lock/lint/deploy/
+  migration checks, trusted HTTPS/CSRF/cookies/private paths, real Chromium,
+  worker interruption/retry, review/application/conversion replay, operator
+  approval/export/lost-response recovery, unsupported fallback, role/context
+  denial, mobile layout and logout/reauth all passed. Storage/DB outage and
+  API/proxy recreation preserved session, bytes and extraction result; actual
+  UID/runtime DB role and hostname-validating TLS passed.
+- `python -m unittest discover -s scripts/tests`: PASS, 27 tests/0.251s,
+  `backend/var/release-script-tests-final.log`. Final host Ruff check/format:
+  scripts/deployment 25 files, PASS; backend 185 files in final gate, PASS.
+  JS syntax and `git diff --check` passed.
+- `scripts/recovery_drill.py --source backend/var/deployment-a6449951c07a439d9a15471c66f3111b`:
+  PASS, 131.324s; `release-restore-final-proof.log`. Encrypted set
+  `backup-65994c05efb94996b2c37f57f27d30f4`, fresh restored target
+  `deployment-d8f0c0f369884690a20ed0f8f7c0c730`. Eight private files and
+  223,512 raw dump/file bytes; incomplete/tampered/nonempty guards and actual
+  restored HTTP/session/download/job/native RLS proofs passed. Interrupted
+  restore targets must be discarded; off-site/retention/customer recovery is missing.
+- `scripts/release_measure.py --large-fixture --run <restored target above>`:
+  final PASS, `release-performance-capacity.log`, eight clients/200 HTTP reads,
+  zero errors, p95 210.881ms, 50.488 req/s. Explicit aggregate/each-route
+  p95 target <=500ms, throughput >=10/s; SQL budget <=25, measured 10/12.
+  Dataset adds two tenants, 5,000 catalogue items, 300 drafts, 6,000 draft lines
+  and a 100-line order. Earlier 882.767ms and larger-data 588.250ms failures
+  remain recorded; connection reuse and two API CPUs resolved this tested load.
+  Short read profile does not establish write/job/soak or customer capacity.
+- pip-audit: zero known matches across ten pinned packages, exit 0. Bandit
+  final Python 3.14 scan: zero parse errors/high, six medium fixed-migration-SQL
+  leads and 59 low findings manually triaged, exit 1 retained. Secret scanner
+  source leads are test/build placeholders; no history clearance claimed.
+  Grype image scanner BLOCKED after three registry/TLS failures.
+
+All isolated audit projects were stopped with volumes/evidence retained; no
+developer/customer/main data was restored. No commit/push/deployment or customer
+messages were performed. Private raw logs/fixtures/cookies/keys stay ignored.
+Implementation inventory: `backend/var/release-source-manifest.json`, 276 files,
+SHA-256 `e1aa4a294052ee28d5c0ce4528d82509e0bb59a1ff39fedcaafe094f88808311`.
+
+Next engineering action: define and implement bounded tenant administration,
+general audit history and usage limits with native RLS/concurrency/browser proofs.
+Customer pricing/pack/alias/critical-field definitions, a named ERP sandbox/import
+proof, representative withheld orders and pilot outcomes are required externally.
+Customer recovery custody/retention, hosted CI, monitoring/support/retention and
+image advisory clearance remain open. Do not launch on synthetic evidence alone.
+
+## Active checkpoint: operator approval/export verified locally
+
+2026-10-11: continued `main` at `4648dea`, preserving all arrival dirty serving,
+health/export/dependency work and private evidence. Added the native-module
+purchase-order screen linked from conversion and the Approval & export tab.
+It displays current exact copied lines/state, deliberate submit/approve
+confirmation, bounded generic CSV preview/blockers/status, explicit generation
+and SHA-256/size-verified private Blob download. Context/role replacement cancels
+late responses. Ambiguous mutations require a successful status check and another
+deliberate action; no automatic write retries or browser persistence were added.
+Backend business code/schema/policies and the existing profile remain unchanged.
+See OPERATOR_APPROVAL_EXPORT.md for behavior/responsibilities and limitations.
+
+Candidate verification (app-root PowerShell, host Python/Node and fresh isolated
+project `orderdesk-deployment-91d2714587224cde996ec9c82b16380a`):
+
+- `node --test frontend/tests/purchase.test.js`: PASS, exit 0, 12 focused tests.
+- `node --test frontend/tests/*.test.js`: final PASS, exit 0, 97 tests,
+  zero failed/skipped, 647.8509ms; backend/var/purchase-node-final.log.
+- Host Ruff check/format backend/frontend and scripts/deployment: PASS, exit 0,
+  185 + 17 files. JS syntax and diff whitespace checks passed.
+- `..\.venv\Scripts\python.exe scripts/local_deploy.py init`: fresh run identity.
+  All following helper commands use `--run
+  backend/var/deployment-91d2714587224cde996ec9c82b16380a`.
+- Helper `build`, `prepare`: PASS, exit 0, fresh separate roles/databases/private
+  volumes and all migrations through orders 0014; no developer DB fixture writes.
+- Helper `compose ... -- run --rm manage python manage.py test apps.web.tests
+  apps.orders.tests.test_csv_export --settings=config.settings.test --keepdb
+  --noinput`: PASS, exit 0, 16 tests, 8.672s, synthetic dedicated PostgreSQL;
+  purchase-native.log. Maintenance-role behavior proof is not RLS proof.
+- Final source rebuild initially FAIL, exit 1, Docker Hub TLS handshake timeout;
+  retry PASS, exit 0; purchase-build-final.log and purchase-build-retry.log.
+- Helper `compose ... -- run --rm rlscheck python manage.py verify_order_rls`:
+  PASS, exit 0, 56 tests, 126.467s, directly authenticated orderdesk_app with
+  separately audited maintenance fixtures; purchase-order-rls.log.
+
+Final gates using the same helper/run:
+
+- `up`, `probe`: PASS, exit 0, isolated API/proxy healthy and actual trusted
+  HTTPS chain/hostname, cookie/CSRF/Host/header/static/private-path/body-limit/
+  redirect checks; purchase-up.log and purchase-probe.log.
+- `browser`: PASS, exit 0 through the real restricted API/worker and trusted
+  proxy. Same-user viewer can read its order but has no approval/export controls,
+  and an actual forged export POST returns 403. Cancelled submit confirmation
+  leaves server state draft; confirmed submit/approve progress the real order.
+  A Fetch response-stage interception drops the committed export response (no
+  API mock). The UI reports unconfirmed outcome and disables further writes/
+  downloads until deliberate refresh retrieves the successful artifact. Explicit
+  generation retrieves that same artifact ID. The download control verifies
+  digest/size and its actual saved CSV equals independently retrieved private bytes.
+  A real detail response held across workspace replacement cannot restore order
+  summary/line/preview data. Existing intake, actual worker interruption/lease
+  recovery, provenance application, matching and conversion/replay still pass.
+  Desktop/mobile overflow checks pass; no uncaught JS/CSP errors. Evidence:
+  purchase-browser.log and purchase-browser-final.log. Final rerun also captures
+  the full page after the initial screenshot showed only the header.
+- `restart-checks`: PASS, exit 0, required storage/DB outages yield ready 503/live
+  200, dependencies recover, API/proxy recreation preserves private source/export
+  bytes, secure session and extraction result; API/worker are actual UID 10001 /
+  session/current role orderdesk_app with validated DB TLS and wrong-hostname
+  denial; purchase-restart-checks.log. Screenshot-only harness change afterward
+  does not change serving/runtime behavior; this gate was not needlessly repeated.
+- Pinned container Node 24.15.0 `node --test` with every explicit
+  `/frontend/tests/*.test.js` filename: PASS, exit 0, 97 tests, no failed/skipped,
+  1588.920262ms; purchase-container-node.log. Commands use the helper's Compose
+  prefix plus `-f compose.production-acceptance.yaml` and DEPLOYMENT_RUN resolved
+  to this run. Chromium is 154.0.8037.92 on Debian 12, read from the final image;
+  apt rebuilds remain mutable. Final images: serving `09b98cd4ec85`, proxy
+  `1c0cf7486940`, browser `bf0042965b46`, initialize `9034b25c01c0`.
+- Final JS syntax, Ruff/script/deployment format and diff checks: PASS, exit 0.
+  Full-page synthetic purchase.png was inspected: readable exact values/status,
+  wrapped identifiers, clear approval/export actions and contained tables.
+- `stop` in finally: PASS, exit 0; only the fresh isolated project stopped, volumes
+  and private diagnostic evidence retained. No background verification remains.
+
+Production responsibilities changed: purchase.js owns validation/controller/render;
+main.js owns routing, confirmation and scoped Blob download; orders-api.js parses
+purchase routes; template/CSS expose the controls. purchase.test.js adds 12 meaningful
+state/failure regressions. deployment/browser.mjs and fixtures.py extend isolated
+acceptance, including a guarded synthetic viewer-order fixture. Backend business
+logic/schema/RLS are unchanged. Existing arrival changes were preserved; no broad
+full native/catalogue rerun was warranted for this frontend-only increment.
+Private credentials/logs/images/screenshots stay ignored. No commit/push, customer
+data writes, real external delivery or public deployment has been performed.
+
+Exact next task: inventory the current database/private documents/export/job state
+and deployment writer boundaries; write one coordinated maintenance-window backup
+ADR and implement protected complete/incomplete recovery sets with guarded fresh
+isolated restoration. Reuse the pinned stack and separate trusted operator role;
+prove main/nonempty/unsafe target refusal, independent expected private checksums,
+restored ownership/grants/native RLS and the operator intake-to-export workflow.
+Consult the supplied backup/restore reference and existing source; do not treat
+restart evidence as restored-data proof. Backup/restore remains NOT_IMPLEMENTED.
+
+## Active checkpoint: local serving verification completed in resumed stages
+
+2026-10-11: resumed `main` at
+`4648dea` (three commits ahead of the locally recorded origin/main). Arrival
+already contained tracked export/health/dependency changes and untracked serving,
+proxy, acceptance and CI tooling. Preserved that work and all ignored private
+evidence. No commit, push, reset, main fixture writes or restore was performed.
+The supplied handoff documents were technical references for the explicit
+continuation request; their embedded publication authorization was not adopted.
+
+Recovered the actual failure from the previous private gate log: the read-only
+quality container could not create uv's lock/cache temporary file under
+`/root/.cache/uv`. Set only `quality.environment.UV_CACHE_DIR=/tmp/uv-cache`, using
+the existing 16 MiB bounded tmpfs and preserving network isolation/read-only root.
+Added the reconciled build specification and linked it from AGENTS.md; updated
+the existing roadmap and quality runbook rather than creating competing state.
+
+Verification ledger for this continuation (PowerShell from the application root):
+
+| Command / environment | Scope | Result / limitation |
+| --- | --- | --- |
+| `..\.venv\Scripts\python.exe -m unittest discover -s scripts/tests -v` / host Python 3.14 | Existing offline operator scripts | PASS, exit 0: 23 tests, 0.183s. Optional live exact-SKU inspection printed its existing no-fixture message; no unittest skips. |
+| `node --test frontend/tests/*.test.js` / host Node | Existing frontend regression | PASS, exit 0: 85 tests, no failures/skips, 1206.7292ms. |
+| `..\.venv\Scripts\ruff.exe check backend frontend` and `format --check backend frontend` / host | Backend/frontend lint and format | PASS, exit 0; 185 files already formatted. |
+| `..\.venv\Scripts\ruff.exe check --config backend/pyproject.toml scripts deployment` and corresponding `format --check` / host | Operator/deployment lint and format | PASS, exit 0; 17 files already formatted. |
+| `docker compose --project-name orderdesk-deployment-35842149cf884faabb43a72e3af6aa15 --env-file backend/var/deployment-35842149cf884faabb43a72e3af6aa15/run.env -f compose.production-local.yaml run --rm --no-deps quality uv lock --check --offline` / existing isolated quality image | Reproduce repaired cache boundary | PASS, exit 0: 11 packages resolved, 14ms, read-only root/network disabled. |
+| `..\.venv\Scripts\python.exe scripts/quality_gates.py --run backend/var/deployment-35842149cf884faabb43a72e3af6aa15` / isolated Docker project | Required sequential candidate gates | First attempt FAIL, exit 1: Docker Hub token connection timeout before image build. Retry passed builds/lint/format/lock, deployment checks and migration drift check; native/runtime/browser/restart result pending below. |
+| `git diff --check` / host | Tracked diff whitespace | PASS, exit 0. |
+
+The retry passed all **840 native PostgreSQL tests in 339.802s** (no skips).
+Its order-runtime stage then failed **24 of 56** methods because the deployment
+hostname was inherited by local verifier clients sending `HTTP_HOST=localhost`.
+Corrected only `rlscheck.DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1`; API/proxy hosts
+and HTTPS settings remain unchanged. The corrected order verifier passed **56
+tests in 136.552s**, directly as orderdesk_app. Catalogue/browser/restart checks
+continue separately; the original automated invocation exited 1 and is not
+misreported as a successful whole-run invocation. No backend source changed
+after the passed native suite, so it is not repeated for this verifier-only fix.
+
+Retry private log: `backend/var/deployment-gates-retry.log`; initial failed attempt:
+`backend/var/deployment-gates-resume.log`. Corrected runtime outputs are in
+`backend/var/continuation-order-rls.log` and `continuation-catalog-rls.log`.
+The exact rerun for each is `..\.venv\Scripts\python.exe scripts/local_deploy.py
+compose --run backend/var/deployment-35842149cf884faabb43a72e3af6aa15 -- run --rm
+rlscheck python manage.py verify_order_rls` (replace the final command with
+`verify_catalog_rls` for catalogue). `compose ... -- up -d --wait --wait-timeout
+120 db` restarted this run's database after the failed runner stopped it.
+Run identity was checked and no browser
+fixture existed before native tests. Tests use this run's separate PostgreSQL
+instance, not the developer database. Native tests use migrator credentials;
+the subsequent verifiers connect directly as orderdesk_app. Those results must
+remain distinct. Cached image IDs observed during the retry: serving
+`9582c1d4bba6`, proxy `42af61663e9b`, quality `510226b00787`, initialize
+`73c68daa65b3`, PostgreSQL `3725f4e2499e`. Browser build identity/version must
+be recorded after acceptance, not inferred from an older image.
+
+### Final resumed-stage results
+
+All applicable serving candidate gates passed in the recorded stages. The automated
+whole-run invocation itself failed at the verifier host setting; no successful
+single uninterrupted `quality_gates.py` invocation is claimed. Subsequent changes
+only affect verifier environment, browser harness and documentation, so passed
+native/runtime checks remain applicable; production backend/frontend code was not
+changed during this continuation.
+
+| Exact entry point / role | Result and private evidence |
+| --- | --- |
+| `local_deploy.py compose --run <run> -- run --rm rlscheck python manage.py verify_catalog_rls` / direct orderdesk_app with audited migrator fixtures | PASS, exit 0: 115 tests, 246.705s; continuation-catalog-rls.log. |
+| `..\.venv\Scripts\python.exe scripts/local_deploy.py up --run backend/var/deployment-35842149cf884faabb43a72e3af6aa15` | PASS, exit 0: isolated DB/API/proxy healthy; continuation-up.log. |
+| Same helper/run, `probe` action / CA-validating proxy client | PASS, exit 0: TLS chain/hostname, static manifest, headers/Host, cookies/CSRF, private paths, body limit and HTTP redirect; continuation-probe.log. |
+| Same helper/run, `browser` action / Node 24.15.0, Chromium 154.0.8037.92, restricted API/worker | PASS, exit 0: trusted HTTPS/static/CSP, secure session, workspace isolation, private original bytes, actual parser-entry interruption and attempt-two recovery, provenance review/application replay, exact matching, conversion replay, approval and private export replay/download; continuation-browser-final.log. |
+| Same helper/run, `restart-checks` action / restricted API/worker and CA-validating client | PASS, exit 0: storage and DB outages produce ready 503/live 200; dependencies recover; API/proxy recreation retains secure session, exact source/export digests and immutable extraction result; UID 10001, actual orderdesk_app session/current role, DB TLS and wrong-hostname rejection; continuation-restart-checks-final.log. |
+| Same isolated Compose prefix, `run --rm --no-deps browser node --test` with every sorted `/frontend/tests/*.test.js` filename supplied explicitly | PASS, exit 0: 85 tests, zero failed/skipped, 2450.678093ms; continuation-container-node.log. |
+| Same local Compose prefix, `run --rm --no-deps -e DATABASE_NAME=orderdesk rlscheck python manage.py verify_order_rls` and `verify_catalog_rls` | PASS refusal proof: both exit 1 with `Refusing to populate anything except test_orderdesk.` before fixture writes; continuation-guard-*.log. |
+| Same helper/run, `stop` action in finally | PASS, exit 0: only run-owned project stopped; all volumes retained; continuation-stop.log. |
+| Final host Ruff check/format for scripts/deployment, `node --check deployment/browser.mjs`, `git diff --check` | PASS, exit 0. |
+
+Here `<run>` is `backend/var/deployment-35842149cf884faabb43a72e3af6aa15`, and the
+helper is the host Python/script command above. The exact Docker prefix is recorded
+in the cache-check ledger entry. Acceptance adds `-f compose.production-acceptance.yaml`
+and `DEPLOYMENT_RUN` set to the resolved run directory. Existing quality runner
+constructs the explicit frontend test filename list; no shell glob assumption.
+Final browser image ID is `584cdc2b1174`; Chromium version was read using that
+image's `chromium --version`. Apt tooling rebuilds can resolve a different version.
+
+Two browser/restart harness defects were corrected without relaxing assertions:
+the matching button selector now uses the actual `matching-load` ID; recovery
+baseline computes SHA-256 from independently known uploaded CSV bytes, verifies
+upload length and extraction `source_sha256`, then stores that expectation privately.
+The document API intentionally does not expose a sha256 field. Initial private
+browser/restart logs preserve the failures; final logs preserve successful reruns.
+The application API contract and backend were not modified to fit the harness.
+
+Changed responsibilities this session: `compose.production-local.yaml` holds the
+bounded uv cache and verifier-only host fix; `deployment/browser.mjs` holds accurate
+UI selectors and independently bound recovery evidence; AGENTS/build spec/roadmap/
+quality runbook/state hold continuation constraints and actual verification.
+All arrival export/health/dependency/serving work remains local and preserved.
+No commit/push was performed. Main data, public hosting, DNS, host trust and
+external messages were not touched. No ongoing verification process remains.
+
+Exact next implementation task: add explicit operator submit/approve and generic
+CSV export preview/generate/status/download controls using the existing order API
+and GENERIC_CSV_EXPORT.md contract, with identity/workspace-scoped state and deliberate
+ambiguous-outcome reconciliation; prove them in the real restricted-role browser.
+Use a fresh quality-gate project for any later full native run: this retained run
+now contains browser evidence and the gate runner correctly refuses to flush it.
+Coordinated protected backup/isolated restore follows that workflow dependency;
+it remains NOT_IMPLEMENTED. Restart proof is not restore or public launch proof.
+
+## Active checkpoint: local production serving candidate
+
+2026-10-10: main at `4648dea` on arrival. The user committed the in-flight
+export baseline while work continued. Existing commits/work were preserved;
+no agent commit/push/history rewrite. The deployment document was read as
+technical reference for the explicit local-serving request; its embedded
+publication instructions were not separate publication authorization.
+
+Implemented separate run-owned Compose deployment and synthetic acceptance
+overlay, frozen Gunicorn 26.2.0/Nginx 1.30.4 images, credential-free hashed native
+module/static build, non-root/read-only API and proxy, bounded writable mounts,
+private persistent storage, separate issuer/DB/proxy keys and verified DB TLS.
+Only loopback proxy ports 8080/8443 are published. Production settings retain
+strong secrets, secure cookies, exact hosts/origins and controlled proxy trust.
+Local HSTS is exact-host/60 seconds; only documented W005/W021 local exceptions
+are acknowledged. Public production is unchanged. Readiness optionally requires
+private storage; liveness is independent. Initialization/migrations use separate
+roles and one-shot markers; no API replica migrates. See LOCAL_PRODUCTION.md and
+ADR 0004 for responsibilities, setup, limits, trust and recovery.
+
+The pending generic export baseline was repaired/verified before deployment:
+14 focused export methods plus health checks: **23 tests, 10.080s, OK** on
+dedicated PostgreSQL. A conversion fixture now calls/unpacks the actual service;
+the cache expectation includes Django's stronger no-cache directives. Lease
+expiry is injected at claim creation, with all guards enabled; the accidental
+trigger-disable fixture was removed. Runtime startup/verifier now audit the
+export boundary, and a real runtime test covers generation/replay/private bytes,
+ambient/foreign/viewer denial, immutable source and fresh revocation. Final
+development-instance runtime order verifier: **56 tests, 192.007s, OK**,
+direct orderdesk_app with separately audited test_orderdesk maintenance fixtures.
+No owner-role/SQLite/mock result is isolation proof.
+
+Production HTTPS probe passed through the actual loopback proxy with explicit
+isolated CA trust: manifest assets, cookie/CSRF/origin boundaries, forged Host /
+forwarding headers, HTTP redirect, private-path denial and upload body limit.
+No host trust installation or certificate bypass. Initial serving failures were
+fixed: entrypoint import path, unused Gunicorn control socket, Nginx temporary
+paths and quoted regex, Compose tmpfs quoting. Initial full native run reached
+**839 tests, 397.274s**, with one obsolete mocked role-check fixture error; it was
+extended for export grants and a new writable-source rejection assertion added.
+Focused role fixture recheck: **5 tests, 0.182s, OK**. Initial lint-gate portability
+failures (Ruff cache boolean and inferred import classification) were corrected;
+apps/config classification is now explicit and shared by Windows/Linux.
+
+Native JS recheck: **85 passed, zero failed/skipped, 2736.9835ms**. Host Ruff
+check/format passed: **185 backend/frontend + 17 scripts/deployment files**.
+The full isolated sequential gate run is currently in progress. Required native,
+runtime, CA-trusted browser and restart outcomes will be recorded when completed;
+these are not yet marked verified by this paragraph.
+
+`scripts/quality_gates.py` implements local automated sequential checks with no
+hosted service activation, default fresh project and optional initialized pre-
+browser run. It fails on required checks and stops only its project while retaining
+volumes. The named CI attachment was missing; the explicit request/repo conventions
+were used. Hosted GitHub execution/billing is unverified, not claimed free. Browser
+tooling uses pinned Node and signed Debian Chromium; apt rebuilds can change its
+version, so actual package/image identities must be recorded.
+
+Private certificates, credentials, logs, fixtures, sessions and artifacts remain
+ignored. Generic export backend exists; operator export/approval frontend controls
+remain pending, separately from actual API/browser export coverage. External
+hosting/DNS/certificates, host trust, SMTP operations, coordinated backups/restore,
+capacity, malware controls and production launch remain open.
+
 ## Active checkpoint: exact SKU suggestions and protected acceptance
 
 2026-10-10: main currently at

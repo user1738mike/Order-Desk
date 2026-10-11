@@ -107,6 +107,8 @@ export class OrdersApi {
   }
 }
 export function parseRoute(hash) {
+  const purchase = /^#\/workspaces\/([^/]+)\/(?:purchase-orders\/|orders\/([^/]+)\/export\/)$/.exec(hash);
+  if (purchase && UUID.test(purchase[1]) && (!purchase[2] || UUID.test(purchase[2]))) return { screen: 'purchase', workspace: purchase[1].toLowerCase(), order: purchase[2]?.toLowerCase() };
   const documentRoute = /^#\/workspaces\/([^/]+)\/(?:documents\/|orders\/([^/]+)\/documents\/)$/.exec(hash);
   if (documentRoute && UUID.test(documentRoute[1]) && (!documentRoute[2] || UUID.test(documentRoute[2]))) return { screen: 'documents', workspace: documentRoute[1].toLowerCase(), order: documentRoute[2]?.toLowerCase() };
   if (!hash || hash === '#') return { screen: 'catalogue' };

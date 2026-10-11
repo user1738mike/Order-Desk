@@ -1,0 +1,36 @@
+# Explicit isolated synthetic acceptance. Never seed the main deployment schema.
+services:
+  api:
+    environment: {DATABASE_NAME: test_orderdesk}
+  extract:
+    environment: {DATABASE_NAME: test_orderdesk}
+  fixtures:
+    extends:
+      file: compose.production-local.yaml
+      service: manage
+    profiles: [tools]
+    environment:
+      DATABASE_NAME: test_orderdesk
+      DJANGO_SETTINGS_MODULE: config.settings.local
+    volumes:
+      - ./deployment:/checks:ro
+      - ${DEPLOYMENT_RUN:?Specify the ignored run directory}:/run-state
+    command: [python, manage.py, shell, -c, "exec(open('/checks/fixtures.py').read())"]
+  browser:
+    image: orderdesk-browser:${DEPLOYMENT_ID:?Initialize a deployment run}
+    build: {context: ., dockerfile: deployment/Browser.Dockerfile}
+    profiles: [tools]
+    networks: [application]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=268435456,uid=1000,gid=1000,mode=700"]
+    shm_size: 128m
+    volumes: [public_ca:/trust:ro, "${DEPLOYMENT_RUN:?Specify the ignored run directory}:/run-state"]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+  client:
+    volumes:
+      - public_ca:/trust:ro
+      - ${DEPLOYMENT_RUN:?Specify the ignored run directory}:/run-state:ro
