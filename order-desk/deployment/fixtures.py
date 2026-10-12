@@ -1,5 +1,6 @@
 """One isolated maintenance fixture; browser requests always use restricted API."""
 
+import base64
 import json
 import secrets
 from pathlib import Path
@@ -10,6 +11,7 @@ from django.db import connection, transaction
 from apps.accounts.models import User
 from apps.catalog.models import CatalogItem
 from apps.orders.models import PurchaseOrder
+from apps.orders.tests.pdf_fixtures import supported_pdf
 from apps.organizations.models import Membership, MembershipRole, Organization
 
 with connection.cursor() as cursor:
@@ -34,6 +36,14 @@ with transaction.atomic():
     b = Organization.objects.create(name="Deployment Beta")
     Membership.objects.create(user=user, organization=a, role=MembershipRole.ADMIN)
     Membership.objects.create(user=user, organization=b, role=MembershipRole.VIEWER)
+    role_accounts = {}
+    for role in (MembershipRole.VIEWER, MembershipRole.REVIEWER):
+        password = secrets.token_urlsafe(32)
+        member = User.objects.create_user(
+            email=f"deployment-{role}-{uuid4().hex}@example.test", password=password
+        )
+        Membership.objects.create(user=member, organization=a, role=role)
+        role_accounts[role] = {"email": member.email, "password": password}
     item = CatalogItem.objects.create(
         organization=a, sku="0001.Mixed-Case", description="Synthetic fitting"
     )
@@ -56,6 +66,8 @@ with transaction.atomic():
                 "b": str(b.pk),
                 "item": str(item.pk),
                 "viewer_order": str(viewer_order.pk),
+                "pdf_base64": base64.b64encode(supported_pdf()).decode("ascii"),
+                "role_accounts": role_accounts,
             }
         ),
         encoding="utf-8",

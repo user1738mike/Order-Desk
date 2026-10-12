@@ -2,8 +2,8 @@
 
 from uuid import UUID
 
-from django.db.models import Count, Prefetch, Q, QuerySet
-from django.db.models.functions import Length
+from django.db.models import Count, OuterRef, Prefetch, Q, QuerySet, Subquery
+from django.db.models.functions import Coalesce, Length
 from django.db.models.lookups import GreaterThan
 from django.shortcuts import get_object_or_404
 
@@ -23,9 +23,21 @@ from apps.orders.response_limits import (
 
 
 def draft_orders_for_workspace(organization_id: UUID) -> QuerySet[DraftOrder]:
+    # Pagination count must read headers only. A grouped outer join forces RLS
+    # checks over every line before limiting the page; this indexed subquery is
+    # evaluated only for returned headers and stays in the same statement scope.
+    line_totals = (
+        DraftOrderLine.objects.filter(
+            organization_id=organization_id, order_id=OuterRef("pk")
+        )
+        .order_by()
+        .values("order_id")
+        .annotate(total=Count("pk"))
+        .values("total")
+    )
     return (
         DraftOrder.objects.filter(organization_id=organization_id)
-        .annotate(line_count=Count("draft_lines"))
+        .annotate(line_count=Coalesce(Subquery(line_totals), 0))
         .order_by("-created_at", "-id")
     )
 

@@ -16,6 +16,30 @@ def command(arguments):
     subprocess.run(arguments, cwd=ROOT, check=True)  # noqa: S603
 
 
+def retire_stopped_run(prefix, project, run):
+    running = subprocess.run(  # noqa: S603 -- validated run-owned project identity.
+        [  # noqa: S607 -- fixed Docker CLI from the operator's PATH.
+            "docker",
+            "ps",
+            "--filter",
+            f"label=com.docker.compose.project={project}",
+            "--quiet",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    if running.stdout.strip():
+        raise RuntimeError("Stop this synthetic project before retiring its networks.")
+    with (run / "retired-services.log").open("wb") as logs:
+        subprocess.run(  # noqa: S603 -- fixed log capture; private owned destination.
+            [*prefix, "logs", "--no-color"], cwd=ROOT, stdout=logs, check=True
+        )
+    # Explicit operator action only. Preserve named volumes, images and run files.
+    command([*prefix, "down"])
+
+
 def initialize():
     run = PRIVATE / f"deployment-{uuid4().hex}"
     # Windows inherits the checkout owner's ACL, as scripts/init_env.py does.
@@ -49,6 +73,7 @@ def main():
             "up",
             "probe",
             "stop",
+            "retire",
             "status",
             "compose",
             "browser",
@@ -135,6 +160,8 @@ def main():
         command([*prefix, "run", "--rm", "client"])
     elif args.action == "stop":
         command([*prefix, "stop"])
+    elif args.action == "retire":
+        retire_stopped_run(prefix, identity["project"], run)
     elif args.action == "status":
         command([*prefix, "ps"])
     elif args.action == "browser":

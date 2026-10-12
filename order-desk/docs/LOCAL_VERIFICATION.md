@@ -25,7 +25,7 @@ git status --short
 git remote -v
 ```
 
-The locked stack is Python 3.14.8, Django 5.2.17, DRF 3.18.1, Psycopg 3.3.6,
+The locked stack is Python 3.14.8, Django 5.2.18, DRF 3.18.1, Psycopg 3.3.6,
 uv 0.12.23 and Ruff 0.16.10; Compose pins PostgreSQL 18.6-bookworm.
 `backend/pyproject.toml`, `backend/uv.lock`, `backend/.python-version` and
 `backend/Dockerfile` are authoritative. Keep the existing locks and $0 budget.
@@ -175,21 +175,24 @@ The reliable host invocation uses the **backend working directory**:
 
 ```powershell
 Push-Location -LiteralPath backend
-& '..\..\.venv\Scripts\ruff.exe' check . ../scripts
-& '..\..\.venv\Scripts\ruff.exe' format --check . ../scripts
+& '..\..\.venv\Scripts\ruff.exe' check apps config manage.py scripts ../scripts ../deployment
+& '..\..\.venv\Scripts\ruff.exe' format --check apps config manage.py scripts ../scripts ../deployment
 Pop-Location
 git diff --check
 ```
 
 Check each exit code before continuing. This discovers the app's configuration
-and anchors `apps/*/migrations` exclusions and test per-file rules correctly.
+and explicitly selects maintained source, excluding ignored private evidence and
+third-party scanner caches under backend/var. Recursive dot scans on this Windows
+checkout entered that cache and are not a useful application lint result. It also
+anchors `apps/*/migrations` exclusions and test per-file rules correctly.
 Running `--config backend/pyproject.toml backend scripts` from the application
 root produced 95 diagnostics during the audit by changing path matching;
 unconfigured root script lint produced three different-rule warnings. Those
 diagnostic commands are not the documented gate. Do not disable useful rules
-or reformat generated migrations to compensate. The canonical commands passed
-unchanged. The Docker `backend-lint` task checks backend files; the host combined
-command additionally checks the six host-script files.
+or reformat generated migrations to compensate. The explicit source commands
+passed on 12 October. The Docker quality gate checks the clean image source;
+the host command additionally checks orchestration and deployment scripts.
 
 ## Local health and verification evidence
 

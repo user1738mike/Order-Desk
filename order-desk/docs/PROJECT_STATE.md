@@ -1,5 +1,46 @@
 # Project state
 
+## Active checkpoint: 12 October principal-engineer validation in progress
+
+Mid-session evidence: full rebuilt quality PASS (845 native, 56 order runtime,
+115 catalogue runtime, 108 Node, real PDF/CSV/correction/catalogue receipt replay/
+approval/export and restart). Fresh restore retry PASS 117.789s, four private files,
+220610 raw bytes, target deployment-4051647519594aa0a6724405afb02a09; initial restore
+failed before writes due exhausted Docker address pools. Retired stopped synthetic
+a51f0 and failed bb026 containers/networks with logs and all volumes retained.
+Added explicit guarded retirement helper; 32 host script tests PASS.
+Grype now available: 250 package matches, 5 critical/62 high; no fixed critical/high
+Bookworm version. Primary Debian/Python checks in VALIDATION_2026-10-12.md; no
+security release clearance. Current performance FAIL: aggregate p95 503.964ms,
+draft-list 600.33ms, zero errors/31.252 req/s, query budget 10/12. Native pagination
+joins all line history for count. Fresh regression run
+deployment-bc3a927654f348ad8887338017b15c60 is being prepared to demonstrate the
+header-count boundary before a correlated-page-only count fix. Exact next action:
+confirm red PostgreSQL regression, fix selector, final quality/runtime/browser gates
+in this new fixture-free run and remeasure restored dataset; keep target <=500ms.
+
+User's attached request authorizes local synthetic remediation, final verification,
+commit and non-force push through the configured repository. Arrival was clean on
+main at 04eec05. Read AGENTS, reconciled build spec, roadmap, existing contracts,
+five ADRs and 11 October audit; historical counts are not current evidence.
+Docker Desktop was stopped; started with explicit execution approval.
+
+Fresh isolated baseline: scripts/quality_gates.py, private log
+backend/var/validation-2026-10-12-quality.log; run
+deployment-d40b3e6da57141cbbd0d28c4ba0d8332. In progress, no PASS yet.
+Confirmed gap: supported catalogue creation/import is API-only. Implementing
+administrator browser controls using existing protected APIs/atomic import receipts.
+Eight controller regressions first failed on absent module, now pass; total host
+Node suite 106 PASS, zero skips. No backend/schema/business-rule change.
+Add independent all-column export expectations rather than relying only on a
+server-download byte comparison. Prices/currency/pack semantics remain explicitly
+unmodeled; missing units remain empty under the approved generic profile.
+
+Exact next action: finish catalogue UI/browser negatives and independent CSV
+expectations, rebuild serving candidate and run final isolated quality gates;
+then fresh recovery/performance/security checks and dated requirements report.
+Preserve isolated volumes and private evidence; no main-data synthetic writes.
+
 ## Active checkpoint: host browser connectivity repaired
 
 2026-10-11: user requested browser access and reported the URL unreachable.
