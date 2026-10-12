@@ -1,4 +1,17 @@
 Order Desk
+
+The active application is in [order-desk/](order-desk/README.md). Its
+[build specification](order-desk/docs/CODEX_BUILD_SPEC.md),
+[project state](order-desk/docs/PROJECT_STATE.md) and dated validation reports
+describe the current supported workflow and actual verification. Run commands
+from that application directory, using its maintained runbooks.
+
+The foundation notes below are historical Step 4C.3 context. They do not describe
+the current catalogue, intake, review, conversion, approval, generic CSV export
+or isolated local serving/recovery implementation, and their old counts are not
+current acceptance evidence.
+
+## Historical foundation notes
 A workspace-based order operations platform being built incrementally for businesses that need reliable catalogue and order workflows.
 The long-term goal is to turn incoming customer requests into structured, reviewable orders, with AI-assisted extraction and human approval. The current work establishes the authentication, workspace and database security foundation for that workflow.
 Status: Active development. This is not a released or production-certified product. This README is grounded in the shared Step 4C.3 verification record; subsequent increments must be confirmed against the repository before being marked complete.

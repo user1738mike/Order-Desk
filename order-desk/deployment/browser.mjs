@@ -24,6 +24,8 @@ const chrome = spawn('/usr/bin/chromium', [
 let ws, sequence = 0;
 const pending = new Map(), exceptions = [], violations = [];
 let lostExportResponse = false, exportResponseDropped = false;
+let lostCatalogueResponse = false, catalogueResponseDropped = false;
+let lostApplicationResponse = false, applicationResponseDropped = false, postedApplication = null;
 let holdOrderResponse = false, heldOrderResponse = null;
 try {
   let tabs;
@@ -40,8 +42,10 @@ try {
     if (reply.method === 'Fetch.requestPaused') {
       const paused = reply.params;
       if (holdOrderResponse && paused.request.method === 'GET' && paused.responseStatusCode) { heldOrderResponse = paused.requestId; return; }
-      if (lostExportResponse && paused.request.method === 'POST' && paused.responseStatusCode) {
-        lostExportResponse = false; exportResponseDropped = true;
+      if ((lostExportResponse || lostCatalogueResponse || lostApplicationResponse) && paused.request.method === 'POST' && paused.responseStatusCode) {
+        if (lostExportResponse) { lostExportResponse = false; exportResponseDropped = true; }
+        if (lostCatalogueResponse) { lostCatalogueResponse = false; catalogueResponseDropped = true; }
+        if (lostApplicationResponse) { assert.equal(paused.responseStatusCode,201); postedApplication=JSON.parse(paused.request.postData); lostApplicationResponse=false; applicationResponseDropped=true; }
         command('Fetch.failRequest', { requestId: paused.requestId, errorReason: 'ConnectionClosed' }).catch(() => {});
       } else command('Fetch.continueRequest', { requestId: paused.requestId }).catch(() => {});
     }
@@ -88,7 +92,34 @@ try {
     await evaluate(`document.getElementById('workspace').value=${JSON.stringify(workspace)};document.getElementById('workspace').dispatchEvent(new Event('change'))`);
     await wait("!document.getElementById('workspace').disabled && document.querySelectorAll('#items tr').length===1");
     assert.match(await evaluate("document.getElementById('items').textContent"), workspace === data.a ? /0001.Mixed-Case/ : /PRIVATE-BETA/);
+    assert.equal(await evaluate("document.getElementById('catalogue-manage').hidden"), workspace !== data.a);
   }
+  await evaluate("document.getElementById('catalogue-manage').open=true;document.getElementById('catalogue-sku').value='0002.Mixed-Case/+x';document.getElementById('catalogue-description').value='Manual browser item';document.getElementById('catalogue-create-form').requestSubmit()");
+  await wait("document.getElementById('catalogue-write-message').textContent.includes('Created 0002.Mixed-Case/+x') && document.querySelectorAll('#items tr').length===2");
+  async function chooseCatalogueCsv(contents) {
+    await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File([${JSON.stringify(contents)}],'catalogue.csv'));const input=document.getElementById('catalogue-file');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await evaluate("document.getElementById('catalogue-validate').click()");
+  }
+  await chooseCatalogueCsv('sku,description,is_active\r\n0002.Mixed-Case/+x,Existing,true\r\n');
+  await wait("document.getElementById('catalogue-import-errors').textContent.includes('already exists')");
+  assert.equal(await evaluate("document.getElementById('catalogue-import').disabled"), true);
+  await chooseCatalogueCsv('sku,description,is_active\r\n0003.Mixed-Case/+x,"Imported, ""fitting""",true\r\n');
+  await wait("!document.getElementById('catalogue-import').disabled");
+  const catalogueDialog = event => { const reply = JSON.parse(event.data); if (reply.method === 'Page.javascriptDialogOpening') command('Page.handleJavaScriptDialog', {accept:true}).catch(() => {}); };
+  ws.addEventListener('message', catalogueDialog);
+  await command('Fetch.enable', {patterns:[{urlPattern:'*/catalog/imports/',requestStage:'Response'}]});
+  lostCatalogueResponse = true;
+  await evaluate("document.getElementById('catalogue-import').click()");
+  await wait("!document.getElementById('catalogue-reconcile').hidden && !document.getElementById('catalogue-reconcile').disabled");
+  assert.equal(catalogueResponseDropped, true);
+  assert.equal(await evaluate("document.getElementById('catalogue-file').disabled && document.getElementById('catalogue-create').disabled"), true);
+  await command('Fetch.disable');
+  await evaluate("document.getElementById('catalogue-reconcile').click()");
+  await wait("document.getElementById('catalogue-write-message').textContent.includes('Import confirmed: 1 products') && document.querySelectorAll('#items tr').length===3");
+  ws.removeEventListener('message', catalogueDialog);
+  const imported = await request(`/api/v1/workspaces/${data.a}/catalog/items/by-sku/?sku=0003.Mixed-Case%2F%2Bx`);
+  assert.equal(imported.status, 200); assert.equal(imported.data.description, 'Imported, "fitting"');
+  assert.equal((await request(`/api/v1/workspaces/${data.a}/catalog/items/`)).data.count, 3);
   await evaluate(`location.hash=${JSON.stringify(`#/workspaces/${data.b}/orders/${data.viewer_order}/export/`)}`);
   await wait("document.getElementById('purchase-summary').textContent.includes('Viewer-only fixture')");
   assert.equal(await evaluate("document.getElementById('purchase-approve').hidden"), true);
@@ -101,6 +132,20 @@ try {
   const base = `/api/v1/workspaces/${data.a}/`;
   const source = await request(base + 'orders/', 'POST', { customer_name: 'Synthetic source', purchase_order_number: 'LOCAL-SOURCE-' + randomUUID() });
   assert.equal(source.status, 201); const documents = base + `orders/${source.data.id}/documents/`;
+  const pdf = await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const bytes=Uint8Array.from(atob(${JSON.stringify(data.pdf_base64)}),c=>c.charCodeAt(0));const form=new FormData();form.append('file',new File([bytes],'supported.pdf',{type:'application/pdf'}));const r=await fetch(${JSON.stringify(documents+'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form});return{status:r.status,data:await r.json()}})()`);
+  assert.equal(pdf.status, 201);
+  const pdfJob = await request(pdf.data.extraction_url, 'POST', {}); assert.equal(pdfJob.status, 202); await worker(pdfJob.data.id);
+  const pdfResult = await request(pdf.data.extraction_url); assert.equal(pdfResult.data.job.status, 'succeeded');
+  assert.equal(pdfResult.data.job.source_sha256, createHash('sha256').update(Buffer.from(data.pdf_base64,'base64')).digest('hex'));
+  assert.equal(pdfResult.data.results.length,1);
+  const pdfFields = pdfResult.data.results[0];
+  assert.deepEqual(Object.fromEntries(Object.entries(pdfFields).map(([key,field])=>[key,field.value])), {sku:'0001.Mixed-Case',quantity:'1.234',unit:'each',description:'Synthetic widget'});
+  for (const field of Object.values(pdfFields)) {
+    assert.equal(field.page,1);
+    assert.equal(pdfResult.data.job.result_pages[0].slice(field.span_start,field.span_end),field.raw);
+  }
+  assert.equal(await evaluate(`fetch(${JSON.stringify(pdf.data.download_url)}).then(r=>r.arrayBuffer()).then(bytes=>btoa(String.fromCharCode(...new Uint8Array(bytes))))`),data.pdf_base64);
+  assert.equal((await request(pdf.data.download_url.replace(data.a,data.b))).status,404);
   const upload = await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File(['sku,quantity,description,unit\\r\\n0001.Mixed-Case,1.234,Source fitting,ea\\r\\n'],'source.csv'));const r=await fetch(${JSON.stringify(documents + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form});return{status:r.status,data:await r.json()}})()`);
   assert.equal(upload.status, 201); const document = upload.data;
   // The document API intentionally omits its stored digest. Bind recovery proof
@@ -144,24 +189,41 @@ try {
   await evaluate("Array.from(document.querySelectorAll('#documents-rows tr')).find(row=>row.textContent.includes('source.csv')).querySelectorAll('button')[1].click()");
   await wait("document.getElementById('extraction-status').textContent.includes('ready for staff review')");
   assert.match(await evaluate("document.getElementById('extraction-fields').textContent"), /0001.Mixed-Case/);
-  const draft = await request(base + 'draft-orders/', 'POST', { customer_name: 'Local Buyer', customer_reference: 'LOCAL-REF', original_intake_text: 'Synthetic HTTPS intake' }); assert.equal(draft.status, 201);
+  const draft = await request(base + 'draft-orders/', 'POST', { customer_name: 'Local Buyer, "North"', customer_reference: 'LOCAL-REF', original_intake_text: 'Synthetic HTTPS intake' }); assert.equal(draft.status, 201);
   const detail = base + `draft-orders/${draft.data.id}/`;
   const reviewed = await request(document.extraction_url + `review/?draft_id=${draft.data.id}`); assert.equal(reviewed.status, 200);
   await evaluate(`document.getElementById('review-draft-id').value=${JSON.stringify(draft.data.id)};document.getElementById('review-open-form').requestSubmit()`);
   await wait("!document.getElementById('review-content').hidden && document.querySelectorAll('#review-candidates article').length===1");
-  const application = { job_id: queued.data.id, draft_id: draft.data.id, result_revision: reviewed.data.result_revision, expected_draft_revision: reviewed.data.draft_revision, operation_key: randomUUID(), mappings: [{candidate_id: reviewed.data.results[0].candidate_id, action: 'create', position: 1, fields: ['sku','quantity','description','unit']}] };
-  assert.equal((await request(document.extraction_url + 'apply/', 'POST', application)).status, 201);
-  assert.equal((await request(document.extraction_url + 'apply/', 'POST', application)).status, 200);
+  const candidate = reviewed.data.results[0].candidate_id;
+  await evaluate(`(()=>{const action=document.getElementById('review-action-'+${JSON.stringify(candidate)});action.value='create';action.dispatchEvent(new Event('change'));const position=document.getElementById('review-position-'+${JSON.stringify(candidate)});position.value='1';position.dispatchEvent(new Event('input'));for(const field of ['sku','quantity','description','unit']){const select=document.getElementById('review-select-'+${JSON.stringify(candidate)}+'-'+field);select.checked=true;select.dispatchEvent(new Event('change'));}const correction=document.getElementById('review-correct-'+${JSON.stringify(candidate)}+'-description');correction.checked=true;correction.dispatchEvent(new Event('change'));const value=document.getElementById('review-value-'+${JSON.stringify(candidate)}+'-description');value.value='Human checked fitting';value.dispatchEvent(new Event('input'));})()`);
+  assert.match(await evaluate("document.getElementById('review-preview').textContent"), /Human checked fitting.*deliberate correction/);
+  assert.equal((await request(detail+'lines/')).data.count,0,'Editing a proposal must not apply business data.');
+  ws.addEventListener('message',catalogueDialog);
+  await command('Fetch.enable',{patterns:[{urlPattern:origin+document.extraction_url+'apply/',requestStage:'Response'}]});
+  lostApplicationResponse=true;
+  await evaluate("document.getElementById('review-apply').click()");
+  await wait("document.getElementById('review-message').textContent.includes('unconfirmed') && !document.getElementById('review-reconcile').disabled");
+  assert.equal(applicationResponseDropped,true);
+  await command('Fetch.disable');
+  await evaluate("document.getElementById('review-reconcile').click()");
+  await wait("document.getElementById('review-message').textContent.includes('confirmed by replay')");
+  ws.removeEventListener('message',catalogueDialog);
+  assert.equal((await request(document.extraction_url + 'apply/', 'POST', postedApplication)).status,200);
+  const appliedLines = (await request(detail+'lines/')).data;
+  assert.equal(appliedLines.count,1); assert.equal(appliedLines.results[0].requested_description,'Human checked fitting'); assert.equal(appliedLines.results[0].quantity,'1.234');
   const suggestions = await request(detail + 'suggestions/'); assert.equal(suggestions.status, 200);
   await evaluate(`location.hash=${JSON.stringify(`#/workspaces/${data.a}/draft-orders/${draft.data.id}/`)}`);
   await wait("!document.getElementById('matching-load').disabled");
   await evaluate("document.getElementById('matching-load').click()");
   await wait("document.getElementById('matching-results').textContent.includes('0001.Mixed-Case')");
   const row = suggestions.data.results[0]; assert.equal(row.state, 'exact');
+  assert.equal((await request(detail+`lines/${row.line_id}/`,'PATCH',{price:'1.23'},suggestions.data.draft_revision)).status,400,'Unmodeled prices must be rejected, not silently accepted.');
   const accepted = await request(detail + `lines/${row.line_id}/accept-suggestion/`, 'POST', {catalogue_item_id: row.candidate.id, rule_version: suggestions.data.rule_version, source_sku: row.normalized_sku, catalogue_revision: row.candidate.revision}, suggestions.data.draft_revision);
   assert.equal(accepted.status, 200);
   assert.equal((await request(detail + 'readiness/')).data.ready_to_convert, true);
+  const conversionStartDate = new Date().toISOString().slice(0,10);
   const converted = await request(detail + 'convert/', 'POST', {}); assert.equal(converted.status, 201);
+  const conversionEndDate = new Date().toISOString().slice(0,10);
   const replay = await request(detail + 'convert/', 'POST', {}); assert.equal(replay.status, 200); assert.equal(replay.data.id, converted.data.id);
   const order = base + `orders/${converted.data.id}/`;
   await evaluate(`location.hash=${JSON.stringify(`#/workspaces/${data.a}/orders/${converted.data.id}/export/`)}`);
@@ -204,6 +266,9 @@ try {
   let savedCsv;
   for (let i = 0; i < 100; i++) { try { savedCsv = await readFile(`/tmp/order-downloads/order-${converted.data.id}.csv`, 'utf8'); break; } catch (error) { if (error.code !== 'ENOENT') throw error; await delay(100); } }
   assert.equal(savedCsv, csv, 'Operator download must preserve the exact private export bytes.');
+  const expectedHeader = 'profile,order_id,source_draft_id,order_number,order_date,customer_name,line_number,sku,description,quantity,unit\r\n';
+  const independentExpected = date => expectedHeader + `generic-po-csv-v1,${converted.data.id},${draft.data.id},DRAFT-${draft.data.id.replaceAll('-','')},${date},"Local Buyer, ""North""",1,0001.Mixed-Case,Synthetic fitting,1.2340,ea\r\n`;
+  assert.ok([conversionStartDate,conversionEndDate].some(date=>savedCsv===independentExpected(date)), 'Every exported field and CSV encoding must equal the independent fixture expectation.');
   const { cssContentSize } = await command('Page.getLayoutMetrics');
   const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width: cssContentSize.width, height: cssContentSize.height, scale: 1 } });
   await writeFile('/run-state/purchase.png', Buffer.from(screenshot.data, 'base64'));
@@ -224,8 +289,25 @@ try {
   assert.deepEqual(exceptions, []); assert.deepEqual(violations, []);
   await evaluate("document.getElementById('logout').click()"); await wait("!document.getElementById('login-panel').hidden");
   assert.equal((await request('/api/v1/workspaces/')).status, 403);
-  assert.equal((await request('/api/v1/auth/login/', 'POST', {email:data.email,password:data.password})).status, 200);
+  for (const role of ['viewer','reviewer']) {
+    const account = data.role_accounts[role];
+    await evaluate(`location.hash='';document.getElementById('email').value=${JSON.stringify(account.email)};document.getElementById('password').value=${JSON.stringify(account.password)};document.getElementById('login-form').requestSubmit()`);
+    await wait("!document.getElementById('desk').hidden && !document.getElementById('workspace').disabled");
+    const accessible = (await request('/api/v1/workspaces/')).data;
+    assert.equal(accessible.count,1); assert.equal(accessible.results[0].id,data.a);
+    await evaluate(`document.getElementById('workspace').value=${JSON.stringify(data.a)};document.getElementById('workspace').dispatchEvent(new Event('change'))`);
+    await wait("document.getElementById('role').textContent.includes("+JSON.stringify(role)+") && !document.getElementById('workspace').disabled");
+    assert.equal(await evaluate("document.getElementById('catalogue-manage').hidden"),true);
+    assert.equal(await evaluate("document.getElementById('catalogue-sku').value"),'');
+    assert.equal((await request(base+'catalog/items/','POST',{sku:'FORGED-'+role})).status,403);
+    assert.equal((await request(detail+'convert/','POST',{})).status,403);
+    assert.equal((await request(order+'exports/')).status,role==='reviewer'?200:403);
+    assert.equal((await request(`/api/v1/workspaces/${data.b}/catalog/items/`)).status,403);
+    await evaluate("document.getElementById('logout').click()"); await wait("!document.getElementById('login-panel').hidden");
+  }
+  await evaluate(`location.hash='';document.getElementById('email').value=${JSON.stringify(data.email)};document.getElementById('password').value=${JSON.stringify(data.password)};document.getElementById('login-form').requestSubmit()`);
+  await wait("!document.getElementById('desk').hidden && !document.getElementById('workspace').disabled");
   await writeFile('/run-state/session.json', JSON.stringify((await command('Network.getCookies', {urls:[origin]})).cookies));
-  console.log('PASS: real Chromium with isolated CA trust, production static/CSP, secure session/CSRF, viewer export denial, workspace isolation, original private CSV bytes, restricted extraction, provenance review/application replay, exact matching, conversion replay, cancelled/confirmed operator approval, lost export response reconciliation, verified CSV controls/replay/download and mobile layout.');
+  console.log('PASS: real Chromium with isolated CA trust, production static/CSP, distinct admin/reviewer/viewer logins, catalogue create/import and lost-response replay, workspace isolation, PDF/CSV private intake/restricted extraction, provenance review/application replay, exact matching, conversion replay, cancelled/confirmed operator approval, lost export response reconciliation, independently expected all-column CSV controls/download and mobile layout.');
   await command('Browser.close');
 } finally { ws?.close(); chrome.kill(); }

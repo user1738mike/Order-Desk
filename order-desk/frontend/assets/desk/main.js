@@ -9,6 +9,7 @@ import { DocumentController, documentRoute, renderDocuments } from './documents.
 import { ExtractionReviewController, renderExtractionReview } from './extraction-review.js';
 import { MatchingController, renderMatching } from './matching.js';
 import { PurchaseController, purchaseRoute, renderPurchase } from './purchase.js';
+import { CatalogueController, renderCatalogue } from './catalogue.js';
 
 const $ = id => document.getElementById(id);
 const client = new ApiClient();
@@ -16,6 +17,7 @@ let desk;
 let editor;
 let extractionReview;
 let matching;
+const catalogue = new CatalogueController(client, () => renderCatalogue(catalogue, desk?.state.phase === 'desk' && parseRoute(location.hash).screen === 'catalogue'), async () => desk.loadCatalogue(), async () => desk.startWithoutSelection());
 const purchase = new PurchaseController(client, () => { const route = parseRoute(location.hash); renderPurchase(purchase, desk?.state.phase === 'desk' && route.screen === 'purchase' && route.workspace === purchase.state.workspace?.id); }, async () => {
   const version = purchase.version, workspace = purchase.state.workspace?.id;
   try {
@@ -92,7 +94,9 @@ async function recheckAccess(action) {
 }
 let navigation = 0;
 let acceptedHash = location.hash;
-function discardForNavigation() {
+function discardForNavigation(signingOut = false) {
+  if (!signingOut && catalogue.state.pending) return false;
+  if (!signingOut && catalogue.state.uncertain) { catalogue.update({ message: 'Reconcile the unconfirmed catalogue write before leaving. Reloading discards the in-memory retry receipt.' }); return false; }
   if (purchase.state.pending) return false;
   if (matching?.state.pending) return false;
   if (extractionReview.state.pending || extractionReview.state.uncertain) { extractionReview.update({ message: 'Reconcile the pending or unconfirmed application using the identical request before leaving.' }); return false; }
@@ -126,6 +130,8 @@ async function applyRoute() {
 }
 function render(state) {
   const route = parseRoute(location.hash);
+  catalogue.context(state.phase === 'desk' ? state.workspace : null, state.generation);
+  renderCatalogue(catalogue, state.phase === 'desk' && route.screen === 'catalogue');
   $('loading').hidden = state.phase !== 'loading';
   $('login-panel').hidden = state.phase !== 'login';
   $('desk').hidden = state.phase !== 'desk';
@@ -196,6 +202,11 @@ function render(state) {
 }
 
 desk = new DeskController(client, render);
+$('catalogue-create-form').addEventListener('submit', event => { event.preventDefault(); catalogue.create($('catalogue-sku').value, $('catalogue-description').value); });
+$('catalogue-file').addEventListener('change', event => catalogue.select(event.target.files[0] ?? null));
+$('catalogue-validate').addEventListener('click', () => catalogue.validate());
+$('catalogue-import').addEventListener('click', () => { if (catalogue.canWrite() && catalogue.state.report?.can_import && window.confirm('Create all validated catalogue products? The server rechecks every row and commits them together.')) catalogue.execute(); });
+$('catalogue-reconcile').addEventListener('click', () => catalogue.state.create ? catalogue.reconcileCreate() : catalogue.execute(true));
 $('purchase-open-form').addEventListener('submit', event => { event.preventDefault(); const id = $('purchase-open-id').value.trim().toLowerCase(); if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) && purchase.state.workspace) location.hash = purchaseRoute(purchase.state.workspace.id, id); else purchase.update({ message: 'Enter a valid purchase-order UUID.' }); });
 $('purchase-refresh').addEventListener('click', () => purchase.load());
 $('purchase-previous').addEventListener('click', () => purchase.load(purchase.state.page - 1));
@@ -242,7 +253,7 @@ $('login-form').addEventListener('submit', async event => {
   await applyRoute();
   if (desk.state.phase === 'login') $('password').focus();
 });
-$('logout').addEventListener('click', () => { if (discardForNavigation()) desk.logout(); });
+$('logout').addEventListener('click', () => { if (discardForNavigation(true)) desk.logout(); });
 $('workspace').addEventListener('change', async event => {
   if (!discardForNavigation()) { $('workspace').value = desk.state.workspace?.id ?? ''; return; }
   navigation += 1;
@@ -259,11 +270,11 @@ $('next').addEventListener('click', () => desk.goToPage(desk.state.page + 1));
 $('retry').addEventListener('click', () => desk.state.catalogError ? desk.loadCatalogue() : desk.state.retryAction === 'logout' ? desk.logout() : desk.start());
 // Revalidate on return from another tab, where selection, auth or access changed.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !orders.state.converting && !purchase.state.pending && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
+  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !catalogue.state.pending && !catalogue.state.uncertain && !catalogue.state.file && !orders.state.converting && !purchase.state.pending && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
 });
 window.addEventListener('pageshow', event => { if (event.persisted) desk.start().then(applyRoute); });
 window.addEventListener('hashchange', applyRoute);
-window.addEventListener('beforeunload', event => { if (purchase.state.pending || editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (catalogue.state.pending || catalogue.state.uncertain || purchase.state.pending || editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
 $('matching-load').addEventListener('click', () => matching.load());
 $('matching-reload').addEventListener('click', () => matching.reload());
 $('new-draft').addEventListener('click', () => editor.begin('create'));

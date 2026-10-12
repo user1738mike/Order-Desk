@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import { ApiClient, ApiError } from '../assets/desk/api.js';
 
 const reply = (data, status = 200) => ({ status, ok: status < 400, json: async () => data });
+test('multipart receipt retries send the explicit idempotency key without JSON content type', async () => {
+  let options;
+  const api = new ApiClient(async (_path, supplied) => { options = supplied; return reply({}); });
+  api.csrf = 'fresh'; const body = new FormData(); body.append('file', new File(['csv'], 'file.csv'));
+  await api.request('/api/v1/workspaces/a/catalog/imports/', { method: 'POST', body, idempotencyKey: 'operation' });
+  assert.equal(options.headers['Idempotency-Key'], 'operation'); assert.equal(options.headers['Content-Type'], undefined); assert.equal(options.body, body);
+});
 test('login uses cookie credentials, bootstrap CSRF then rotated token for selection', async () => {
   const calls = [];
   const api = new ApiClient(async (url, options) => {

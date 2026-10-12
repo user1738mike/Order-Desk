@@ -39,14 +39,17 @@ synthetic data and a $0 budget; no paid dependency or service is required.
 Use [project state](docs/PROJECT_STATE.md) for delivery and verification results,
 [the roadmap](docs/ROADMAP.md) for capability status, and
 [local verification](docs/LOCAL_VERIFICATION.md) for current PowerShell commands.
-The frontend includes session login/logout, workspace selection and read-only
-catalogue search/filter/pagination, draft list/detail/readiness, manual header/line
+The frontend includes session login/logout, workspace selection and
+catalogue search/filter/pagination, administrator creation and validated atomic
+CSV import ([browser contract](docs/CATALOGUE_MANAGEMENT_FRONTEND.md)), draft list/detail/readiness, manual header/line
 editing, catalogue attachment/detachment and administrator conversion/replay.
 It also includes secure document intake/status/download, extraction proposals,
 explicit field decisions/corrections and exact SKU suggestions. Suggestions
 do not confirm quantities, units or prices, and do not approve or convert orders.
-General PDF/OCR/AI, customer aliases, fuzzy matching, ERP export,
-usage tracking and production deployment remain future work. Live email
+General PDF/OCR/AI, customer aliases, fuzzy matching, named ERP export,
+usage tracking and public production deployment remain future work. Prices,
+currency and pack rules are unmodeled; the supported generic CSV omits them.
+Live email
 ingestion, real ERP compatibility and certification have not been demonstrated.
 
 Read [the Step 3 foundation walkthrough](docs/AI_Order_Desk_Step_03_Backend.md)

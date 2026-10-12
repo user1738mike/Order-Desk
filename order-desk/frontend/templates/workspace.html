@@ -23,7 +23,15 @@
       <div id="choose-workspace" class="card empty"><h2>Choose your workspace</h2><p class="muted">Select a workspace above to see its catalogue.</p></div>
       <section id="catalogue" class="card catalogue" hidden aria-label="Workspace catalogue">
         <form id="search-form" class="toolbar"><div class="search"><label for="search">Search catalogue</label><input id="search" type="search" maxlength="200" placeholder="Search SKU or description"><button type="submit">Search</button></div><div><label for="activity">Product status</label><select id="activity"><option value="">All products</option><option value="true">Active</option><option value="false">Inactive</option></select></div></form>
-        <div class="catalogue-summary"><span id="result-count" role="status"></span><span class="muted small">Read-only catalogue</span></div>
+        <details id="catalogue-manage" hidden><summary>Manage catalogue</summary>
+          <p>Administrators can create products or validate and import a create-only CSV. Existing SKUs cannot be overwritten. Identifiers preserve case, punctuation and leading zeros after trimming outer whitespace.</p>
+          <form id="catalogue-create-form"><label for="catalogue-sku">Exact SKU</label><input id="catalogue-sku" required><label for="catalogue-description">Description</label><textarea id="catalogue-description" rows="2"></textarea><button id="catalogue-create">Create active product</button></form>
+          <label for="catalogue-file">Catalogue CSV (up to 1 MiB, 1,000 rows)</label><input id="catalogue-file" type="file" accept=".csv"><p class="muted small">UTF-8 headers: sku,description,is_active. Status is true, false or blank (active). Validation writes nothing.</p>
+          <button id="catalogue-validate" type="button">Validate CSV</button><p id="catalogue-import-report" role="status"></p><ul id="catalogue-import-errors"></ul>
+          <div class="table-scroll"><table><thead><tr><th>Row</th><th>SKU</th><th>Description</th><th>Status</th></tr></thead><tbody id="catalogue-import-preview"></tbody></table></div>
+          <button id="catalogue-import" type="button">Import validated products</button><button id="catalogue-reconcile" type="button" hidden>Reconcile unconfirmed write</button><p id="catalogue-write-message" role="status" aria-live="polite"></p>
+        </details>
+        <div class="catalogue-summary"><span id="result-count" role="status"></span><span class="muted small">Workspace products</span></div>
         <div class="table-scroll"><table><thead><tr><th scope="col">SKU</th><th scope="col">Description</th><th scope="col">Status</th></tr></thead><tbody id="items"></tbody></table></div>
         <p id="catalogue-state" class="empty" role="status"></p>
         <nav class="pagination" aria-label="Catalogue pages"><span id="page-label"></span><div><button id="previous" class="quiet">← Previous</button><button id="next" class="quiet">Next →</button></div></nav>

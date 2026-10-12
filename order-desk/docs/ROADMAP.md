@@ -26,6 +26,11 @@ upgrade, clean-install and local application evidence is in project state.
 
 ## Capability status
 
+12 October validation adds administrator catalogue creation/validated atomic
+CSV-import browser controls using the existing APIs. See
+[CATALOGUE_MANAGEMENT_FRONTEND.md](CATALOGUE_MANAGEMENT_FRONTEND.md) and the current
+PROJECT_STATE checkpoint for actual verification rather than historical counts.
+
 | Status | Scope and evidence |
 | --- | --- |
 | Implemented and verified locally | Locked Django/PostgreSQL backend, health and role checks; session/CSRF/login limits; workspace discovery/selection/current authorization; transaction-local tenant scopes; catalogue management/search/exact lookup/create/update/deactivation, CSV dry run and atomic create-only execution with durable retry receipts; draft work listed below; separate purchase-order/document-review APIs. Native and restricted-role PostgreSQL checks passed; results are recorded in project state. |

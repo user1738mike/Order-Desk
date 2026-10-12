@@ -15,7 +15,11 @@ from django.test.utils import CaptureQueriesContext  # noqa: E402
 from rest_framework.test import APIRequestFactory, force_authenticate  # noqa: E402
 
 from apps.accounts.models import User  # noqa: E402
-from apps.orders.views import DraftOrderReadinessView, OrderDetailView  # noqa: E402
+from apps.orders.views import (  # noqa: E402
+    DraftOrderListCreateView,
+    DraftOrderReadinessView,
+    OrderDetailView,
+)
 
 fixture = json.loads(Path("/run-state/fixture.json").read_text(encoding="utf-8"))
 workflow = json.loads(Path("/run-state/workflow.json").read_text(encoding="utf-8"))
@@ -29,19 +33,25 @@ user = User.objects.get(pk=fixture["user"])
 factory = APIRequestFactory()
 report = {}
 for name, view, order in (
+    ("drafts", DraftOrderListCreateView, None),
     ("source_order", OrderDetailView, workflow["source"]),
     ("readiness", DraftOrderReadinessView, workflow["draft"]),
 ):
     request = factory.get("/", HTTP_HOST="orderdesk.localhost", secure=True)
     force_authenticate(request, user=user)
     with CaptureQueriesContext(connection) as queries:
-        response = view.as_view()(
-            request, workspace_id=UUID(workspace), order_id=UUID(order)
-        )
+        kwargs = {"workspace_id": UUID(workspace)}
+        if order is not None:
+            kwargs["order_id"] = UUID(order)
+        response = view.as_view()(request, **kwargs)
         response.render()
     if response.status_code != 200:
         raise RuntimeError("Query-budget fixture failed.")
     report[name] = len(queries)
+    if name == "drafts":
+        counts = [query["sql"] for query in queries if "COUNT(*)" in query["sql"]]
+        if len(counts) != 1 or "orders_draftorderline" in counts[0]:
+            raise RuntimeError("Draft pagination count must not scan line histories.")
 print(
     json.dumps(
         {

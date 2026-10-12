@@ -15,6 +15,21 @@ To resume a prepared run before browser fixtures exist, supply
 not repeated. Once browser fixtures exist, a full gate run requires a fresh run
 so native test flushes cannot erase the acceptance evidence.
 
+The runner first checks loopback ports 8080 and 8443 and refuses a collision before
+creating a run or starting builds/tests. Identify the existing owner; stop only
+an authorized synthetic proxy. The runner never stops another installation to
+claim its ports. A free-port preflight is a snapshot; a later competing listener
+can still make serving fail and must remain a failed gate.
+
+Repeated retained projects can exhaust Docker's default network address pools.
+After reviewing an old synthetic run, use `scripts/local_deploy.py retire --run
+backend/var/deployment-<UUID>`. This explicit operator action verifies the run's
+identity and refuses any running project container, saves service logs privately,
+then executes Compose down without volume/image deletion. Data, certificates,
+backups, run credentials and evidence remain. Never use global network/system
+prune or down --volumes to make a verification pass. A future command can recreate
+the retired services/networks using the same run and retained volumes.
+
 Docker/Linux containers, Python 3.14, network access for builds and adequate
 local memory/disk are required. See LOCAL_PRODUCTION.md for manual steps and
 actual source/image identities/results in PROJECT_STATE.md. Native owner-role

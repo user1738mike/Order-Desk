@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from django.db import connection
 from django.test import TransactionTestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
@@ -20,6 +21,22 @@ from apps.organizations.models import Membership, MembershipRole, Organization
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class DraftReadAPITests(TransactionTestCase):
+    def test_pagination_count_does_not_read_line_histories(self):
+        empty = DraftOrder.objects.create(
+            organization=self.a, initiating_user=self.user
+        )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["count"], 2)
+        counts = {row["id"]: row["line_count"] for row in response.json()["results"]}
+        self.assertEqual(counts, {str(self.order.pk): 1, str(empty.pk): 0})
+        count_queries = [
+            query["sql"] for query in queries if "COUNT(*)" in query["sql"]
+        ]
+        self.assertEqual(len(count_queries), 1)
+        self.assertNotIn("orders_draftorderline", count_queries[0])
+
     def setUp(self):
         self.user = User.objects.create_user(email="draft-read@example.test")
         self.a = Organization.objects.create(name="Synthetic draft A")

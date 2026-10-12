@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -12,10 +13,24 @@ from deployment_restart import run_restart_checks
 from local_deploy import PRIVATE, ROOT, command, initialize
 
 
+def require_available_ports(ports=(8080, 8443)):
+    """Refuse collisions before builds/tests; never stop another installation."""
+    for port in ports:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            try:
+                listener.bind(("127.0.0.1", port))
+            except OSError as error:
+                raise RuntimeError(
+                    f"Local serving port {port} is unavailable. Identify its owner "
+                    "and stop only an authorized synthetic proxy before running gates."
+                ) from error
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", type=Path)
     arguments = parser.parse_args()
+    require_available_ports()
     run = arguments.run.resolve() if arguments.run else initialize()
     if run.parent != PRIVATE.resolve() or not run.name.startswith("deployment-"):
         parser.error("Use an initialized run in this checkout's ignored backend/var.")
