@@ -67,8 +67,8 @@ services:
       retries: 30
   api:
     <<: *app
-    # Measured eight-client workload saturated one CPU with two sync workers.
-    cpus: 2.0
+    # Eight-client verification reached the two-CPU/two-worker serving limit.
+    cpus: 4.0
     environment: *runtime
     depends_on:
       db: {condition: service_healthy}

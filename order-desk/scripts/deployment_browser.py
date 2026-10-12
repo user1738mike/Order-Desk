@@ -10,6 +10,15 @@ from uuid import UUID
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def prepare_browser_services(execute, run):
+    # Standalone retry follows a runner that stops its project in finally.
+    # Fixture containers do not implicitly start db; require it healthy first.
+    execute(["up", "-d", "--wait", "--wait-timeout", "120", "db"])
+    if not (run / "fixture.json").exists():
+        execute(["run", "--rm", "fixtures"])
+    execute(["up", "-d", "--wait", "--wait-timeout", "120", "api", "proxy"])
+
+
 def run_browser(prefix, run):
     environment = {**os.environ, "DEPLOYMENT_RUN": str(run)}
     compose = [*prefix, "-f", "compose.production-acceptance.yaml"]
@@ -18,9 +27,7 @@ def run_browser(prefix, run):
         subprocess.run([*compose, *arguments], cwd=ROOT, env=environment, check=True)  # noqa: S603
 
     execute(["build", "browser"])
-    if not (run / "fixture.json").exists():
-        execute(["run", "--rm", "fixtures"])
-    execute(["up", "-d", "--wait", "--wait-timeout", "120", "api", "proxy"])
+    prepare_browser_services(execute, run)
     fixture = json.loads((run / "fixture.json").read_text(encoding="utf-8"))
     process = subprocess.Popen(  # noqa: S603 -- fixed Compose command, owned path.
         [*compose, "run", "--rm", "browser"], cwd=ROOT, env=environment

@@ -18,7 +18,7 @@ SECURE_HSTS_SECONDS = 60
 # asserted. Only these two checks are acknowledged; other warnings fail startup.
 SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
 REQUIRE_PRIVATE_STORAGE_READY = True
-# The local server uses two synchronous WSGI workers. Tenant state is SET LOCAL
+# The local server uses four synchronous WSGI workers. Tenant state is SET LOCAL
 # in an outermost transaction and contaminated sessions are discarded. Reuse
 # bounded connections to avoid a fresh DB TLS handshake on every HTTP request.
 DATABASES = deepcopy(DATABASES)  # noqa: F405

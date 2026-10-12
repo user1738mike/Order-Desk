@@ -83,8 +83,11 @@ Run `up` without the acceptance overlay to return to the main isolated orderdesk
 schema. It is intentionally not seeded with test accounts. Account/workspace
 provisioning for ordinary use remains an explicit local operator step.
 
-The API uses two synchronous workers, 30-second request timeout and 15-second
-graceful timeout; 512 MiB/two CPUs, UID 10001, read-only root, bounded private tmpfs.
+The API uses four synchronous workers, 30-second request timeout and 15-second
+graceful timeout; 512 MiB/four CPUs, UID 10001, read-only root, bounded private tmpfs.
+This local allocation is measured against the provisional eight-client workload;
+it is not a customer capacity promise. Results and earlier failures are in the
+12 October validation report.
 Nginx UID 101 has no private document mount. Private data is UID-10001-only and
 outside public paths. Proxy replaces forwarding headers and supplies fixed Host;
 do not publish an application port or enable proxy trust in another topology.

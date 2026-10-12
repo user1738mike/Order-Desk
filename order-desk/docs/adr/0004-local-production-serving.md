@@ -49,4 +49,10 @@ Coordinated backups/restore, public certificates/DNS, real host trust, monitorin
 capacity measurement, malware controls and external hosting remain separate work.
 
 Required verification is recorded in LOCAL_PRODUCTION.md and PROJECT_STATE.md.
+
+12 October measured local update: four synchronous workers/four API CPUs with
+the same 512 MiB and protections. The unchanged eight-client synthetic workload
+failed its provisional p95 target with two workers; final p95 212.235ms passed.
+See VALIDATION_2026-10-12.md for query remediation, prior failures and actual
+four-worker browser/restart/role/TLS proof. This is not a production capacity SLO.
 An image build, health probe or owner test alone is insufficient evidence.
