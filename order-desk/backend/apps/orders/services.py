@@ -36,6 +36,7 @@ from apps.orders.models import (
     PurchaseOrderLine,
 )
 from apps.orders.readiness import evaluate_draft_readiness
+from apps.orders.response_limits import MAX_ORDER_LINES
 from apps.orders.revisions import check_revision
 from apps.organizations.models import MembershipRole
 from apps.organizations.transactions import tenant_scope
@@ -66,6 +67,7 @@ class DraftNotReady(Exception):
         paths = {
             "customer_name_missing": "customer_name",
             "lines_missing": "lines",
+            "line_limit": "lines",
             "quantity_missing": "lines.quantity",
             "catalogue_unmatched": "lines.catalogue_item_id",
             "catalogue_inactive": "lines.catalogue_item_id",
@@ -138,16 +140,21 @@ def convert_draft_to_purchase_order(
                 return _result(existing, materialize), False
             _require_draft_editable(draft)
             check_revision(draft, expected_revision)
-            lines = list(
-                selectors.draft_lines_for_order(
-                    context.organization_id, draft.pk
-                ).select_for_update()
-            )
             readiness = evaluate_draft_readiness(
                 selectors.get_draft_readiness(context.organization_id, draft.pk)
             )
             if not readiness["ready_to_convert"]:
                 raise DraftNotReady(readiness["blocking_reasons"])
+            # Reject unsupported aggregates before loading/copying their payloads.
+            # Cooperating writers share the organization lock; keep the fetch
+            # bounded as well so this operation cannot materialize unlimited rows.
+            lines = list(
+                selectors.draft_lines_for_order(
+                    context.organization_id, draft.pk
+                ).select_for_update()[: MAX_ORDER_LINES + 1]
+            )
+            if len(lines) > MAX_ORDER_LINES:
+                raise DraftNotReady([{"code": "line_limit", "count": 1}])
             number = "DRAFT-" + draft.pk.hex
             if PurchaseOrder.objects.filter(
                 organization_id=context.organization_id, purchase_order_number=number
@@ -857,7 +864,7 @@ def add_order_line(
     sku: str,
     description: str = "",
     quantity: Decimal | int | float = 1,
-    unit: str = "ea",
+    unit: str = "",
     materialize: Materializer | None = None,
 ):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:

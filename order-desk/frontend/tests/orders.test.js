@@ -49,11 +49,19 @@ test('critical response validators reject foreign resources, numeric decimals an
   }
 });
 test('readiness validates blocker types, unique codes and ready consistency; no invented warnings', async () => {
-  assert.equal(Object.keys(blockers).length, 7);
+  assert.equal(Object.keys(blockers).length, 8);
   for (const code of Object.keys(blockers)) assert.deepEqual(validateReasons([{ code, count: 1 }]), [{ code, count: 1 }]);
   for (const changed of [{ ...ready, ready_to_convert: 'true' }, { ...ready, blocking_reasons: [{ code: 'quantity_missing', count: 1 }] }, { ...ready, ready_to_convert: false, blocking_reasons: [{ code: 'guessed_warning', count: 1 }] }]) {
     const api = new OrdersApi({ request: async () => changed }); await assert.rejects(api.readiness(w, d), /Unsupported response/);
   }
+});
+test('oversized drafts display a supported line budget blocker and cannot convert', async () => {
+  const api = new OrdersApi({ request: async () => ({ ...ready, ready_to_convert: false, line_count: 501, blocking_reasons: [{ code: 'line_limit', count: 1 }] }) });
+  const readiness = await api.readiness(w, d);
+  const { desk } = fixture({ readiness: async () => readiness });
+  await desk.open(d);
+  assert.equal(desk.canConvert(), false);
+  assert.match(blockers.line_limit[0], /500-line/);
 });
 test('conversion sends only empty JSON, fresh CSRF and distinguishes first success/replay', async () => {
   for (const status of [201, 200]) {

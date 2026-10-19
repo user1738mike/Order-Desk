@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -59,6 +60,33 @@ class ProductionSettingsTests(SimpleTestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "False True True True verify-full")
+
+    def test_http_errors_keep_diagnostics_without_private_exception_text(self):
+        result = self.production_check(
+            {},
+            "import django, logging; from types import SimpleNamespace; "
+            "django.setup(); "
+            "request = SimpleNamespace(method='POST', "
+            "resolver_match=SimpleNamespace(view_name='workspaces:orders:detail'), "
+            "META={'HTTP_X_REQUEST_ID': 'a'*32, 'HTTP_COOKIE': 'PRIVATE-COOKIE'}, "
+            "body=b'PRIVATE-DOCUMENT'); "
+            "[(logging.getLogger(name).error('PRIVATE-DOCUMENT: %s', 'PRIVATE-COOKIE', "
+            "exc_info=(ValueError,ValueError('PRIVATE-DOCUMENT'),None), "
+            "extra={'request':request,'status_code':500})) "
+            "for name in ('django.request','django.security.csrf','django.server')]",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("PRIVATE-DOCUMENT", result.stderr)
+        self.assertNotIn("PRIVATE-COOKIE", result.stderr)
+        records = [json.loads(line) for line in result.stderr.splitlines()]
+        self.assertEqual(len(records), 3)
+        for record in records:
+            self.assertEqual(record["status"], 500)
+            self.assertEqual(record["method"], "POST")
+            self.assertEqual(record["route"], "workspaces:orders:detail")
+            self.assertEqual(record["error_type"], "ValueError")
+            self.assertEqual(record["request_id"], "a" * 32)
+            self.assertEqual(record["level"], "ERROR")
 
     def test_wildcard_host_is_rejected(self) -> None:
         result = self.production_check(

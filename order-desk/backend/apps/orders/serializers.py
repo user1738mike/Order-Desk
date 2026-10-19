@@ -368,7 +368,7 @@ class PurchaseOrderLineCreateSerializer(StrictInputSerializer):
     quantity = serializers.DecimalField(
         max_digits=18, decimal_places=4, min_value=Decimal("0.0001")
     )
-    unit = serializers.CharField(max_length=32, allow_blank=True, default="ea")
+    unit = serializers.CharField(max_length=32, allow_blank=True, default="")
 
 
 class OrderDocumentCreateSerializer(StrictInputSerializer):

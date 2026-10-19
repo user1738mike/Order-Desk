@@ -5,6 +5,20 @@ purchase order in `draft` state; approval, external ERP delivery and production
 deployment are separate. Readiness is the shared Step 4D.9 evaluator, freshly
 executed inside conversion, never a client assertion.
 
+19 October boundary correction: readiness/conversion share the established
+500-line nested-order/export budget. More lines produce a `line_limit` readiness
+blocker (count is the number above 500) and conversion returns 409 at path `lines`
+before copying line payloads. The draft remains editable and unchanged for manual
+handling; no splitting or truncation occurs. Existing committed conversion replay
+still precedes readiness and returns its original result. The frontend explains
+the supported limit and disables conversion. This is a resource/output contract,
+not a monthly customer quota.
+
+The legacy direct purchase-order line creation API/service also preserves an
+omitted unit as blank/unknown, matching the model and draft behavior. It no longer
+invents `ea`; explicitly supplied units remain literal strings and quantity stays
+required at the API. This does not validate business unit/pack/pricing rules.
+
 ## API and repeat behavior
 
 POST `/api/v1/workspaces/<workspace>/draft-orders/<draft>/convert/` accepts only

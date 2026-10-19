@@ -130,6 +130,15 @@ and proxy request IDs/status/timing, without query strings/bodies/cookies. Do no
 print expanded Compose config, environment files or inspect environment secrets.
 For upgrades, build the reviewed compatible candidate, explicitly run manage
 migrate --plan then migrate before recreating API/proxy; never rerun bootstrap.
+
+Production and local-production Django HTTP error logs use structured JSON with
+UTC time, severity, response status, HTTP method, registered route name, exception
+type and a validated proxy request ID. Raw exception messages/traceback text,
+request bodies, cookies, query strings and arbitrary headers are omitted. Correlate
+the request ID with the proxy's safe status/latency log and the operator-visible
+failure. This retains failure visibility without copying database row details into
+central logs. It does not supply alert ownership or a general business audit trail.
+Development-only traceback logging is for the documented synthetic environment.
 Returning to an older image does not reverse schema changes. Preserve existing
 data and only use a schema-compatible image. Coordinated backup/restore and
 durable external storage recovery remain the next separate operational task.
