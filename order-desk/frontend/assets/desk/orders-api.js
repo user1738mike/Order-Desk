@@ -4,6 +4,7 @@ export const blockers = {
   draft_already_converted: ['This source draft has already been converted.', 'draft-header'],
   customer_name_missing: ['A customer name is required.', 'draft-header'],
   lines_missing: ['Add at least one requested line.', 'draft-lines-section'],
+  line_limit: ['This draft exceeds the supported 500-line order and CSV limit. Preserve it and use your manual order process.', 'draft-lines-section'],
   quantity_missing: ['Provide a positive quantity for every line.', 'draft-lines-section'],
   catalogue_unmatched: ['Attach unmatched lines to catalogue items.', 'draft-lines-section'],
   catalogue_inactive: ['Replace catalogue items that are inactive.', 'draft-lines-section'],
@@ -33,7 +34,7 @@ function page(data, validateItem) {
   return data;
 }
 export function validateReasons(reasons) {
-  valid(Array.isArray(reasons) && reasons.length <= 7);
+  valid(Array.isArray(reasons) && reasons.length <= Object.keys(blockers).length);
   const seen = new Set();
   for (const reason of reasons) {
     valid(reason && Object.hasOwn(blockers, reason.code) && count(reason.count) && reason.count > 0 && !seen.has(reason.code));

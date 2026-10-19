@@ -1,5 +1,7 @@
 """Shared read-only readiness decision over a coherent annotated draft."""
 
+from apps.orders.response_limits import MAX_ORDER_LINES
+
 
 def evaluate_draft_readiness(order) -> dict:
     reasons = []
@@ -7,6 +9,7 @@ def evaluate_draft_readiness(order) -> dict:
         ("draft_already_converted", int(order.status == "converted")),
         ("customer_name_missing", int(not order.customer_name.strip())),
         ("lines_missing", int(order.line_count == 0)),
+        ("line_limit", max(0, order.line_count - MAX_ORDER_LINES)),
         ("quantity_missing", order.missing_quantity_line_count),
         ("catalogue_unmatched", order.unmatched_line_count),
         ("catalogue_inactive", order.inactive_catalogue_line_count),

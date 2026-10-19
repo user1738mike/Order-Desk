@@ -1,45 +1,165 @@
 # Project state
 
-## Active checkpoint: 12 October principal-engineer validation in progress
+## Local development startup repair 19 October 2026
 
-Mid-session evidence: full rebuilt quality PASS (845 native, 56 order runtime,
-115 catalogue runtime, 108 Node, real PDF/CSV/correction/catalogue receipt replay/
-approval/export and restart). Fresh restore retry PASS 117.789s, four private files,
-220610 raw bytes, target deployment-4051647519594aa0a6724405afb02a09; initial restore
-failed before writes due exhausted Docker address pools. Retired stopped synthetic
-a51f0 and failed bb026 containers/networks with logs and all volumes retained.
-Added explicit guarded retirement helper; 32 host script tests PASS.
-Grype now available: 250 package matches, 5 critical/62 high; no fixed critical/high
-Bookworm version. Primary Debian/Python checks in VALIDATION_2026-10-12.md; no
-security release clearance. Current performance FAIL: aggregate p95 503.964ms,
-draft-list 600.33ms, zero errors/31.252 req/s, query budget 10/12. Native pagination
-joins all line history for count. Fresh regression run
-deployment-bc3a927654f348ad8887338017b15c60 is being prepared to demonstrate the
-header-count boundary before a correlated-page-only count fix. Exact next action:
-confirm red PostgreSQL regression, fix selector, final quality/runtime/browser gates
-in this new fixture-free run and remeasure restored dataset; keep target <=500ms.
+Reproduced API startup refusal: `Unsafe runtime grants or RLS for
+orders_purchaseorderexport`. `docker compose run --rm manage python manage.py
+showmigrations --plan` showed orders 0013/0014 pending in the existing local DB.
+Applied those committed migrations with the migrator service using
+`docker compose run --rm manage python manage.py migrate --noinput` (PASS).
+No fixtures, resets or restore operations were run.
 
-User's attached request authorizes local synthetic remediation, final verification,
-commit and non-force push through the configured repository. Arrival was clean on
-main at 04eec05. Read AGENTS, reconciled build spec, roadmap, existing contracts,
-five ADRs and 11 October audit; historical counts are not current evidence.
-Docker Desktop was stopped; started with explicit execution approval.
+The previous development image also contained Django 5.2.17; rebuilt using
+`docker compose build api` and the existing locked dependencies (PASS), then
+`docker compose up -d --wait --wait-timeout 120 api` (PASS, healthy).
+Runtime `orderdesk_app` verification via `docker compose exec -T api python
+manage.py check_runtime_role` PASS; `python manage.py migrate --check` in that
+service PASS. Host curl checks with `--noproxy '*'` returned HTTP 200 for `/`
+and `/api/v1/health/ready/`. No application code change or broad regression run
+was necessary for this environment repair. Browser UI verification BLOCKED:
+Computer Use could not confidently determine the current browser URL and stopped.
 
-Fresh isolated baseline: scripts/quality_gates.py, private log
-backend/var/validation-2026-10-12-quality.log; run
-deployment-d40b3e6da57141cbbd0d28c4ba0d8332. In progress, no PASS yet.
-Confirmed gap: supported catalogue creation/import is API-only. Implementing
-administrator browser controls using existing protected APIs/atomic import receipts.
-Eight controller regressions first failed on absent module, now pass; total host
-Node suite 106 PASS, zero skips. No backend/schema/business-rule change.
-Add independent all-column export expectations rather than relying only on a
-server-download byte comparison. Prices/currency/pack semantics remain explicitly
-unmodeled; missing units remain empty under the approved generic profile.
+Exact next local action: open `http://127.0.0.1:8000/` in the desktop browser.
+Release limitations in the audit below remain applicable.
 
-Exact next action: finish catalogue UI/browser negatives and independent CSV
-expectations, rebuild serving candidate and run final isolated quality gates;
-then fresh recovery/performance/security checks and dated requirements report.
-Preserve isolated volumes and private evidence; no main-data synthetic writes.
+## Audit 19 October 2026 - local proof complete, release blocked
+
+Arrival clean on `codex/principal-validation-2026-10-12` at 28188fb. Verified
+implementation commit 632cfd677bc2c8cd576727da0cc2cb50cbe66bf8, repository tree
+adde3c426185867c687c73e76f35342d53b97a05. This following documentation increment
+changes no implementation. The dated [audit](AUDIT_2026-10-19.md) contains the
+requirements matrix, source manifest, exact commands/failures and separate verdicts;
+it supersedes historical 12 October counts below.
+
+Fixed three reproduced medium defects: conversion refuses 501 lines before
+copying against the existing 500-line read/export budget; production HTTP logs
+exclude private exception/request payloads while retaining structured diagnostics;
+omitted legacy line units stay blank instead of invented `ea`. Native red/green
+and actual-browser regressions passed. Manual line editing, matching, conversion
+and retry now execute actual UI controls. No schema/data rewrite, dependency,
+privilege or security-control weakening. INPUT_PRESERVATION/PILOT_ACCEPTANCE retain
+the original commercial gaps and their authoritative-input prerequisites.
+
+Final source deployment 0502f97993324ed984b30c0f0ac3f459: quality runner exit 0;
+853 native/397.345s,56 restricted-order/168.447s,115 restricted-catalogue/250.413s,
+109 Node, lint/format/lock/build/system/deploy/migration checks, actual trusted
+Chromium and outage/restart proof PASS. Both main-target verifier guards refused
+before fixture writes. 35 script tests PASS. Browser: nine label/keyboard/narrow
+states, no unexpected network/console/CSP failures, three deliberately dropped
+responses reconciled; independent all 11-column CSV comparison and source digests.
+
+Fresh encrypted restore PASS 124.539s, backup 8d3953350e834fb9b0766d4420726a9a,
+target fca799ab80624be6b7b8881052fc8486, four files/238014 plaintext bytes; sessions,
+business state, private digests and restricted-role RLS restored; unsafe targets
+refused. Same-host keys/backups do not establish off-site disaster recovery.
+
+Measured DB CPU saturation: one-core p95 samples 502.404/390.055/589.014ms (two
+FAIL). Bounded indexed EXPLAIN/no new N+1; same 512MiB DB quota changed to two CPUs,
+API unchanged four sync workers/four CPUs/512MiB. Comparable two-core samples
+261.905/300.345ms PASS. Fresh restored final profile: 5000 catalogue items,
+300 drafts/6000 lines/100-line order, eight clients/200 TLS reads, p50/95/99
+160.922/289.574/359.785ms,44.803 req/s,zero errors, every route p95 <= 500ms;
+SQL 11/10/12 <=25. CPU/memory samples and limitations are in the audit.
+
+Separate verdicts: local supported functional profile VERIFIED; security
+INCOMPLETE/BLOCKED (image scanner timed out, native advisory leads unresolved);
+local operations VERIFIED but customer operations incomplete; real pilot BLOCKED.
+Python audit zero known matches in ten pins, Bandit leads triaged, source/history
+secrets reviewed; Gitleaks after code commit 26 commits / no leaks. These do not
+prove absence of vulnerabilities. No customer accuracy/time/ERP claim follows.
+
+Final sequential driver quality/recovery/performance exits all 0 in private
+`audit-2026-10-19-optimized-*-exit.json`. Test projects stopped; volumes/keys/logs
+retained. Original preview proxy b14a8c... restored unchanged with its earlier
+image/data. No real data, paid/public service, customer message or ERP write.
+Delivery: verified code and this documentation on the existing authorized branch;
+no force push, remote change or unrelated work removal.
+
+Exact next release action: obtain authoritative critical-field/pricing/pack/
+customer/ERP contracts and representative independently ground-truthed orders;
+implement approved missing rules, establish secure administration/audit/retention/
+support/off-site key custody, complete current image scans/triage, then execute
+PILOT_ACCEPTANCE with 60 calibration/300 withheld orders. No overall release PASS.
+
+## Active checkpoint 12 October 2026 verified remediation customer release blocked
+
+The user authorized local synthetic verification/remediation and ordinary Git
+delivery with $0 extra spending. Arrival clean main at 04eec05; external commit
+4351041 recorded earlier work during verification and was preserved. Delivery
+branch codex/principal-validation-2026-10-12. No reset/amend/force push, public
+deployment, paid service, customer message, live ERP write or main-data restore.
+
+Read the final [validation report](VALIDATION_2026-10-12.md) for the requirements
+matrix, exact commands, failures, security leads, provisional measurements and
+remaining pilot gates. The original launch-plan DOCX was read; synthetic local
+scope is narrower than its pricing/account/pack/ERP/customer-outcome requirements.
+
+Delivered: administrator catalogue browser creation/validation/atomic import and
+same-file/key unknown-outcome replay; independent all-column CSV/PDF provenance
+and separate-role browser evidence; early port-collision refusal; stopped-project
+retirement preserving volumes/logs; healthy-DB-before-browser-fixtures recovery;
+tenant-filtered page-only draft line totals/header-only pagination count; measured
+four-sync-worker/four-CPU local serving, same 512MiB/protections. No schema or
+business-rule change. Prices/currency/pack/account rules remain unmodeled/blocked.
+
+Actual final evidence, all local synthetic PostgreSQL/Linux Docker/PowerShell:
+
+- Native backend: 846 tests/246.529s PASS, including red-then-green pagination
+  regression. Direct orderdesk_app: 56 order/103.326s and 115 catalogue/172.108s
+  PASS, no owner substitution/skips. Run bc3a927654f348ad8887338017b15c60.
+- Node: 108 tests PASS, zero skips; pinned container 1544.595471ms. Host scripts:
+  35/0.229s PASS. Maintained-source Ruff/format 213 files, lock/migration/deploy,
+  collectstatic, JS syntax and whitespace PASS. Final actual main-target refusal
+  checks exit1 with exact test_orderdesk refusal; no fixture writes.
+- Real trusted Chromium: separate admin/reviewer/viewer, catalogue create/import/
+  dropped-response replay, actual PDF/CSV child/worker/provenance, UI correction/
+  application replay, exact matching, conversion replay, cancelled/confirmed
+  approval, dropped export response and independently expected saved CSV PASS.
+  Four-worker clean serving/restart/UID/role/TLS/private-path/health/volume recovery
+  PASS on fd0cb54afaba48b38235456c9e99f35a. No CSP/uncaught JS or overflow failure.
+- Fresh encrypted restore PASS 117.789s; four files/220610 raw bytes; backup
+  a2912190868d4ff4a384700d1749d88f -> fresh 4051647519594aa0a6724405afb02a09.
+  Restored sessions/private bytes/proposals/native RLS and negative guards PASS.
+  Same restored dataset exercised on final four-worker image; no customer RTO/RPO.
+- Performance same 5000-item/300-draft/6000-line/100-order-line workload, eight
+  clients/200 HTTPS reads: final p50 113.406ms, p95 212.235ms, p99 297.327ms,
+  59.241 req/s, zero errors; every route p95 <=500ms, SQL 11/10/12 <=25. API
+  sampled peak 232.24%/218.1MiB, DB 55.36%/45.41MiB, proxy 52.66%/4.789MiB. Short
+  read profile, not customer capacity/write/job/soak proof or optimality claim.
+- pip-audit ten locked packages zero known matches. Bandit final zero parse/high,
+  six constant migration-SQL medium and 109 low leads, exit 1 retained. Tracked-source
+  secret scan one synthetic test password; no history clearance. Grype current DB
+  250 package matches, including 5 critical/62 high, unresolved; primary Debian/
+  Python triage in report, no fixed high/critical Bookworm versions listed.
+
+Failed attempts retained: initial proxy binding collision; sandbox temp test
+permissions; recursive lint entering scanner cache; image-save wrong tag;
+Docker network-pool exhaustion before restore; registry DNS before browser build;
+standalone stopped-DB fixture ordering; consistency command before DB startup;
+two-worker p95 503.964ms and query-only 712.028ms. Repairs/retries do not relabel
+failed commands as uninterrupted passes. First 845-test candidate full runner did
+PASS; final query source passed native/runtime stages, then explicit browser/
+restart stages after failure. Four-worker serving was independently reverified.
+
+Private evidence backend/var/validation-2026-10-12-*. Source manifest 284 files,
+canonical SHA256 63cd4250447efb2a34c58ac85c7a3e16003191a57a9045fd13b39d9a8c4002a9.
+All verification projects stopped; volumes, keys, backups and logs retained.
+Historical synthetic viewing proxy was resumed using its existing older image;
+it is not the current candidate preview. No verification continues in the background.
+
+Local functional verdict: supported synthetic profile VERIFIED; original MVP
+INCOMPLETE. Local operating proofs/read targets PASS; customer operations/security
+INCOMPLETE. Pilot/release BLOCKED on image findings, authoritative critical fields/
+price/unit/pack/account/ERP rules and sandbox import, independent representative
+historical orders/handling time, secure pilot admin/audit/usage, off-site backup/
+retention/key custody and monitoring/support ownership. No overall release PASS.
+
+Exact next engineering action: perform and record stable-image advisory/reachability
+triage against the selected critical/high package matches, keeping the stable
+locked stack and $0 budget; do not claim clearance or launch. In parallel obtain
+authoritative critical-field/rule/ERP sandbox inputs and define the bounded pilot
+administration/audit/usage contract before its RLS/browser implementation. Original
+general PDF/OCR/LLM/fuzzy/inbox/live ERP/payment/distributed deferrals remain intact.
 
 ## Active checkpoint: host browser connectivity repaired
 

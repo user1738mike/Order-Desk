@@ -1,5 +1,7 @@
 """Fail-closed production settings; deployment and serving are a separate step."""
 
+from copy import deepcopy
+
 from django.core.exceptions import ImproperlyConfigured
 
 from config.env import boolean, comma_list, required
@@ -42,3 +44,20 @@ if boolean("DJANGO_TRUST_PROXY_HTTPS"):
     # Enable only after the trusted proxy strips client-supplied forwarded headers.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+# Default Django request logging renders exception messages (including database
+# row details). Keep structured diagnostics without customer/credential payloads.
+LOGGING = deepcopy(base.LOGGING)
+LOGGING["formatters"] = {
+    "redacted_http": {"()": "config.logging.RedactedHttpFormatter"}
+}
+LOGGING["handlers"]["safe_http"] = {
+    "class": "logging.StreamHandler",
+    "formatter": "redacted_http",
+}
+for name in ("django.request", "django.security", "django.server"):
+    LOGGING["loggers"][name] = {
+        "handlers": ["safe_http"],
+        "level": "INFO",
+        "propagate": False,
+    }

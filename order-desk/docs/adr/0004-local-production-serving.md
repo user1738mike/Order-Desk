@@ -49,4 +49,20 @@ Coordinated backups/restore, public certificates/DNS, real host trust, monitorin
 capacity measurement, malware controls and external hosting remain separate work.
 
 Required verification is recorded in LOCAL_PRODUCTION.md and PROJECT_STATE.md.
+
+12 October measured local update: four synchronous workers/four API CPUs with
+the same 512 MiB and protections. The unchanged eight-client synthetic workload
+failed its provisional p95 target with two workers; final p95 212.235ms passed.
+See VALIDATION_2026-10-12.md for query remediation, prior failures and actual
+four-worker browser/restart/role/TLS proof. This is not a production capacity SLO.
 An image build, health probe or owner test alone is insufficient evidence.
+
+19 October measured local update: the database receives two bounded CPU cores,
+with the same 512 MiB limit; the API remains four sync workers/four CPU cores and
+512 MiB. Three one-core read samples had aggregate p95 502.404, 390.055 and
+589.014ms; two planned same-data two-core samples passed at 261.905 and 300.345ms.
+The database reached its one-core quota, while restricted-role EXPLAIN showed
+bounded indexed page work and the application query counts stayed 11/10/12.
+This adds headroom on the existing eight-core host, without a new service, relaxed
+RLS or extra spending. Final combined gate/restore/performance results belong in
+AUDIT_2026-10-19.md. Short shared-host samples are not a customer capacity SLO.

@@ -88,6 +88,57 @@ class DraftConversionTests(TransactionTestCase):
         self.assertEqual(PurchaseOrderLine.objects.count(), 0)
         self.assertFalse(connection.in_atomic_block)
 
+    def test_above_supported_order_line_budget_cannot_finalize(self):
+        # Drafts may be assembled incrementally beyond the output profile. They
+        # must stay editable rather than become unreadable/unexportable orders.
+        DraftOrderLine.objects.bulk_create(
+            [
+                DraftOrderLine(
+                    organization=self.organization,
+                    order=self.draft,
+                    position=position,
+                    requested_sku="001-a/B",
+                    catalogue_item=self.item,
+                    catalogue_sku_snapshot="001-a/B",
+                    quantity=Decimal("2.125"),
+                    unit="ea",
+                )
+                for position in range(8, 507)
+            ]
+        )
+        at_limit = self.client.get(self.detail + "readiness/")
+        self.assertEqual(at_limit.status_code, 200)
+        self.assertTrue(at_limit.json()["ready_to_convert"])
+        services.create_draft_order_line(
+            actor=self.user,
+            organization_id=self.organization.pk,
+            order_id=self.draft.pk,
+            data={"position": 507, "requested_sku": "001-a/B", "quantity": 1},
+        )
+        extra = DraftOrderLine.objects.get(order=self.draft, position=507)
+        services.attach_catalogue_item_to_draft_order_line(
+            actor=self.user,
+            organization_id=self.organization.pk,
+            order_id=self.draft.pk,
+            line_id=extra.pk,
+            catalogue_item_id=self.item.pk,
+        )
+        response = self.post()
+        self.assertEqual(response.status_code, 409, response.content)
+        readiness = self.client.get(self.detail + "readiness/")
+        self.assertEqual(readiness.status_code, 200)
+        self.assertFalse(readiness.json()["ready_to_convert"])
+        self.assertEqual(
+            readiness.json()["blocking_reasons"],
+            [{"code": "line_limit", "count": 1}],
+        )
+        self.assertEqual(
+            response.json()["blocking_reasons"],
+            [{"code": "line_limit", "count": 1, "path": "lines"}],
+        )
+        self.assert_unconverted()
+        self.assertEqual(DraftOrderLine.objects.count(), 501)
+
     def test_first_conversion_and_lost_response_retry_return_same_order(self):
         before = list(DraftOrderLine.objects.values())
         response = self.post()

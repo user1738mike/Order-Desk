@@ -83,8 +83,11 @@ Run `up` without the acceptance overlay to return to the main isolated orderdesk
 schema. It is intentionally not seeded with test accounts. Account/workspace
 provisioning for ordinary use remains an explicit local operator step.
 
-The API uses two synchronous workers, 30-second request timeout and 15-second
-graceful timeout; 512 MiB/two CPUs, UID 10001, read-only root, bounded private tmpfs.
+The API uses four synchronous workers, 30-second request timeout and 15-second
+graceful timeout; 512 MiB/four CPUs, UID 10001, read-only root, bounded private tmpfs.
+This local allocation is measured against the provisional eight-client workload;
+it is not a customer capacity promise. Results and earlier failures are in the
+12 October validation report.
 Nginx UID 101 has no private document mount. Private data is UID-10001-only and
 outside public paths. Proxy replaces forwarding headers and supplies fixed Host;
 do not publish an application port or enable proxy trust in another topology.
@@ -127,13 +130,22 @@ and proxy request IDs/status/timing, without query strings/bodies/cookies. Do no
 print expanded Compose config, environment files or inspect environment secrets.
 For upgrades, build the reviewed compatible candidate, explicitly run manage
 migrate --plan then migrate before recreating API/proxy; never rerun bootstrap.
+
+Production and local-production Django HTTP error logs use structured JSON with
+UTC time, severity, response status, HTTP method, registered route name, exception
+type and a validated proxy request ID. Raw exception messages/traceback text,
+request bodies, cookies, query strings and arbitrary headers are omitted. Correlate
+the request ID with the proxy's safe status/latency log and the operator-visible
+failure. This retains failure visibility without copying database row details into
+central logs. It does not supply alert ownership or a general business audit trail.
+Development-only traceback logging is for the documented synthetic environment.
 Returning to an older image does not reverse schema changes. Preserve existing
-data and only use a schema-compatible image. Coordinated backup/restore and
-durable external storage recovery remain the next separate operational task.
+data and only use a schema-compatible image. Coordinated same-host encrypted backup/restore is verified in the current audit;
+durable off-site storage and separate key custody remain customer release gates.
 
 Verification results, including blockers, are in PROJECT_STATE.md. A healthy
 container or one HTTPS page alone does not prove the full workflow. External
-DNS/certificate issuance, host trust, capacity, alerting, coordinated backup,
+DNS/certificate issuance, host trust, capacity, alerting, off-site backup,
 malware scanning and launch obligations are unverified. Local $0 execution does
-not promise free public production capacity. Pending export UI/runtime gates
-and CI work must be recorded separately from this deployment increment.
+not promise free public production capacity. Current local export UI/runtime and quality-runner evidence is in the dated audit;
+hosted CI remains explicitly deferred.

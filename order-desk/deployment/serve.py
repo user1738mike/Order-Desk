@@ -21,7 +21,7 @@ os.execv(  # noqa: S606 -- fixed installed binary, no shell or user command.
         "--bind",
         "0.0.0.0:8000",
         "--workers",
-        "2",
+        "4",
         "--worker-class",
         "sync",
         "--timeout",

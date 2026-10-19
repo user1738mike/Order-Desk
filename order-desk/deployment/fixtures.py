@@ -10,7 +10,7 @@ from django.db import connection, transaction
 
 from apps.accounts.models import User
 from apps.catalog.models import CatalogItem
-from apps.orders.models import PurchaseOrder
+from apps.orders.models import DraftOrder, DraftOrderLine, PurchaseOrder
 from apps.orders.tests.pdf_fixtures import supported_pdf
 from apps.organizations.models import Membership, MembershipRole, Organization
 
@@ -50,6 +50,25 @@ with transaction.atomic():
     CatalogItem.objects.create(
         organization=b, sku="PRIVATE-BETA", description="Foreign product"
     )
+    oversized_draft = DraftOrder.objects.create(
+        organization=a, initiating_user=user, customer_name="Oversized synthetic draft"
+    )
+    DraftOrderLine.objects.bulk_create(
+        [
+            DraftOrderLine(
+                organization=a,
+                order=oversized_draft,
+                position=position,
+                requested_sku=item.sku,
+                quantity="1.000",
+                unit="ea",
+                catalogue_item=item,
+                catalogue_sku_snapshot=item.sku,
+                catalogue_description_snapshot=item.description,
+            )
+            for position in range(1, 502)
+        ]
+    )
     viewer_order = PurchaseOrder.objects.create(
         organization=b,
         created_by=user,
@@ -65,6 +84,7 @@ with transaction.atomic():
                 "a": str(a.pk),
                 "b": str(b.pk),
                 "item": str(item.pk),
+                "oversized_draft": str(oversized_draft.pk),
                 "viewer_order": str(viewer_order.pk),
                 "pdf_base64": base64.b64encode(supported_pdf()).decode("ascii"),
                 "role_accounts": role_accounts,
