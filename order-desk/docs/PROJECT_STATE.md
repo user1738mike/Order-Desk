@@ -1,5 +1,29 @@
 # Project state
 
+## UI audit 20 October 2026 - Step 1 only
+
+User confirmed Order Desk as target for the supplied design brief. Reviewed all
+actual screens, nested source-review workflows and dialogs at 1440/390px with
+current Outfit/Nunito Sans typography. [Audit](design/AUDIT.md) records eight
+priorities and separate Needs code decision items. No UI/logic/schema/API/auth/
+validation/data-fetching/state changes. No design direction implemented.
+
+PASS: 109 Node tests (1.872s); complete existing isolated Chromium workflow
+regressions via private workflow-audit.mjs; supplemental screens-audit.mjs with
+22 captures, 1440/390/320px overflow guards, keyboard skip/dialog focus,
+submission/approval and export readiness. Runtime orderdesk_app; synthetic
+fixtures and cleanup orderdesk_migrator/test_orderdesk; isolated private storage.
+No export artifact generated, main-data fixtures, reset or restore. Both audit
+runs exited 0 and fixture manifest cleanup completed. Private artifacts stay in
+ignored backend/var/ui-audit-2026-10-20. This is not the Step 5 axe audit.
+
+Main was behind the already-reviewed app with no divergence; fast-forwarded it
+to existing baseline 8d94769 as requested. Step 1 commit changes documentation
+only (docs/design/AUDIT.md and this checkpoint); application diff versus 8d94769
+is empty. No push performed.
+Exact next action: Step 2 design documents, retaining the requested font pair,
+then stop for user approval before implementation.
+
 ## Font update 19 October 2026
 
 User-supplied Google Fonts link applied: Nunito Sans for body/controls and
