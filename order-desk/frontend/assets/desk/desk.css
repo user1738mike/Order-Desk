@@ -1,4 +1,4 @@
-/* Order Desk: shared visual tokens. System fonts keep this workspace local. */
+/* Order Desk: shared visual tokens. Google Fonts with local fallbacks. */
 :root {
   --paper: #f5f3ed;
   --surface: #ffffff;
@@ -19,8 +19,8 @@
   --danger: #9c3427;
   --danger-surface: #fcf0ec;
   --focus: #9a591b;
-  --font-body: 'Segoe UI', Arial, sans-serif;
-  --font-heading: Georgia, 'Times New Roman', serif;
+  --font-body: 'Nunito Sans', 'Segoe UI', Arial, sans-serif;
+  --font-heading: 'Outfit', 'Segoe UI', Arial, sans-serif;
   --font-mono: Consolas, 'Courier New', monospace;
   --text-xs: .75rem;
   --text-sm: .8125rem;
@@ -42,6 +42,7 @@
   font-family: var(--font-body);
   font-size: 16px;
   font-synthesis: none;
+  font-optical-sizing: auto;
   color: var(--ink);
   background: var(--paper);
   line-height: 1.5;

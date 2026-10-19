@@ -1,5 +1,16 @@
 # Project state
 
+## Font update 19 October 2026
+
+User-supplied Google Fonts link applied: Nunito Sans for body/controls and
+Outfit for headings/wordmark through the shared CSS font tokens, with local
+sans-serif fallbacks and optical sizing. Added the supplied preconnects and
+stylesheet to the template (HTML-escaped query separators). UI-only follow-up;
+no JavaScript/backend changes or package additions. Two Django shell tests PASS
+(0.101s). Private headless Chromium font-check.mjs confirmed both font families
+actually loaded; screenshots/no page overflow at 1365, 390 and 320px PASS.
+Exact next action: refresh http://127.0.0.1:8000/ to view the new typography.
+
 ## UI redesign 19 October 2026 ? shared styles and sign-in
 
 Approved working-ledger direction. Changed only frontend/assets/desk/desk.css
