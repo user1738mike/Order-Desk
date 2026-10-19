@@ -1,5 +1,68 @@
 # Project state
 
+## Font update 19 October 2026
+
+User-supplied Google Fonts link applied: Nunito Sans for body/controls and
+Outfit for headings/wordmark through the shared CSS font tokens, with local
+sans-serif fallbacks and optical sizing. Added the supplied preconnects and
+stylesheet to the template (HTML-escaped query separators). UI-only follow-up;
+no JavaScript/backend changes or package additions. Two Django shell tests PASS
+(0.101s). Private headless Chromium font-check.mjs confirmed both font families
+actually loaded; screenshots/no page overflow at 1365, 390 and 320px PASS.
+Exact next action: refresh http://127.0.0.1:8000/ to view the new typography.
+
+## UI redesign 19 October 2026 ? shared styles and sign-in
+
+Approved working-ledger direction. Changed only frontend/assets/desk/desk.css
+and frontend/templates/workspace.html: shared tokens, local Georgia/Segoe UI
+fonts, charcoal header, direct sign-in composition, skip link, focus and form
+styles. No JavaScript, API, auth, validation or data changes. Existing IDs,
+form names, constraints and bindings retained. Checks PASS: 109 Node tests,
+2 Django public-shell tests (`docker compose run --rm manage python manage.py
+test apps.web.tests --settings=config.settings.test --noinput`), homepage HTTP
+200. No frontend build step exists. Visual review still in progress.
+Workspace/catalogue increment: same two frontend files; desktop sidebar,
+mobile navigation, catalogue table density and create/import presentation.
+Existing 30 API/controller/catalogue Node tests PASS. No logic or routing changes.
+Draft/editor increment: same two frontend files; integrated review sections,
+readiness exception emphasis, quieter identifiers, aligned quantities and
+labelled editor groups. Existing 41 orders/editor/matching Node tests PASS.
+Documents/approval increment: same two frontend files; lookup forms, upload
+surface, extraction comparison and export stages now follow shared tokens.
+Existing 38 documents/CSV/extraction-review/purchase Node tests PASS.
+Static hook comparison PASS: every original ID and control name/type/constraint/
+autocomplete/default hidden state retained. All application JavaScript unchanged.
+Final verification PASS: 109 existing Node tests across the increments;
+2 final Django public-shell tests (0.090s); `git diff --check`; app and CSS HTTP
+200. All backend and application JavaScript diffs are empty. No new dependency,
+route, data-fetching, authentication, business validation or state code changed.
+Added table header scopes, skip navigation and editor error descriptions.
+
+The original browser harness first refused occupied port 8001 (another app).
+An ignored copy under backend/var/ui-redesign used alternate ports
+18001/19223/19224; source harness unchanged. Complete existing Chromium browser
+workflow PASS: session/CSRF/catalogue, real edits, stale writes/input preservation,
+matching, conversion/replay, private upload/download, CSV/text-PDF extraction,
+explicit review/application and revoked-access/logout. Runtime orderdesk_app;
+fixtures/cleanup orderdesk_migrator in test_orderdesk with isolated private storage.
+No main-database fixture writes. Test DB migrations were already current.
+
+Supplemental ignored visual-check.mjs PASS: 22 captures at 1365/390/320px,
+page overflow guards, keyboard skip link and dialog focus, sign-in/error,
+workspace empty state, catalogue administration, draft list/editor/blockers,
+conversion confirmation, actual submission/approval, export readiness and document
+intake. No export artifact generated. Inspected desktop/mobile screenshots;
+review/extraction screenshots also retained in backend/var/frontend-browser.
+13 text/background token pairs PASS AA 4.5:1; lowest measured 5.03:1.
+These focused checks do not claim an exhaustive assistive-technology audit.
+
+Only application files changed: frontend/assets/desk/desk.css and
+frontend/templates/workspace.html. Shared colour/type/spacing/radius tokens live
+in :root. Held back: replacing manual purchase-order ID lookup with an order
+picker/list, which needs data/state changes outside the approved UI-only scope.
+Exact next local action: review the finished UI at http://127.0.0.1:8000/.
+Existing release/security/customer-pilot limitations below remain unchanged.
+
 ## Local development startup repair 19 October 2026
 
 Reproduced API startup refusal: `Unsafe runtime grants or RLS for
