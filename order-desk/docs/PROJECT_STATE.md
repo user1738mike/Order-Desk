@@ -1,5 +1,27 @@
 # Project state
 
+## Local development startup repair 19 October 2026
+
+Reproduced API startup refusal: `Unsafe runtime grants or RLS for
+orders_purchaseorderexport`. `docker compose run --rm manage python manage.py
+showmigrations --plan` showed orders 0013/0014 pending in the existing local DB.
+Applied those committed migrations with the migrator service using
+`docker compose run --rm manage python manage.py migrate --noinput` (PASS).
+No fixtures, resets or restore operations were run.
+
+The previous development image also contained Django 5.2.17; rebuilt using
+`docker compose build api` and the existing locked dependencies (PASS), then
+`docker compose up -d --wait --wait-timeout 120 api` (PASS, healthy).
+Runtime `orderdesk_app` verification via `docker compose exec -T api python
+manage.py check_runtime_role` PASS; `python manage.py migrate --check` in that
+service PASS. Host curl checks with `--noproxy '*'` returned HTTP 200 for `/`
+and `/api/v1/health/ready/`. No application code change or broad regression run
+was necessary for this environment repair. Browser UI verification BLOCKED:
+Computer Use could not confidently determine the current browser URL and stopped.
+
+Exact next local action: open `http://127.0.0.1:8000/` in the desktop browser.
+Release limitations in the audit below remain applicable.
+
 ## Audit 19 October 2026 - local proof complete, release blocked
 
 Arrival clean on `codex/principal-validation-2026-10-12` at 28188fb. Verified
