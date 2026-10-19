@@ -140,12 +140,12 @@ failure. This retains failure visibility without copying database row details in
 central logs. It does not supply alert ownership or a general business audit trail.
 Development-only traceback logging is for the documented synthetic environment.
 Returning to an older image does not reverse schema changes. Preserve existing
-data and only use a schema-compatible image. Coordinated backup/restore and
-durable external storage recovery remain the next separate operational task.
+data and only use a schema-compatible image. Coordinated same-host encrypted backup/restore is verified in the current audit;
+durable off-site storage and separate key custody remain customer release gates.
 
 Verification results, including blockers, are in PROJECT_STATE.md. A healthy
 container or one HTTPS page alone does not prove the full workflow. External
-DNS/certificate issuance, host trust, capacity, alerting, coordinated backup,
+DNS/certificate issuance, host trust, capacity, alerting, off-site backup,
 malware scanning and launch obligations are unverified. Local $0 execution does
-not promise free public production capacity. Pending export UI/runtime gates
-and CI work must be recorded separately from this deployment increment.
+not promise free public production capacity. Current local export UI/runtime and quality-runner evidence is in the dated audit;
+hosted CI remains explicitly deferred.

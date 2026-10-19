@@ -1,5 +1,64 @@
 # Project state
 
+## Audit 19 October 2026 - local proof complete, release blocked
+
+Arrival clean on `codex/principal-validation-2026-10-12` at 28188fb. Verified
+implementation commit 632cfd677bc2c8cd576727da0cc2cb50cbe66bf8, repository tree
+adde3c426185867c687c73e76f35342d53b97a05. This following documentation increment
+changes no implementation. The dated [audit](AUDIT_2026-10-19.md) contains the
+requirements matrix, source manifest, exact commands/failures and separate verdicts;
+it supersedes historical 12 October counts below.
+
+Fixed three reproduced medium defects: conversion refuses 501 lines before
+copying against the existing 500-line read/export budget; production HTTP logs
+exclude private exception/request payloads while retaining structured diagnostics;
+omitted legacy line units stay blank instead of invented `ea`. Native red/green
+and actual-browser regressions passed. Manual line editing, matching, conversion
+and retry now execute actual UI controls. No schema/data rewrite, dependency,
+privilege or security-control weakening. INPUT_PRESERVATION/PILOT_ACCEPTANCE retain
+the original commercial gaps and their authoritative-input prerequisites.
+
+Final source deployment 0502f97993324ed984b30c0f0ac3f459: quality runner exit 0;
+853 native/397.345s,56 restricted-order/168.447s,115 restricted-catalogue/250.413s,
+109 Node, lint/format/lock/build/system/deploy/migration checks, actual trusted
+Chromium and outage/restart proof PASS. Both main-target verifier guards refused
+before fixture writes. 35 script tests PASS. Browser: nine label/keyboard/narrow
+states, no unexpected network/console/CSP failures, three deliberately dropped
+responses reconciled; independent all 11-column CSV comparison and source digests.
+
+Fresh encrypted restore PASS 124.539s, backup 8d3953350e834fb9b0766d4420726a9a,
+target fca799ab80624be6b7b8881052fc8486, four files/238014 plaintext bytes; sessions,
+business state, private digests and restricted-role RLS restored; unsafe targets
+refused. Same-host keys/backups do not establish off-site disaster recovery.
+
+Measured DB CPU saturation: one-core p95 samples 502.404/390.055/589.014ms (two
+FAIL). Bounded indexed EXPLAIN/no new N+1; same 512MiB DB quota changed to two CPUs,
+API unchanged four sync workers/four CPUs/512MiB. Comparable two-core samples
+261.905/300.345ms PASS. Fresh restored final profile: 5000 catalogue items,
+300 drafts/6000 lines/100-line order, eight clients/200 TLS reads, p50/95/99
+160.922/289.574/359.785ms,44.803 req/s,zero errors, every route p95 <= 500ms;
+SQL 11/10/12 <=25. CPU/memory samples and limitations are in the audit.
+
+Separate verdicts: local supported functional profile VERIFIED; security
+INCOMPLETE/BLOCKED (image scanner timed out, native advisory leads unresolved);
+local operations VERIFIED but customer operations incomplete; real pilot BLOCKED.
+Python audit zero known matches in ten pins, Bandit leads triaged, source/history
+secrets reviewed; Gitleaks after code commit 26 commits / no leaks. These do not
+prove absence of vulnerabilities. No customer accuracy/time/ERP claim follows.
+
+Final sequential driver quality/recovery/performance exits all 0 in private
+`audit-2026-10-19-optimized-*-exit.json`. Test projects stopped; volumes/keys/logs
+retained. Original preview proxy b14a8c... restored unchanged with its earlier
+image/data. No real data, paid/public service, customer message or ERP write.
+Delivery: verified code and this documentation on the existing authorized branch;
+no force push, remote change or unrelated work removal.
+
+Exact next release action: obtain authoritative critical-field/pricing/pack/
+customer/ERP contracts and representative independently ground-truthed orders;
+implement approved missing rules, establish secure administration/audit/retention/
+support/off-site key custody, complete current image scans/triage, then execute
+PILOT_ACCEPTANCE with 60 calibration/300 withheld orders. No overall release PASS.
+
 ## Active checkpoint 12 October 2026 verified remediation customer release blocked
 
 The user authorized local synthetic verification/remediation and ordinary Git

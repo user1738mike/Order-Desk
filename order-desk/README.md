@@ -1,18 +1,24 @@
-# AI Order Desk
+# Order Desk
 
-Django backend for turning distributors' purchase orders into checked ERP-ready
-orders. We are building it collaboratively in small, verified steps.
+Django/PostgreSQL application for turning supported distributor PDF/CSV documents
+into human-reviewed internal orders and private `generic-po-csv-v1` exports.
+Named ERP compatibility and customer pilot readiness have not been established.
+See the [current audit](docs/AUDIT_2026-10-19.md) and
+[pilot acceptance protocol](docs/PILOT_ACCEPTANCE.md).
 
-Local production-like serving is being verified in a separate isolated project:
+Local production-like serving is verified with isolated synthetic projects:
 [setup and trust](docs/LOCAL_PRODUCTION.md),
 [deployment decision](docs/adr/0004-local-production-serving.md) and
 [local automated quality gates](docs/CI_QUALITY_GATES.md).
 The development commands below remain unchanged. Actual results and remaining
 gates are recorded in [project state](docs/PROJECT_STATE.md).
 
-Current checkpoint: **Tenant-scoped exact SKU suggestions and deliberate
-catalogue attachment**, alongside human review/application of extracted fields
-and bounded local text-PDF extraction. See the
+Supported local workflow includes administrator catalogue creation/import,
+private intake, bounded CSV/text-PDF extraction, deliberate field review/application,
+exact SKU matching, draft editing/readiness/conversion, explicit approval and
+private generic CSV export. Conversion supports at most 500 lines, matching the
+order read/export budget; larger drafts stay editable for manual handling. See the
+[input preservation contract](docs/INPUT_PRESERVATION.md),
 [matching contract](docs/CATALOGUE_MATCHING.md),
 [review/application contract](docs/EXTRACTION_REVIEW_APPLY.md),
 [text-PDF profile](docs/TEXT_PDF_EXTRACTION.md),

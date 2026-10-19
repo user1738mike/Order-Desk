@@ -26,6 +26,22 @@ upgrade, clean-install and local application evidence is in project state.
 
 ## Capability status
 
+19 October audit: [requirements/evidence matrix](AUDIT_2026-10-19.md).
+Conversion/readiness now enforce the existing 500-line order/export budget before
+copying source lines; oversized drafts stay editable with an actionable manual
+handling blocker. Current PostgreSQL/runtime/browser evidence is recorded in project
+state. Original pilot fields/rules/ERP/operating gaps remain open.
+The original-plan [pilot measurement and acceptance protocol](PILOT_ACCEPTANCE.md)
+now records required inputs, independent withheld-order scoring, full handling-time
+measurement and separate release decisions. Its existence is not customer evidence.
+Production HTTP diagnostics now exclude raw exception/request payloads while
+retaining structured failure classification and proxy request correlation. Final
+combined verification is recorded in the dated audit; general tenant audit history,
+alert ownership and customer operations remain open.
+Omitted legacy order-line units now remain blank; explicit units and exact decimals
+are preserved. The local database quota is two CPUs / same 512 MiB after measured
+one-core saturation; provisional targets and comparative failures remain in the audit.
+
 12 October validation adds administrator catalogue creation/validated atomic
 CSV-import browser controls using the existing APIs. See
 [CATALOGUE_MANAGEMENT_FRONTEND.md](CATALOGUE_MANAGEMENT_FRONTEND.md) and the current
