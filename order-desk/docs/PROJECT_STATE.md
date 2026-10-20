@@ -1,5 +1,27 @@
 # Project state
 
+## Reference layout 21 October 2026 ? implementation checkpoint
+
+User directly requested applying the three attached visual layouts without copying
+their text. Implemented shared light workspace frame, compact gray navigation,
+rounded white surfaces, green actions, inset order summaries and soft modal overlay
+in frontend/assets/desk/desk.css. Existing Outfit/Nunito Sans fonts retained.
+No template text, JavaScript, backend, schema or workflow changes.
+PASS: npm test (109/109 frontend tests, no skips); git diff --check.
+PASS: headless Chromium static presentation checks using the actual template/CSS
+and explicitly synthetic in-memory display data: 18 captures covering sign-in,
+catalogue, draft detail, documents, approval/export and editor at 1440/390/320px.
+No page overflow. Desktop draft places readiness in a 320px side panel; narrower
+views retain source order. Visually inspected desktop draft, mobile catalogue
+and desktop dialog/approval captures. Private preview script/images are ignored
+under backend/var/reference-layout. No dependencies added.
+BLOCKED: Docker engine is stopped (Linux engine named pipe absent), so Django
+shell tests and actual authenticated database/browser workflow gates were not
+rerun. Static presentation checks do not establish auth/RLS/workflow behavior.
+No main database operations performed.
+Exact next action: with Docker Desktop running, rerun the established isolated
+Chromium screens/workflow checks against this stylesheet.
+
 ## UI audit 20 October 2026 - Step 1 only
 
 User confirmed Order Desk as target for the supplied design brief. Reviewed all

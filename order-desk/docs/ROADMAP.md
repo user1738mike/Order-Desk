@@ -26,6 +26,12 @@ upgrade, clean-install and local application evidence is in project state.
 
 ## Capability status
 
+21 October reference-layout update: shared light gray navigation/frame, rounded
+order details, desktop readiness sidebar, inset summaries and soft dialogs applied
+without copying reference text or changing workflow logic. Frontend tests and
+static Chromium responsive checks pass; database-backed browser revalidation
+awaits Docker Desktop. Actual evidence is in PROJECT_STATE.md.
+
 19 October audit: [requirements/evidence matrix](AUDIT_2026-10-19.md).
 Conversion/readiness now enforce the existing 500-line order/export budget before
 copying source lines; oversized drafts stay editable with an actionable manual
