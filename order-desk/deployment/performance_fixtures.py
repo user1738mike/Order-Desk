@@ -40,6 +40,17 @@ with transaction.atomic():
         Membership.objects.create(
             organization=workspace, user=user, role=MembershipRole.ADMIN
         )
+        PurchaseOrder.objects.bulk_create(
+            [
+                PurchaseOrder(
+                    organization=workspace,
+                    created_by=user,
+                    customer_name="Synthetic queue buyer",
+                    purchase_order_number=f"QUEUE-{index}-{i:06d}",
+                )
+                for i in range(500)
+            ]
+        )
         CatalogItem.objects.bulk_create(
             [
                 CatalogItem(
@@ -106,6 +117,7 @@ with transaction.atomic():
                     "catalogue_items": 5000,
                     "drafts": 300,
                     "draft_lines": 6000,
+                    "purchase_orders": 1001,
                     "purchase_order_lines": 100,
                 },
             }
@@ -114,5 +126,5 @@ with transaction.atomic():
     )
 print(
     "Created synthetic workload: 2 tenants, 5000 catalogue items, "
-    "300 drafts, 6000 draft lines and a 100-line order."
+    "300 drafts, 6000 draft lines, 1000 queue headers and a 100-line order."
 )

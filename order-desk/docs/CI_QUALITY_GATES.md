@@ -51,6 +51,11 @@ Chromium comes from signed Debian repositories; its resolved package version and
 built image identity must be recorded. Browser tooling is reproducible from the
 recorded image, but apt repository updates can change a fresh tooling rebuild;
 do not claim a bit-identical historical browser build from mutable repositories.
+The proxy build runs its diagnostic-redaction regression, including a live pipe
+that remains open. A supervised Bash entrypoint handles TERM, forwards graceful
+QUIT to Nginx, and stops serving if the redactor exits. Diagnostics contain only
+allowlisted severity/failure categories; request IDs/status/timing remain in the
+sanitized access log. Do not bypass this entrypoint to recover raw HTTP diagnostics.
 
 No hosted workflow is activated. This uses existing local hardware, no paid
 service, secrets registration or new runner registration. A GitHub hosted job
