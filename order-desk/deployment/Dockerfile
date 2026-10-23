@@ -37,8 +37,11 @@ FROM nginx:1.30.6 AS proxy
 COPY deployment/nginx.conf /etc/nginx/nginx.conf
 COPY deployment/redact-errors.awk /etc/nginx/redact-errors.awk
 COPY deployment/proxy-entrypoint.sh /usr/local/bin/orderdesk-proxy
-RUN chmod 0555 /usr/local/bin/orderdesk-proxy
+COPY deployment/proxy-logging-test.sh /tmp/proxy-logging-test.sh
+RUN /bin/bash /tmp/proxy-logging-test.sh && rm /tmp/proxy-logging-test.sh && chmod 0555 /usr/local/bin/orderdesk-proxy
 COPY --from=assets /static-output /srv/static
+# The supervised shell handles TERM; the upstream image otherwise sends QUIT.
+STOPSIGNAL SIGTERM
 USER 101:101
 ENTRYPOINT ["/usr/local/bin/orderdesk-proxy"]
 CMD ["-g", "daemon off;"]
