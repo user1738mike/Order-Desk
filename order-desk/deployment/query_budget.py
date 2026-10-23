@@ -15,12 +15,15 @@ from django.test.utils import CaptureQueriesContext  # noqa: E402
 from rest_framework.test import APIRequestFactory, force_authenticate  # noqa: E402
 
 from apps.accounts.models import User  # noqa: E402
+from apps.orders.queue import order_queue  # noqa: E402
+from apps.orders.selectors import draft_orders_for_workspace  # noqa: E402
 from apps.orders.views import (  # noqa: E402
     DraftOrderListCreateView,
     DraftOrderReadinessView,
     OrderDetailView,
     OrderQueueView,
 )
+from apps.organizations.transactions import tenant_scope  # noqa: E402
 
 fixture = json.loads(Path("/run-state/fixture.json").read_text(encoding="utf-8"))
 workflow = json.loads(Path("/run-state/workflow.json").read_text(encoding="utf-8"))
@@ -75,3 +78,16 @@ print(
 )
 if max(report.values()) > 25:
     raise RuntimeError("Application query budget exceeded.")
+with tenant_scope(user=user, workspace_id=UUID(workspace)):
+    plans = {
+        name: json.loads(query.explain(analyze=True, buffers=True, format="json"))
+        for name, query in (
+            ("queue_first_page", order_queue(UUID(workspace))[:50]),
+            (
+                "queue_search_page",
+                order_queue(UUID(workspace), query="QUEUE-0-000", status="draft")[:50],
+            ),
+            ("draft_first_page", draft_orders_for_workspace(UUID(workspace))[:50]),
+        )
+    }
+print(json.dumps({"restricted_runtime_query_plans": plans}, sort_keys=True))
