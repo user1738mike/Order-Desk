@@ -55,6 +55,12 @@ node --test frontend/tests/*.test.js
 node frontend/tests/browser-smoke.mjs
 ```
 
+The browser harness defaults to isolated loopback ports 18001/19223/19224;
+it refuses occupied ports before fixtures. Override with ORDERDESK_BROWSER_PORT,
+ORDERDESK_CHROME_PORT and ORDERDESK_SECOND_CHROME_PORT if needed. It now also
+verifies scalar order queue search/filter/deep-link reload, responsive layouts,
+browser back navigation, document/approval links and explicit approval/CSV download.
+
 Run database fixture suites and the browser harness sequentially. The PDF tests
 must run in the Linux Compose image; native Windows does not establish the
 Linux resource-limit/seccomp evidence. Rebuild `api` after a dependency lock

@@ -26,6 +26,7 @@ from apps.orders.views import (
     OrderExportView,
     OrderLineCreateView,
     OrderListCreateView,
+    OrderQueueView,
     OrderReviewActionView,
     PrivateOrderDocumentIntakeView,
 )
@@ -76,6 +77,7 @@ draft_urlpatterns = [
 ]
 
 urlpatterns = [
+    path("queue/", OrderQueueView.as_view(), name="queue"),
     path("<uuid:order_id>/exports/", OrderExportView.as_view(), name="exports"),
     path(
         "<uuid:order_id>/exports/<uuid:artifact_id>/download/",

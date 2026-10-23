@@ -71,6 +71,31 @@ EXTRACTION_MODELS = (DocumentExtractionJob, ExtractionApplication, ExtractionCre
 
 
 class RuntimeOrderRLSChecks(unittest.TestCase):
+    def test_operational_queue_actual_runtime_scope_and_revocation(self):
+        from apps.orders.queue import order_queue
+
+        path = f"/api/v1/workspaces/{self.a.pk}/orders/queue/"
+        for actor in (self.admin, self.reviewer, self.viewer):
+            client, _ = self._credential_client(actor)
+            response = client.get(path, {"q": "Synthetic buyer", "status": "draft"})
+            self.assertEqual(response.status_code, 200, response.content)
+            rows = response.json()["results"]
+            self.assertEqual(
+                [row["id"] for row in rows],
+                [str(self.rows[self.a.pk][PurchaseOrder].pk)],
+            )
+            self.assertNotIn("documents", rows[0])
+            self.assertNotIn("lines", rows[0])
+            self.assertIn("no-store", response["Cache-Control"])
+        with tenant_scope(user=self.admin, workspace_id=self.a.pk):
+            self.assertEqual(list(order_queue(self.b.pk)), [])
+        client, _ = self._credential_client(self.admin)
+        Membership.objects.using(OWNER_ALIAS).filter(
+            pk=self.admin_membership.pk
+        ).update(is_active=False)
+        self.assertEqual(client.get(path).status_code, 403)
+        self._assert_clean()
+
     def test_export_actual_runtime_private_replay_and_fresh_denial(self):
         from apps.orders import services
 

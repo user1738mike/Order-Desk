@@ -33,6 +33,7 @@ from apps.orders.extraction_services import enqueue_extraction, retry_extraction
 from apps.orders.matching import RULE_VERSION, CatalogueSuggestionConflict, assess_line
 from apps.orders.pagination import DraftOrderPagination, validate_draft_query
 from apps.orders.private_documents import open_document, original_filename
+from apps.orders.queue import OrderQueueSerializer, order_queue, parse_queue_query
 from apps.orders.readiness import evaluate_draft_readiness
 from apps.orders.revisions import DraftRevisionConflict, draft_revision
 from apps.orders.serializers import (
@@ -600,6 +601,21 @@ class OrderExportDownloadView(OrderExportView):
         response["Cache-Control"] = "private, no-store"
         response["X-Content-Type-Options"] = "nosniff"
         return response
+
+
+class OrderQueueView(DraftOrderReadView):
+    def get(self, request: Request, workspace_id: UUID) -> Response:
+        with tenant_scope(user=request.user, workspace_id=workspace_id):
+            query, status = parse_queue_query(request.query_params)
+            paginator = FixedPagePagination()
+            rows = paginator.paginate_queryset(
+                order_queue(workspace_id, query=query, status=status),
+                request,
+                view=self,
+            )
+            return paginator.get_paginated_response(
+                OrderQueueSerializer(rows, many=True).data
+            )
 
 
 class OrderListCreateView(WorkspaceOrderView):

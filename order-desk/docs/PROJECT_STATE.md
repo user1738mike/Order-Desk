@@ -1,5 +1,105 @@
 # Project state
 
+## Distributor platform expansion — 23 October 2026 (active)
+
+Authoritative requirement checklist: ROADMAP.md, distributor workflow section.
+Arrival: main tracking origin/main, commit 890cf55aa2f37f3f99bdca3e2f9f82e6403ab49d,
+clean index/tracked/untracked state. Work stays on main; no branch/remotes changed.
+Read spec, roadmap, current/historical state, README, ADR tenant/export decisions,
+verification and intake contracts; inspected actual models, 0001–0014 migrations,
+tenant helper, selectors/services/session permissions, private storage/intake,
+durable extraction/application/export, frontend controllers/routes and harness.
+Runtime versions reproduced via `docker compose exec -T api python -c ...` and
+`docker compose exec -T db postgres --version`: Python 3.14.8, Django 5.2.18,
+DRF 3.18.1, Psycopg 3.3.6 and PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2);
+native browser modules; host Node 24.15.0; Docker engine 29.8.2 available.
+Existing db/api healthy. No new dependency, external AI service or spending.
+
+Current ownership: OrderDocument -> required PurchaseOrder; job -> document;
+application -> job/draft; created-row -> application/job/draft/line;
+PurchaseOrder -> optional unique frozen DraftOrder; export -> approved converted
+order/snapshot. Composite tenant FKs and forced RLS protect existing relationships.
+Historical documents may have legacy file paths/blank digests; do not rewrite paths
+or adopt legacy bytes without validation. Upload-first migration must retain legacy
+order FK/provenance while adding explicitly tenant-validated nullable draft links
+or a separate intake aggregate. Every worker/selector/download/recovery assumption
+about order ownership must be updated together; merely making order nullable is unsafe.
+
+Current roles: active members read; admin/reviewer edit drafts, intake, process,
+submit/review and export; admin only catalogue writes and draft conversion.
+Membership services retain organization-first lock order. No independent approver
+check exists in review services; self-approval remains allowed. Assignment,
+processor role, customer directory, alias approval and general audit do not exist.
+Full scope has not been completed. No production or pilot-readiness claim.
+
+Increment 1: operational order queue, no migration. Acceptance/state contract is in
+ROADMAP.md. New GET/HEAD orders/queue/ uses fresh session/membership authorization,
+transaction-local read-only tenant scope and fixed 50-row pages. Only selected
+header columns and joined immutable source customer reference are materialized.
+Literal case-insensitive q (200 characters), exact status, strict single-value
+query parameters. Existing nested order API unchanged. UI queue supports URL
+filters, refresh/back/forward and direct source-draft/documents/approval links.
+UUID lookup remains available within a collapsed diagnostic disclosure only.
+Created date is not claimed as received date; next action is not export readiness.
+Context replacement erases private rows/search and rejects late responses.
+
+Verification: 117 Node tests PASS, 0 skips (latest 2.265s);
+`docker compose run --rm manage python manage.py test
+apps.orders.tests.test_order_queue apps.web.tests --settings=config.settings.test
+--keepdb --noinput -v 1`: 7 PASS/2.430s, synthetic test_orderdesk, migrator role.
+After scalar SELECT tightening, focused queue/read-contract/shell suite: 15 PASS,
+0 skips/1.871s. `makemigrations --check --dry-run`: no changes.
+`docker compose run --rm rlscheck python manage.py verify_order_rls`: PASS,
+57 checks/144.856s, actual authenticated orderdesk_app and separate synthetic
+maintenance connection. Includes queue real sessions for all roles, deliberately
+foreign selector request and fresh membership revocation; existing independent
+connection conversion/review/revocation races passed. This invocation began before
+the final scalar SELECT narrowing; final browser/native gates cover that query.
+Full maintained-source Ruff check PASS; format PASS, 220 files. Final Django
+system check PASS. `git diff --check` PASS. Host script suite 35 PASS/0.973s;
+its "exact success check skipped" output comes from a negative helper scenario,
+not a skipped unittest and not evidence of a real catalogue lookup.
+First extended browser attempt FAILED: new reload assertion consumed the old DOM
+before Page.reload navigation committed; screenshots showed Opening Order Desk.
+Fixture cleanup completed. Added explicit performance.timeOrigin/document-ready
+wait before asserting restored queue. Failed attempt is not acceptance evidence.
+Corrected full browser run PASS; final repeat after queue CSS spacing PASS,
+exit 0, no browser exceptions. Command: `node frontend/tests/browser-smoke.mjs`,
+host Chrome, actual same-origin Django/session/CSRF; server/worker orderdesk_app,
+fixtures/cleanup orderdesk_migrator in test_orderdesk, temporary private storage.
+Existing edits/conflicts, conversion lost-response/replay, private PDF/CSV bytes,
+CSV/text-PDF provenance and explicit application, real worker/failure/retry,
+catalogue matching, cross-tenant/revoked download and late context reads passed.
+New queue search by 00042, exact draft/needs-review filters, URL reload/back,
+source/approval links, separate submit/approve/generate and digest-verified CSV
+download passed. Download records no destination outcome. Final maintained harness
+uses viewport screenshots after animation settlement; full-page screenshot mode
+produced an inconsistent fixed-sidebar capture despite passing DOM width checks.
+Focused independent viewport visual recheck PASS: ignored
+`backend/var/order-queue-review/screens.mjs`, actual backend/runtime, guarded
+synthetic fixtures and real conversion; 1365/390/320px viewport captures,
+DOM assertion that desktop queue starts beyond the sidebar, no page overflow or
+browser exceptions, exit 0 with cleanup. Visually inspected desktop and 320px.
+Desktop rail is 232px; narrow controls fit, and the wide table has a focusable
+labelled horizontal-scroll region. Full-page compositor captures are excluded
+from visual acceptance. Final viewport images are under order-queue-review/.
+Logs/screens remain ignored under backend/var/order-queue* and frontend-browser/.
+No main-data fixtures/reset/restore, main migration or external delivery performed.
+No migration in increment 1, so clean/upgrade migration gates are not applicable
+to this commit; they remain required for upload-first schema work.
+
+Scope verdict: queue functionally verified locally. Expanded distributor journey
+MISSING, customer pilot NOT READY; no named ERP or handling-time/accuracy claim.
+Upload-first design/acceptance is now in CODEX_BUILD_SPEC.md; a non-active service
+draft is saved in ignored backend/var/order-queue-review/incoming-service-draft.py.
+It references proposed fields and has no test evidence; it is not application code.
+Queue changes and this evidence are committed together on main; see current Git
+log for the exact commit. No push/deployment was performed.
+Exact next action: implement orders migration 0015 with nullable historical order
+and constrained tenant draft
+link/provenance, extend intake/worker/selectors/download/review together, add inbox
+UI and run historical-upgrade, clean, restricted-role/race and browser gates.
+
 ## Sidebar dashboard 22 October 2026 - verified UI increment
 
 User requested a restrained redesign inspired by the supplied React collapsible

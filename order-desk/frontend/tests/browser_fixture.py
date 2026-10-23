@@ -24,6 +24,7 @@ from apps.orders.models import (
     OrderDocument,
     OrderDocumentReview,
     PurchaseOrder,
+    PurchaseOrderExport,
     PurchaseOrderLine,
 )
 from apps.organizations.models import Membership, MembershipRole, Organization
@@ -221,6 +222,9 @@ elif action in (
                 )
                 LoginAttemptBucket.objects.filter(key__in=keys).delete()
                 workspace_ids = [data["a"], data["b"]]
+                PurchaseOrderExport.objects.filter(
+                    organization_id__in=workspace_ids
+                ).delete()
                 PurchaseOrderLine.objects.filter(
                     order__organization_id__in=workspace_ids
                 ).delete()

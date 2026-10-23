@@ -9,6 +9,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createServer } from 'node:net';
 
 const root = resolve(import.meta.dirname, '../..');
+const serverPort = Number(process.env.ORDERDESK_BROWSER_PORT || 18001);
+const chromePort = Number(process.env.ORDERDESK_CHROME_PORT || 19223);
+const secondChromePort = Number(process.env.ORDERDESK_SECOND_CHROME_PORT || 19224);
+for (const port of [serverPort, chromePort, secondChromePort]) assert.ok(Number.isInteger(port) && port >= 1024 && port <= 65535, 'Invalid browser verification port.');
+assert.equal(new Set([serverPort, chromePort, secondChromePort]).size, 3, 'Browser ports must be distinct.');
+const origin = `http://127.0.0.1:${serverPort}`;
 const scratch = resolve(root, 'backend/var/frontend-browser');
 const container = `orderdesk-browser-${process.pid}`;
 const chromePath = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -23,7 +29,7 @@ let acceptNextDialog = false;
 // Refuse existing fixtures or occupied ports before entering owned cleanup.
 assert.ok(!existsSync(resolve(root, 'backend/var/frontend_browser_fixture.json')),
   'An earlier browser fixture exists. Review it before rerunning.');
-for (const port of [8001, 9223, 9224]) {
+for (const port of [serverPort, chromePort, secondChromePort]) {
   await new Promise((resolve, reject) => {
     const probe = createServer(); probe.once('error', reject);
     probe.listen(port, '127.0.0.1', () => probe.close(resolve));
@@ -63,27 +69,27 @@ try {
   await mkdir(scratch, { recursive: true });
   fixtures('create');
   const data = JSON.parse(await readFile(resolve(root, 'backend/var/frontend_browser_fixture.json'), 'utf8'));
-  server = spawn('docker', ['compose', 'run', '--rm', '--name', container, '-p', '127.0.0.1:8001:8001',
+  server = spawn('docker', ['compose', 'run', '--rm', '--name', container, '-p', `127.0.0.1:${serverPort}:${serverPort}`,
     '-e', 'PRIVATE_DOCUMENT_ROOT=/tmp/orderdesk-private-browser',
     'rlscheck', 'python', 'manage.py', 'shell', '-c',
-    "import sys; from django.conf import settings; from django.core.management import call_command; sys.path.insert(0, '/frontend/tests'); settings.WSGI_APPLICATION = 'browser_server.application'; call_command('check_runtime_role'); call_command('runserver', '0.0.0.0:8001', use_reloader=False)"],
+    `import sys; from django.conf import settings; from django.core.management import call_command; sys.path.insert(0, '/frontend/tests'); settings.WSGI_APPLICATION = 'browser_server.application'; call_command('check_runtime_role'); call_command('runserver', '0.0.0.0:${serverPort}', use_reloader=False)`],
     { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let serverOutput = '';
   server.stdout.on('data', chunk => { serverOutput += chunk; });
   server.stderr.on('data', chunk => { serverOutput += chunk; });
   let ready = false;
   for (let i = 0; i < 120; i++) {
-    try { ready = (await fetch('http://127.0.0.1:8001/api/v1/health/ready/')).ok; } catch {}
+    try { ready = (await fetch(`${origin}/api/v1/health/ready/`)).ok; } catch {}
     if (ready || server.exitCode !== null) break;
     await delay(500);
   }
   assert.ok(ready, `Runtime server did not start: ${serverOutput}`);
   chrome = spawn(chromePath, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    '--remote-debugging-port=9223', `--user-data-dir=${resolve(scratch, `profile-${process.pid}`)}`, 'about:blank'],
+    `--remote-debugging-port=${chromePort}`, `--user-data-dir=${resolve(scratch, `profile-${process.pid}`)}`, 'about:blank'],
     { windowsHide: true, stdio: 'ignore' });
   let tabs;
   for (let i = 0; i < 100; i++) {
-    try { tabs = await (await fetch('http://127.0.0.1:9223/json')).json(); } catch {}
+    try { tabs = await (await fetch(`http://127.0.0.1:${chromePort}/json`)).json(); } catch {}
     if (tabs?.find(tab => tab.type === 'page')) break;
     await delay(100);
   }
@@ -112,7 +118,7 @@ try {
   };
   await command('Runtime.enable'); await command('Page.enable');
   await command('Emulation.setDeviceMetricsOverride', { width: 1365, height: 900, deviceScaleFactor: 1, mobile: false });
-  await command('Page.navigate', { url: 'http://127.0.0.1:8001/' });
+  await command('Page.navigate', { url: `${origin}/` });
   await waitFor("document.getElementById('login-panel') && !document.getElementById('login-panel').hidden");
   await evaluate(`document.getElementById('email').value=${JSON.stringify(data.email)}; document.getElementById('password').value='invalid-synthetic'; document.getElementById('login-form').requestSubmit()`);
   await waitFor("document.getElementById('notice').textContent.includes('Invalid email or password')");
@@ -200,13 +206,13 @@ try {
   await waitFor(`location.hash===${JSON.stringify(manualHash)} && document.getElementById('draft-editor').open`);
   assert.equal(await evaluate("document.getElementById('edit-customer-name').value"), 'Unsaved operator value');
   // A second real browser profile has its own cookie/authentication session.
-  const base = 'http://127.0.0.1:8001';
+  const base = origin;
   secondaryChrome = spawn(chromePath, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    '--remote-debugging-port=9224', `--user-data-dir=${resolve(scratch, `second-profile-${process.pid}`)}`, 'about:blank'],
+    `--remote-debugging-port=${secondChromePort}`, `--user-data-dir=${resolve(scratch, `second-profile-${process.pid}`)}`, 'about:blank'],
     { windowsHide: true, stdio: 'ignore' });
   let secondaryTab;
   for (let i = 0; i < 100; i++) {
-    try { secondaryTab = (await (await fetch('http://127.0.0.1:9224/json')).json()).find(tab => tab.type === 'page'); } catch {}
+    try { secondaryTab = (await (await fetch(`http://127.0.0.1:${secondChromePort}/json`)).json()).find(tab => tab.type === 'page'); } catch {}
     if (secondaryTab) break; await delay(100);
   }
   assert.ok(secondaryTab, 'Second browser session unavailable.');
@@ -230,7 +236,7 @@ try {
   await secondCommand('Runtime.enable');
   await secondCommand('Page.navigate', { url: base + '/' });
   for (let i = 0; i < 100; i++) {
-    const result = await secondCommand('Runtime.evaluate', { expression: "location.origin==='http://127.0.0.1:8001' && document.readyState==='complete'", returnByValue: true });
+    const result = await secondCommand('Runtime.evaluate', { expression: `location.origin===${JSON.stringify(origin)} && document.readyState==='complete'`, returnByValue: true });
     if (result.result.value) break; await delay(100);
   }
   async function secondRequest(path, method = 'GET', body = undefined, revision = null) {
@@ -396,7 +402,30 @@ try {
   await evaluate("history.forward()");
   await waitFor("document.getElementById('draft-status').textContent.includes('Converted') && !document.getElementById('draft-content').hidden");
   // Source documents belong to the confirmed purchase order, not its source draft.
-  await evaluate(`location.hash='#/workspaces/${data.a}/orders/${orderId}/documents/'`);
+  await evaluate("document.getElementById('purchase-tab').click()");
+  await waitFor("!document.getElementById('order-queue').hidden && document.querySelectorAll('#queue-rows tr').length===1");
+  assert.match(await evaluate("document.getElementById('queue-rows').textContent"), /Browser Ready Customer/);
+  assert.match(await evaluate("document.getElementById('queue-rows').textContent"), /00042/);
+  await evaluate("document.getElementById('queue-search').value='00042'; document.getElementById('queue-status').value='draft'; document.getElementById('queue-search-form').requestSubmit()");
+  await waitFor("location.hash.includes('q=00042') && document.getElementById('order-queue').getAttribute('aria-busy')==='false' && document.querySelectorAll('#queue-rows tr').length===1");
+  const queueHash = await evaluate('location.hash');
+  const beforeQueueReload = await evaluate('performance.timeOrigin');
+  await command('Page.reload');
+  await waitFor(`performance.timeOrigin !== ${beforeQueueReload} && document.readyState === 'complete'`);
+  await waitFor("!document.getElementById('order-queue').hidden && document.querySelectorAll('#queue-rows tr').length===1 && document.getElementById('queue-search').value==='00042'");
+  for (const width of [1365, 390, 320]) {
+    await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 500 });
+    await evaluate("(async()=>{document.body.getBoundingClientRect(); await Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{}))); await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()");
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Order queue overflows the page.');
+    if (width > 760) assert.ok(await evaluate("document.getElementById('workspace-tabs').getBoundingClientRect().width <= 240"), 'Desktop sidebar obscures the queue.');
+    const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    await writeFile(resolve(scratch, `order-queue-${width}.png`), Buffer.from(screenshot.data, 'base64'));
+  }
+  await evaluate("document.querySelectorAll('#queue-rows a')[0].click()");
+  await waitFor("!document.getElementById('purchase-content').hidden && !document.getElementById('purchase-submit').disabled");
+  await evaluate('history.back()');
+  await waitFor(`location.hash===${JSON.stringify(queueHash)} && document.querySelectorAll('#queue-rows tr').length===1`);
+  await evaluate("document.querySelectorAll('#queue-rows a')[1].click()");
   await waitFor("!document.getElementById('documents-screen').hidden && document.getElementById('documents-empty').textContent==='No source documents listed.' && !document.getElementById('documents-refresh').disabled");
   const sourcePdf = '%PDF-1.7\nSynthetic local source\n%%EOF\n';
   const sourceCsv = 'sku,quantity\r\n0001.Mixed-Case,1.234\r\n';
@@ -603,6 +632,25 @@ try {
   await evaluate("document.getElementById('extraction-refresh').click()");
   await waitFor("document.getElementById('extraction-identity').textContent.includes('attempt 2/3') && document.getElementById('extraction-status').textContent.includes('failed')");
   assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([new Uint8Array(10485761)],'too-large.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 413);
+  // Review/approval/export remain separate deliberate operations after intake.
+  await evaluate("document.getElementById('documents-purchase-link').click()");
+  await waitFor("!document.getElementById('purchase-content').hidden && !document.getElementById('purchase-submit').disabled");
+  acceptNextDialog = true;
+  await evaluate("document.getElementById('purchase-submit').click()");
+  await waitFor("document.getElementById('purchase-summary').textContent.includes('pending review') && !document.getElementById('purchase-approve').disabled");
+  acceptNextDialog = true;
+  await evaluate("document.getElementById('purchase-approve').click()");
+  await waitFor("document.getElementById('purchase-summary').textContent.includes('approved') && !document.getElementById('purchase-generate').disabled");
+  await evaluate("document.getElementById('purchase-generate').click()");
+  await waitFor("!document.getElementById('purchase-download').disabled");
+  await evaluate("document.getElementById('purchase-download').click()");
+  await waitFor("document.getElementById('purchase-message').textContent.includes('CSV verified')");
+  await evaluate("document.getElementById('purchase-queue-link').click()");
+  await waitFor("document.querySelectorAll('#queue-rows tr').length===1 && document.getElementById('queue-rows').textContent.includes('approved')");
+  await evaluate("document.getElementById('queue-status').value='pending_review'; document.getElementById('queue-search-form').requestSubmit()");
+  await waitFor("document.getElementById('queue-message').textContent.includes('No orders match')");
+  await evaluate(`location.hash='#/workspaces/${data.a}/orders/${orderId}/documents/'`);
+  await waitFor("!document.getElementById('documents-screen').hidden && !document.getElementById('documents-refresh').disabled");
   fixtures('viewer');
   assert.equal((await secondRequest(csvApplyPath, 'POST', submittedApplication)).status, 403);
   assert.equal(await evaluate(`(async()=>{const {csrf_token}=await(await fetch('/api/v1/auth/csrf/')).json();const form=new FormData();form.append('file',new File([${JSON.stringify(sourcePdf)}],'denied.pdf'));return(await fetch(${JSON.stringify(documentBase + 'intake/')},{method:'POST',headers:{'X-CSRFToken':csrf_token},body:form})).status})()`), 403);
@@ -631,6 +679,7 @@ try {
   console.log('PASS: explicit CSV source/target selection and corrected quantity with immutable provenance, stale revision preservation/comparison, lost application response and identical-key reconciliation, no duplicate lines or overwrite of later manual corrections, independent readiness/conversion, viewer replay denial and late workspace-response isolation.');
   console.log('PASS: actual bounded text-PDF extraction and unchanged private bytes, verified page/text offset provenance, explicit existing-line correction, partial acceptance plus deliberate rejection, no automatic review/conversion, and visible no-text PDF failure with manual fallback.');
   console.log('PASS: real exact-SKU suggestion evidence, unchecked units/prices, stale draft, deactivated catalogue and revoked-role rejection, deliberate acceptance with unchanged requested values and refreshed readiness, late workspace-response isolation; manual detach remains available.');
+  console.log('PASS: scalar internal-order queue customer-reference search/state filter, deep-link reload, back navigation, source/approval links and 1365/390/320px layouts; separate submission, approval, generic CSV generation and digest-verified download. No destination handoff is inferred.');
 } finally {
   if (secondarySocket?.readyState === WebSocket.OPEN) await closeSecondBrowser?.();
   secondarySocket?.close(); secondaryChrome?.kill();

@@ -2,7 +2,8 @@
 
 This local increment attaches original sources to an existing **purchase order**,
 not a draft-order source. A confirmed conversion links to that purchase order's
-Documents screen. Operators can also open a known purchase-order UUID. It reuses
+Documents screen. Operators can browse/search the internal order queue and follow
+Source documents; a collapsed diagnostic lookup also accepts a known UUID. It reuses
 OrderDocument and its existing received/pending_review/rejected lifecycle; upload
 does not approve, extract, match, submit or export an order.
 

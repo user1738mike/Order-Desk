@@ -1,5 +1,58 @@
 # Roadmap
 
+## Distributor workflow implementation checklist (23 October 2026)
+
+This is the authoritative checklist for the expanded distributor request.
+Evidence and commands belong in PROJECT_STATE.md. Historical verification below
+is not proof of this candidate. Status values: VERIFIED, DEFECTIVE, MISSING,
+BLOCKED, APPROVED DEFERRED. No deferrals have been approved for this request.
+
+| Requirement | Current assessment and next acceptance gate |
+| --- | --- |
+| 1 Baseline | VERIFIED: clean main at 890cf55; stack/spec/source inspected; current execution evidence in state ledger. |
+| 2 Workflow terminology | MISSING: neutral UI labels agreed below; full correction/handoff state design pending. |
+| 3 Upload-first inbox | MISSING: documents require PurchaseOrder; migrate ownership with composite tenant constraints, historical links and crash recovery before enabling unowned intake. |
+| 4 Operational navigation | VERIFIED for scalar searchable order queue/direct source-draft/documents/approval links, URL filters/reload/history and 50-row pages; received date, assignment and draft search remain MISSING. Evidence in state ledger. |
+| 5 Workspace UI | DEFECTIVE: existing screens/session cancellation present; six coherent queues and source/draft workspace remain incomplete. |
+| 6 Team processing | MISSING: admin/reviewer/viewer only; processor, assignment, reasoned returns and permission matrix pending. |
+| 7 Customer directory | MISSING: only customer text snapshots; tenant directory and unresolved-customer rules pending. |
+| 8 Units/packs | MISSING: exact quantities and raw units exist; controlled units/product factors require explicit decimal policy. |
+| 9 Approved aliases | MISSING: exact SKU suggestions only; customer directory precedes approved mapping model. |
+| 10 Duplicate orders | MISSING: conversion/application/export repeat safety exists; customer reference/fingerprint warning and audited resolution pending. |
+| 11 Readiness | DEFECTIVE: structural conversion and generic export checks exist; explicit commercial not-checked and selected-profile readiness pending. |
+| 12 Corrections/history | MISSING: converted snapshots/receipts protected; general append-only audit, supersession/cancellation/reconciliation pending. |
+| 13 Export/handoff | DEFECTIVE: generic-po-csv-v1 implemented; profile boundary and evidence-level handoff records pending. Named profile BLOCKED on real destination specification/accepted fixture. |
+| 14 Worker recovery | DEFECTIVE: durable bounded leases/retry exist; inbox visibility and stalled reconciliation need current evidence. |
+| 15 Measurements | MISSING: operational backlog/exception definitions and safe denominators pending; active handling time is not collected. |
+| 16 Onboarding/pilot | MISSING: existing operator contracts/pilot protocol; bounded guided synthetic onboarding pending. Representative pilot BLOCKED on historical orders/independent expected results. |
+| 17 Security/integrity | DEFECTIVE: tenant helper/forced RLS/private storage exist; every new relationship/table requires restricted-role proof. |
+| 18 Verification | MISSING: rerun increment-specific PostgreSQL/runtime/browser gates; clean/upgrade migration gates required for schema increments. |
+| 19 Delivery | MISSING: verified coherent commits and exact continuation checkpoints required throughout. |
+
+Dependency order: operational navigation; upload-first ownership and provenance;
+customer directory and processor/assignment permissions; units/aliases/duplicate
+review; immutable correction/audit; profile/handoff readiness; measurements and
+onboarding; complete restricted-role, migration, concurrency and browser gates.
+
+### Transition contract before the first increment
+
+Incoming customer PO means immutable original customer bytes. Order draft means
+editable internal requested data. Conversion freezes that draft and creates an
+internal order (database PurchaseOrder remains unchanged). Submission changes
+internal draft/rejected to pending_review; explicit authorized approval/rejection
+changes pending_review to approved/rejected. Generic export is a private artifact
+from an approved converted snapshot. Download proves no destination delivery.
+Handoff attempt/confirmed result are currently unmodeled. Existing self-approval
+behavior is retained until the team-workflow requirement is inspected in detail.
+
+First increment acceptance: authorized members can search customer/internal number/
+source customer reference, filter exact order state, paginate stable 50-row scalar
+headers, and follow source-draft/documents/approval links. Search is literal and
+bounded; query parameters are strict; private caches clear on identity/workspace/
+role/route changes and late responses cannot restore them. Existing order list
+payload/approval/export behavior remains backward compatible. No schema change.
+Created date is labelled created (received date and assignment are unmodeled).
+
 ## Current source of truth
 
 The active repository contains backend work through Step 4D.8 plus protected

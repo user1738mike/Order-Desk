@@ -3,6 +3,10 @@
 Django/PostgreSQL application for turning supported distributor PDF/CSV documents
 into human-reviewed internal orders and private `generic-po-csv-v1` exports.
 Named ERP compatibility and customer pilot readiness have not been established.
+Internal orders now have a searchable, paginated queue with direct links to source
+drafts, private documents and approval/export. Customer/reference/state filters are
+preserved in the URL. Documents still require an existing internal order; the
+expanded upload-first distributor scope is tracked in the existing roadmap.
 See the [current audit](docs/AUDIT_2026-10-19.md) and
 [pilot acceptance protocol](docs/PILOT_ACCEPTANCE.md).
 

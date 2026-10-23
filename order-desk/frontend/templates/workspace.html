@@ -65,9 +65,22 @@
           </div>
         </section>
       </section>
+      <section id="order-queue" class="card" hidden aria-label="Internal order queue" aria-busy="false">
+        <h2>Find an internal order</h2>
+        <form id="queue-search-form" class="filters">
+          <div class="queue-filter"><label for="queue-search">Customer, customer PO reference or internal order number</label><input id="queue-search" type="search" maxlength="200"></div>
+          <div class="queue-filter"><label for="queue-status">Order state</label><select id="queue-status"><option value="">All states</option><option value="draft">Draft</option><option value="pending_review">Needs review</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+          <button>Search orders</button><button id="queue-refresh" type="button" class="quiet">Refresh queue</button>
+        </form>
+        <p class="muted small">Source documents currently require an internal order. Received date, assignment and destination handoff are not yet recorded. Approval alone does not establish export readiness or delivery.</p>
+        <p id="queue-message" role="status" aria-live="polite"></p>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Internal orders; scroll horizontally for actions"><table><thead><tr><th scope="col">Customer</th><th scope="col">Customer PO reference</th><th scope="col">Internal order number</th><th scope="col">Created</th><th scope="col">State</th><th scope="col">Next action</th><th scope="col">Open</th></tr></thead><tbody id="queue-rows"></tbody></table></div>
+        <nav class="pagination" aria-label="Internal order pages"><span id="queue-page"></span><div><button id="queue-previous" class="quiet">Previous orders</button><button id="queue-next" class="quiet">Next orders</button></div></nav>
+      </section>
       <section id="documents-screen" class="card" hidden aria-label="Purchase-order source documents">
+        <a id="documents-queue-link" href="#">All internal orders</a> · <a id="documents-purchase-link" href="#">Open order and approval</a>
         <p class="eyebrow">SOURCE FILES</p><h2>Documents for this order</h2><p id="documents-order"></p>
-        <form id="documents-open-form" class="order-lookup"><label for="documents-order-id">Purchase-order ID</label><input id="documents-order-id" maxlength="36" required><button>Open documents</button></form>
+        <details><summary>Diagnostic order lookup</summary><form id="documents-open-form" class="order-lookup"><label for="documents-order-id">Internal order ID</label><input id="documents-order-id" maxlength="36" required><button>Open documents</button></form></details>
         <p class="muted">PDF or UTF-8 CSV, up to 10 MiB. Source bytes stay private. Upload does not extract, match, review or approve an order. Downloaded files remain untrusted; no malware scan is performed.</p>
         <form id="document-upload-form" hidden><label for="document-file">Source file</label><input id="document-file" type="file" accept=".pdf,.csv"><p id="documents-file-info"></p><button id="document-upload" disabled>Upload source</button></form>
         <p id="documents-message" role="status" aria-live="polite"></p><button id="documents-check" class="quiet" hidden>Check list before restarting upload</button><button id="documents-refresh" class="quiet">Refresh documents</button>
@@ -106,7 +119,8 @@
         </section>
       </section>
       <section id="purchase-screen" class="card" hidden aria-label="Purchase-order approval and CSV export">
-        <p class="eyebrow">REVIEW &amp; APPROVAL</p><h2>Open a purchase order</h2><form id="purchase-open-form" class="order-lookup"><label for="purchase-open-id">Purchase-order ID</label><input id="purchase-open-id" maxlength="36" required><button>Open order</button></form>
+        <a id="purchase-queue-link" href="#">All internal orders</a> · <a id="purchase-documents-link" href="#">Source documents</a>
+        <p class="eyebrow">REVIEW &amp; APPROVAL</p><h2>Internal order</h2><details><summary>Diagnostic order lookup</summary><form id="purchase-open-form" class="order-lookup"><label for="purchase-open-id">Internal order ID</label><input id="purchase-open-id" maxlength="36" required><button>Open order</button></form></details>
         <button id="purchase-refresh" class="quiet">Check current order and export status</button><p id="purchase-message" role="status" aria-live="polite"></p>
         <div id="purchase-content" hidden>
           <h2 id="purchase-summary"></h2><p>Inspect the copied order lines before approval. Catalogue matching does not verify units, pack factors or prices.</p>

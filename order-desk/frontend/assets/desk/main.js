@@ -10,6 +10,7 @@ import { ExtractionReviewController, renderExtractionReview } from './extraction
 import { MatchingController, renderMatching } from './matching.js';
 import { PurchaseController, purchaseRoute, renderPurchase } from './purchase.js';
 import { CatalogueController, renderCatalogue } from './catalogue.js';
+import { OrderQueueController, queueRoute, renderOrderQueue } from './order-queue.js';
 
 const $ = id => document.getElementById(id);
 // Presentation preference only; no workspace or customer data is persisted.
@@ -28,6 +29,7 @@ let editor;
 let extractionReview;
 let matching;
 const catalogue = new CatalogueController(client, () => renderCatalogue(catalogue, desk?.state.phase === 'desk' && parseRoute(location.hash).screen === 'catalogue'), async () => desk.loadCatalogue(), async () => desk.startWithoutSelection());
+const queue = new OrderQueueController(client, () => renderOrderQueue(queue, desk?.state.phase === 'desk' && Boolean(queue.state.screen)), async () => desk.startWithoutSelection());
 const purchase = new PurchaseController(client, () => { const route = parseRoute(location.hash); renderPurchase(purchase, desk?.state.phase === 'desk' && route.screen === 'purchase' && route.workspace === purchase.state.workspace?.id); }, async () => {
   const version = purchase.version, workspace = purchase.state.workspace?.id;
   try {
@@ -131,6 +133,7 @@ async function applyRoute() {
     if (version !== navigation || desk.state.workspace?.id !== route.workspace) return;
   }
   render(desk.state);
+  if (queue.state.screen) await queue.load();
   if (route.screen === 'drafts' && orders.state.workspace) {
     if (route.draft) await orders.open(route.draft); else await orders.list();
     if (version === navigation) $('page-title').focus();
@@ -140,6 +143,8 @@ async function applyRoute() {
 }
 function render(state) {
   const route = parseRoute(location.hash);
+  queue.context(state.phase === 'desk' ? state.workspace : null, state.generation, route);
+  renderOrderQueue(queue, state.phase === 'desk' && Boolean(queue.state.screen));
   catalogue.context(state.phase === 'desk' ? state.workspace : null, state.generation);
   renderCatalogue(catalogue, state.phase === 'desk' && route.screen === 'catalogue');
   $('loading').hidden = state.phase !== 'loading';
@@ -168,6 +173,10 @@ function render(state) {
   $('drafts-tab').href = state.workspace ? draftRoute(state.workspace.id) : '#';
   $('documents-tab').href = state.workspace ? documentRoute(state.workspace.id) : '#';
   $('purchase-tab').href = state.workspace ? purchaseRoute(state.workspace.id) : '#';
+  $('purchase-queue-link').href = $('purchase-tab').href;
+  $('documents-queue-link').href = $('documents-tab').href;
+  $('purchase-documents-link').href = state.workspace && route.order ? documentRoute(state.workspace.id, route.order) : '#';
+  $('documents-purchase-link').href = state.workspace && route.order ? purchaseRoute(state.workspace.id, route.order) : '#';
   $('purchase-tab').setAttribute('aria-current', route.screen === 'purchase' ? 'page' : 'false');
   $('documents-tab').setAttribute('aria-current', route.screen === 'documents' ? 'page' : 'false');
   $('catalogue-tab').setAttribute('aria-current', route.screen === 'catalogue' ? 'page' : 'false');
@@ -177,12 +186,12 @@ function render(state) {
   $('page-title').textContent = route.screen === 'drafts' ? route.draft ? 'Draft review' : 'Draft orders' : 'Product catalogue';
   $('page-subtitle').textContent = route.screen === 'drafts' ? 'Inspect manual requests and their readiness for internal conversion.' : 'Browse your workspace’s products and catalogue status.';
   $('catalogue').setAttribute('aria-busy', String(state.catalogBusy));
-  if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = 'Document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
-  if (route.screen === 'purchase') { $('breadcrumb').textContent = 'WORKSPACE / PURCHASE ORDER'; $('page-title').textContent = 'Approval and CSV export'; $('page-subtitle').textContent = 'Inspect the internal order, approve deliberately and download the supported CSV.'; }
+  if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = route.order ? 'Document intake' : 'Find an order for document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
+  if (route.screen === 'purchase') { $('breadcrumb').textContent = 'WORKSPACE / INTERNAL ORDERS'; $('page-title').textContent = route.order ? 'Approval and CSV export' : 'Internal orders'; $('page-subtitle').textContent = 'Find an order, inspect its source and review its next action.'; }
   purchase.context(state.phase === 'desk' ? state.workspace : null, state.generation, route.screen === 'purchase' && route.workspace === state.workspace?.id ? route.order ?? null : null);
-  renderPurchase(purchase, state.phase === 'desk' && route.screen === 'purchase' && route.workspace === state.workspace?.id);
+  renderPurchase(purchase, state.phase === 'desk' && route.screen === 'purchase' && Boolean(route.order) && route.workspace === state.workspace?.id);
   documents.context(state.phase === 'desk' ? state.workspace : null, state.generation, route.screen === 'documents' && route.workspace === state.workspace?.id ? route.order ?? null : null);
-  renderDocuments(documents, state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'documents' && route.workspace === state.workspace.id);
+  renderDocuments(documents, state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'documents' && Boolean(route.order) && route.workspace === state.workspace.id);
   extractionReview.context(documents.state.workspace, documents.state.generation, documents.state.order, documents.state.extraction);
   renderExtractionReview(extractionReview, state.phase === 'desk' && route.screen === 'documents' && route.workspace === state.workspace?.id);
   // Preserve the user's unsent search text during loading/render updates.
@@ -217,6 +226,15 @@ $('catalogue-file').addEventListener('change', event => catalogue.select(event.t
 $('catalogue-validate').addEventListener('click', () => catalogue.validate());
 $('catalogue-import').addEventListener('click', () => { if (catalogue.canWrite() && catalogue.state.report?.can_import && window.confirm('Create all validated catalogue products? The server rechecks every row and commits them together.')) catalogue.execute(); });
 $('catalogue-reconcile').addEventListener('click', () => catalogue.state.create ? catalogue.reconcileCreate() : catalogue.execute(true));
+$('queue-search-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (queue.state.screen) location.hash = queueRoute(queue.state.workspace.id, queue.state.screen, { query: $('queue-search').value.trim(), status: $('queue-status').value });
+});
+$('queue-refresh').addEventListener('click', () => queue.load());
+for (const [id, offset] of [['queue-previous', -1], ['queue-next', 1]]) $(id).addEventListener('click', () => {
+  const s = queue.state;
+  if (!$(id).disabled && s.screen) location.hash = queueRoute(s.workspace.id, s.screen, { query: s.query, status: s.status, page: s.page + offset });
+});
 $('purchase-open-form').addEventListener('submit', event => { event.preventDefault(); const id = $('purchase-open-id').value.trim().toLowerCase(); if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) && purchase.state.workspace) location.hash = purchaseRoute(purchase.state.workspace.id, id); else purchase.update({ message: 'Enter a valid purchase-order UUID.' }); });
 $('purchase-refresh').addEventListener('click', () => purchase.load());
 $('purchase-previous').addEventListener('click', () => purchase.load(purchase.state.page - 1));

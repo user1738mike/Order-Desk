@@ -108,6 +108,17 @@ export class OrdersApi {
   }
 }
 export function parseRoute(hash) {
+  const queue = /^#\/workspaces\/([^/]+)\/(purchase-orders|documents)\/\?(.+)$/.exec(hash);
+  if (queue) {
+    if (!UUID.test(queue[1])) return { screen: 'missing' };
+    const params = new URLSearchParams(queue[3]);
+    const allowed = ['q', 'status', 'page'];
+    if ([...params.keys()].some(key => !allowed.includes(key) || params.getAll(key).length !== 1)) return { screen: 'missing' };
+    const query = (params.get('q') ?? '').trim(), status = params.get('status') ?? '', rawPage = params.get('page') ?? '1';
+    const page = Number(rawPage);
+    if ([...query].length > 200 || /[\x00-\x1f]/.test(query) || !['', 'draft', 'pending_review', 'approved', 'rejected'].includes(status) || !/^[1-9][0-9]*$/.test(rawPage) || !Number.isSafeInteger(page)) return { screen: 'missing' };
+    return { screen: queue[2] === 'documents' ? 'documents' : 'purchase', workspace: queue[1].toLowerCase(), query, status, page };
+  }
   const purchase = /^#\/workspaces\/([^/]+)\/(?:purchase-orders\/|orders\/([^/]+)\/export\/)$/.exec(hash);
   if (purchase && UUID.test(purchase[1]) && (!purchase[2] || UUID.test(purchase[2]))) return { screen: 'purchase', workspace: purchase[1].toLowerCase(), order: purchase[2]?.toLowerCase() };
   const documentRoute = /^#\/workspaces\/([^/]+)\/(?:documents\/|orders\/([^/]+)\/documents\/)$/.exec(hash);

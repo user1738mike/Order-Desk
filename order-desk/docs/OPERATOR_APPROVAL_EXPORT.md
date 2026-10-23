@@ -1,7 +1,10 @@
 # Operator approval and generic CSV export
 
 The conversion result links to **Review approval and CSV export**. The workspace
-**Approval & export** tab also accepts a purchase-order UUID. These routes identify
+**Approval & export** tab now opens a searchable internal order queue with state
+filters and direct order/source links. UUID lookup is retained within a collapsed
+diagnostic disclosure. Queue search/page/state survive reload and browser history.
+These routes identify
 purchase orders, not source drafts. Viewers can inspect current order detail;
 active administrators/reviewers can use the existing protected review/export APIs.
 All permissions remain server-enforced. This increment changes no schema or backend
