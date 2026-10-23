@@ -4,8 +4,13 @@ The application continues to run and test through Docker Compose. VS Code
 uses a separate workspace-local Python environment for imports and editor
 linting, with the same locked dependencies as the backend image.
 
-The current `Billion1` workspace has Python 3.14.8 and uv 0.12.23 under
-`.tools`, and its editor environment is `.venv`. Both are excluded from Git.
+The historical `Billion1` editor installation used Python 3.14.8 and uv 0.12.23
+under `.tools`, with `.venv` as the editor environment. Both are excluded from Git.
+The current backend pins Python 3.14.9 and uv 0.13.5 following the 24 October
+CA-trust advisory review. Resync with that patched uv release and interpreter
+before downloading dependencies; an old `.venv` does not upgrade automatically.
+The serving image and full quality runner establish the locked runtime evidence;
+the editor's interpreter version is independent and must be checked locally.
 The workspace and repository `.vscode/settings.json` files select that
 environment, add the active backend to import paths, and run Ruff 0.16.10
 using `backend/pyproject.toml`. Ruff also formats Python on save using the
@@ -20,7 +25,7 @@ application. No archived code or generated migration was reformatted to satisfy
 different tools or an older Python parser.
 
 If imports or old lint messages remain cached, run **Developer: Reload Window**
-from the Command Palette. The Python status bar should show 3.14.8 and the
+from the Command Palette. After resync, the Python status bar should show 3.14.9 and the
 Ruff output should show the workspace `.venv/Scripts/ruff.exe` at 0.16.10.
 For an existing terminal that still uses system Python, run the environment's
 Python explicitly or open a new Python terminal after selecting it.

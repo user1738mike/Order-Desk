@@ -25,8 +25,9 @@ git status --short
 git remote -v
 ```
 
-The locked stack is Python 3.14.8, Django 5.2.18, DRF 3.18.1, Psycopg 3.3.6,
-uv 0.12.23 and Ruff 0.16.10; Compose pins PostgreSQL 18.6-bookworm.
+The locked stack is Python 3.14.9, Django 5.2.18, DRF 3.18.3, Psycopg 3.3.6,
+uv 0.13.5 and Ruff 0.16.10; Compose pins PostgreSQL 18.6-bookworm and the
+production-like proxy pins Nginx 1.30.6.
 `backend/pyproject.toml`, `backend/uv.lock`, `backend/.python-version` and
 `backend/Dockerfile` are authoritative. Keep the existing locks and $0 budget.
 Docker builds use `uv sync --locked`; no new dependency resolution is needed.
@@ -64,7 +65,12 @@ browser back navigation, document/approval links and explicit approval/CSV downl
 Run database fixture suites and the browser harness sequentially. The PDF tests
 must run in the Linux Compose image; native Windows does not establish the
 Linux resource-limit/seccomp evidence. Rebuild `api` after a dependency lock
-change; the text-PDF profile pins pypdf 6.20.0 without adding a remote service.
+change; the text-PDF profile pins pypdf 6.21.2 without adding a remote service.
+The 24 October security maintenance and current evidence are recorded in
+[the dated audit](AUDIT_2026-10-24.md). Existing images retain their installed
+versions until rebuilt; source lock updates alone do not patch running services.
+Use the unpublished full-gate mode in CI_QUALITY_GATES.md when the normal proxy
+ports are occupied. Licensed fonts now ship as hashed same-origin static assets.
 
 ## Initial local setup
 

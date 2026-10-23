@@ -5,9 +5,9 @@ description = "The modular Django backend for the Order Desk application."
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "Django==5.2.18",
-    "djangorestframework==3.18.1",
+    "djangorestframework==3.18.3",
     "psycopg[binary]==3.3.6",
-    "pypdf==6.20.0",
+    "pypdf==6.21.2",
     "gunicorn==26.2.0",
 ]
 
@@ -16,7 +16,7 @@ dev = ["ruff==0.16.10"]
 
 [tool.uv]
 package = false
-required-version = "==0.12.23"
+required-version = "==0.13.5"
 
 [tool.ruff]
 target-version = "py314"

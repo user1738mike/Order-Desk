@@ -15,7 +15,17 @@ To resume a prepared run before browser fixtures exist, supply
 not repeated. Once browser fixtures exist, a full gate run requires a fresh run
 so native test flushes cannot erase the acceptance evidence.
 
-The runner first checks loopback ports 8080 and 8443 and refuses a collision before
+For concurrent local installations, use `python scripts/quality_gates.py --unpublished`.
+This creates a fresh identity with `compose.unpublished.yaml`, resets proxy host
+port publications and allocates three disjoint run-owned /28 benchmark networks
+inside 198.18.0.0/15. Internal TLS, CSRF, production settings and browser checks
+still apply. Docker rejects overlapping allocations; select a fresh run if one
+collides. No existing network, daemon address pool or running project is changed.
+The mode is recorded at initialization; `--run` cannot change it. Recovery targets
+inherit the source mode. Performance/recovery helpers use the same recorded overlay.
+This mode verifies internal serving, not external host-port reachability.
+
+In the default published mode, the runner checks loopback ports 8080 and 8443 and refuses a collision before
 creating a run or starting builds/tests. Identify the existing owner; stop only
 an authorized synthetic proxy. The runner never stops another installation to
 claim its ports. A free-port preflight is a snapshot; a later competing listener

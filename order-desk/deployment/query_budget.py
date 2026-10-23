@@ -19,6 +19,7 @@ from apps.orders.views import (  # noqa: E402
     DraftOrderListCreateView,
     DraftOrderReadinessView,
     OrderDetailView,
+    OrderQueueView,
 )
 
 fixture = json.loads(Path("/run-state/fixture.json").read_text(encoding="utf-8"))
@@ -34,6 +35,7 @@ factory = APIRequestFactory()
 report = {}
 for name, view, order in (
     ("drafts", DraftOrderListCreateView, None),
+    ("order_queue", OrderQueueView, None),
     ("source_order", OrderDetailView, workflow["source"]),
     ("readiness", DraftOrderReadinessView, workflow["draft"]),
 ):
@@ -52,6 +54,15 @@ for name, view, order in (
         counts = [query["sql"] for query in queries if "COUNT(*)" in query["sql"]]
         if len(counts) != 1 or "orders_draftorderline" in counts[0]:
             raise RuntimeError("Draft pagination count must not scan line histories.")
+    if name == "order_queue":
+        if any(
+            table in query["sql"]
+            for query in queries
+            for table in ("orders_purchaseorderline", "orders_orderdocument")
+        ):
+            raise RuntimeError(
+                "Operational queue must not load nested lines/documents."
+            )
 print(
     json.dumps(
         {

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from deployment_browser import run_browser
 from deployment_restart import run_restart_checks
-from local_deploy import PRIVATE, ROOT, command, initialize
+from local_deploy import PRIVATE, ROOT, command, compose_prefix, initialize
 
 
 def require_available_ports(ports=(8080, 8443)):
@@ -29,9 +29,19 @@ def require_available_ports(ports=(8080, 8443)):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", type=Path)
+    parser.add_argument("--unpublished", action="store_true")
     arguments = parser.parse_args()
-    require_available_ports()
-    run = arguments.run.resolve() if arguments.run else initialize()
+    if arguments.run and arguments.unpublished:
+        parser.error(
+            "Select unpublished mode when creating a fresh run, without --run."
+        )
+    if not arguments.run and not arguments.unpublished:
+        require_available_ports()
+    run = (
+        arguments.run.resolve()
+        if arguments.run
+        else initialize(unpublished=arguments.unpublished)
+    )
     if run.parent != PRIVATE.resolve() or not run.name.startswith("deployment-"):
         parser.error("Use an initialized run in this checkout's ignored backend/var.")
     project = f"orderdesk-{run.name}"
@@ -41,16 +51,9 @@ def main():
         parser.error("Unexpected run identity.")
     if (run / "fixture.json").exists():
         parser.error("Browser fixtures already exist; use a fresh quality-gate run.")
-    prefix = [
-        "docker",
-        "compose",
-        "--project-name",
-        project,
-        "--env-file",
-        str(run / "run.env"),
-        "-f",
-        "compose.production-local.yaml",
-    ]
+    if arguments.run and not (run / "unpublished").is_file():
+        require_available_ports()
+    prefix = compose_prefix(run, project)
     helper = [sys.executable, "scripts/local_deploy.py", "--run", str(run)]
     try:
         command([*helper, "build"])

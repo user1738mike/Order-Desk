@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from threading import Event, Thread
 
-from local_deploy import ROOT
+from local_deploy import ROOT, compose_prefix
 from recovery_drill import owned_run
 
 
@@ -20,18 +20,7 @@ def main():
     if not (run / "session.json").exists():
         parser.error("Complete real browser acceptance first.")
     environment = {**os.environ, "DEPLOYMENT_RUN": str(run)}
-    prefix = [
-        "docker",
-        "compose",
-        "--project-name",
-        project,
-        "--env-file",
-        str(run / "run.env"),
-        "-f",
-        "compose.production-local.yaml",
-        "-f",
-        "compose.production-acceptance.yaml",
-    ]
+    prefix = [*compose_prefix(run, project), "-f", "compose.production-acceptance.yaml"]
 
     def execute(args, **kwargs):
         return subprocess.run(  # noqa: S603 -- fixed operations, owned project.

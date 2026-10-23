@@ -1,5 +1,16 @@
 # Project state
 
+## Security/release audit — 24 October 2026 (active)
+
+New directly supplied audit request supersedes the immediate implementation next
+step below without marking the distributor scope complete. Clean main arrival
+8f20426. Authoritative dated audit matrix: AUDIT_2026-10-24.md; original capability
+checklist remains ROADMAP.md. Current upstream PDF/DRF fixes identified; final
+scans/native/runtime/browser/recovery/performance evidence is pending. Existing
+8080/8443 synthetic serving project and unrelated applications must be preserved.
+Exact next action: add verified unpublished isolated gate mode, update only the
+affected locked dependencies, resolve external-font/CSP mismatch and execute gates.
+
 ## Distributor platform expansion — 23 October 2026 (active)
 
 Authoritative requirement checklist: ROADMAP.md, distributor workflow section.

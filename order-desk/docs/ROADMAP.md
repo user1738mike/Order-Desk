@@ -1,5 +1,11 @@
 # Roadmap
 
+Current security/release review: [24 October audit](AUDIT_2026-10-24.md).
+That evidence ledger does not mark the expanded distributor checklist complete.
+Missing functionality below remains required; no deferral or risk acceptance was
+approved by the audit. Follow its exact continuation checkpoint before resuming
+the next capability increment.
+
 ## Distributor workflow implementation checklist (23 October 2026)
 
 This is the authoritative checklist for the expanded distributor request.

@@ -107,6 +107,8 @@ try {
   await command('Runtime.enable'); await command('Page.enable'); await command('Audits.enable'); await command('Network.enable');
   await command('Page.navigate', { url: origin });
   await wait("document.getElementById('login-panel') && !document.getElementById('login-panel').hidden");
+  await evaluate('document.fonts.ready.then(()=>true)');
+  assert.equal(await evaluate("['Outfit','Nunito Sans'].every(family=>Array.from(document.fonts).some(face=>face.family.replaceAll(\"'\",'').replaceAll('\"','')===family && face.status==='loaded'))"), true, 'Local licensed fonts must load under the production CSP.');
   await checkPage('login');
   assert.equal(await evaluate('location.origin'), origin);
   await evaluate(`document.getElementById('email').value=${JSON.stringify(data.email)};document.getElementById('password').value=${JSON.stringify(data.password)};document.getElementById('login-form').requestSubmit()`);
@@ -291,6 +293,10 @@ try {
   const conversionEndDate = new Date().toISOString().slice(0,10);
   const replay = await request(detail + 'convert/', 'POST', {}); assert.equal(replay.status, 200); assert.equal(replay.data.id, converted.data.id);
   const order = base + `orders/${converted.data.id}/`;
+  await evaluate(`location.hash=${JSON.stringify(`#/workspaces/${data.a}/purchase-orders/?q=${encodeURIComponent(converted.data.purchase_order_number)}&status=draft`)}`);
+  await wait("!document.getElementById('order-queue').hidden && document.querySelectorAll('#queue-rows tr').length===1 && document.getElementById('queue-next').disabled");
+  await checkPage('internal order queue');
+  assert.equal(await evaluate("document.querySelector('#queue-rows a').getAttribute('href')"), `#/workspaces/${data.a}/orders/${converted.data.id}/export/`);
   await evaluate(`location.hash=${JSON.stringify(`#/workspaces/${data.a}/orders/${converted.data.id}/export/`)}`);
   await wait("!document.getElementById('purchase-submit').disabled");
   assert.match(await evaluate("document.getElementById('purchase-lines').textContent"), /0001.Mixed-Case.*1.2340/);

@@ -60,6 +60,21 @@ class SessionApiTests(TestCase):
         self.assertEqual(response.json(), {"detail": "CSRF verification failed."})
         self.assertIn("no-store", response["Cache-Control"])
 
+    def test_non_text_json_charset_is_a_private_client_error_before_auth(self):
+        token = self.csrf()
+        self.client.raise_request_exception = False
+        response = self.client.post(
+            self.login_url,
+            b'{"email":"member@example.test","password":"PRIVATE-AUDIT-MARKER"}',
+            content_type="application/json; charset=rot_13",
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("application/json", response["Content-Type"])
+        self.assertNotIn("PRIVATE-AUDIT-MARKER", response.content.decode())
+        self.assertEqual(LoginAttemptBucket.objects.count(), 0)
+        self.assertEqual(Session.objects.count(), 0)
+
     def test_bootstrap_is_public_sets_cookie_and_does_not_create_a_session(
         self,
     ) -> None:

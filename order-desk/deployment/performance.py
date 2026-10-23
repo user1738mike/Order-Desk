@@ -23,6 +23,7 @@ if workload:
 routes = {
     "catalogue": f"/api/v1/workspaces/{workspace}/catalog/items/",
     "drafts": f"/api/v1/workspaces/{workspace}/draft-orders/",
+    "order_queue": f"/api/v1/workspaces/{workspace}/orders/queue/",
     "readiness": (
         f"/api/v1/workspaces/{workspace}/draft-orders/{workflow['draft']}/readiness/"
     ),
@@ -56,7 +57,7 @@ seconds = time.perf_counter() - start
 latencies = [r[1] for r in results]
 errors = sum(r[2] != 200 for r in results)
 report = {
-    "profile": "synthetic-local-https-v1",
+    "profile": "synthetic-local-https-v2-with-order-queue",
     "fixture_counts": workload["counts"] if workload else "browser acceptance fixture",
     "targets_provisional": targets,
     "clients": 8,

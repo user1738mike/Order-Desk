@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from local_deploy import PRIVATE, ROOT, initialize
+from local_deploy import PRIVATE, ROOT, compose_prefix, initialize
 
 
 def owned_run(path):
@@ -38,7 +38,7 @@ def main():
     keys = PRIVATE / f"recovery-keys-{uuid4().hex}"
     destination.mkdir()
     keys.mkdir()
-    target = initialize()
+    target = initialize(unpublished=(source / "unpublished").is_file())
     target, target_project = owned_run(target)
     environment = {
         **os.environ,
@@ -48,16 +48,7 @@ def main():
     }
 
     def prefix(run, project, recovery=False, acceptance=False):
-        command = [
-            "docker",
-            "compose",
-            "--project-name",
-            project,
-            "--env-file",
-            str(run / "run.env"),
-            "-f",
-            "compose.production-local.yaml",
-        ]
+        command = compose_prefix(run, project)
         if recovery:
             command += ["-f", "compose.recovery.yaml"]
         if acceptance:

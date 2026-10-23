@@ -14,11 +14,15 @@ class WorkspaceShellTests(SimpleTestCase):
         self.assertIn("no-store", response["Cache-Control"])
         self.assertEqual(response["X-Frame-Options"], "DENY")
         self.assertNotIn("sessionid", response.cookies)
+        self.assertNotContains(response, "fonts.googleapis.com")
+        self.assertNotContains(response, "fonts.gstatic.com")
         for asset in (
             "desk/main.js",
             "desk/api.js",
             "desk/controller.js",
             "desk/desk.css",
+            "desk/fonts/outfit.ttf",
+            "desk/fonts/nunitosans.ttf",
         ):
             with self.subTest(asset=asset):
                 self.assertIsNotNone(finders.find(asset))

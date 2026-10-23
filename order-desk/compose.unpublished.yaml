@@ -1,0 +1,15 @@
+# Run-owned audit/acceptance topology: retain internal TLS, publish no host ports.
+# Compose !reset is intentional; merging an empty list would retain base ports.
+services:
+  proxy:
+    ports: !reset []
+networks:
+  application:
+    ipam:
+      config: [{subnet: "${AUDIT_APPLICATION_SUBNET:?Initialize a fresh unpublished run}"}]
+  database:
+    ipam:
+      config: [{subnet: "${AUDIT_DATABASE_SUBNET:?Initialize a fresh unpublished run}"}]
+  browser_edge:
+    ipam:
+      config: [{subnet: "${AUDIT_BROWSER_SUBNET:?Initialize a fresh unpublished run}"}]

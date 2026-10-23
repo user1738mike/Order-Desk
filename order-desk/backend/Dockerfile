@@ -1,6 +1,6 @@
 # Release pins are deliberate. Update them together with uv.lock and verification.
-FROM ghcr.io/astral-sh/uv:0.12.23 AS uv
-FROM python:3.14.8-slim-bookworm AS development
+FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
+FROM python:3.14.9-slim-bookworm AS development
 
 COPY --from=uv /uv /usr/local/bin/uv
 ENV PYTHONDONTWRITEBYTECODE=1 \

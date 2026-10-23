@@ -5,6 +5,7 @@ import json
 import os
 import secrets
 import subprocess
+from ipaddress import IPv4Address, IPv4Network
 from pathlib import Path
 from uuid import uuid4
 
@@ -40,13 +41,40 @@ def retire_stopped_run(prefix, project, run):
     command([*prefix, "down"])
 
 
-def initialize():
+def compose_prefix(run, project):
+    prefix = [
+        "docker",
+        "compose",
+        "--project-name",
+        project,
+        "--env-file",
+        str(run / "run.env"),
+        "-f",
+        "compose.production-local.yaml",
+    ]
+    if (run / "unpublished").is_file():
+        prefix += ["-f", "compose.unpublished.yaml"]
+    return prefix
+
+
+def initialize(*, unpublished=False):
     run = PRIVATE / f"deployment-{uuid4().hex}"
     # Windows inherits the checkout owner's ACL, as scripts/init_env.py does.
     # Python 3.14 mode=700 would bind the directory to a sandbox helper identity.
     run.mkdir(parents=True, mode=0o700 if os.name != "nt" else 0o777)
     with (run / "run.env").open("x", encoding="ascii", newline="\n") as stream:
         stream.write(f"DEPLOYMENT_ID={run.name}\n")
+        if unpublished:
+            # Small run-owned benchmark networks avoid Docker's exhausted /16
+            # default pools. Docker still rejects any overlapping allocation.
+            slot = int(run.name.removeprefix("deployment-")[:8], 16) % 2048
+            block = IPv4Network((int(IPv4Address("198.18.0.0")) + slot * 64, 26))
+            for name, subnet in zip(
+                ("APPLICATION", "DATABASE", "BROWSER"),
+                block.subnets(new_prefix=28),
+                strict=False,
+            ):
+                stream.write(f"AUDIT_{name}_SUBNET={subnet}\n")
         for key in (
             "POSTGRES_PASSWORD",
             "DATABASE_APP_PASSWORD",
@@ -58,6 +86,8 @@ def initialize():
     (run / "identity.json").write_text(
         json.dumps({"project": f"orderdesk-{run.name}"}), encoding="ascii"
     )
+    if unpublished:
+        (run / "unpublished").touch()
     print(run.relative_to(ROOT))
     return run
 
@@ -81,12 +111,15 @@ def main():
         ),
     )
     parser.add_argument("--run", type=Path)
+    parser.add_argument("--unpublished", action="store_true")
     args, arguments = parser.parse_known_args()
     if args.action != "compose" and arguments:
         parser.error("Unexpected command arguments.")
     if args.action == "init":
-        initialize()
+        initialize(unpublished=args.unpublished)
         return
+    if args.unpublished:
+        parser.error("Select unpublished mode only when initializing a new run.")
     if args.run is None:
         parser.error("Specify the run path printed by init.")
     run = args.run.resolve()
@@ -95,16 +128,7 @@ def main():
     identity = json.loads((run / "identity.json").read_text(encoding="ascii"))
     if identity != {"project": f"orderdesk-{run.name}"}:
         parser.error("Unexpected deployment identity.")
-    prefix = [
-        "docker",
-        "compose",
-        "--project-name",
-        identity["project"],
-        "--env-file",
-        str(run / "run.env"),
-        "-f",
-        "compose.production-local.yaml",
-    ]
+    prefix = compose_prefix(run, identity["project"])
     command([*prefix, "config", "--quiet"])
     if args.action == "build":
         command([*prefix, "build", "api", "proxy", "initialize"])

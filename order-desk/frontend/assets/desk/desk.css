@@ -1,4 +1,18 @@
-/* Order Desk: shared visual tokens. Google Fonts with local fallbacks. */
+/* Same-origin SIL OFL fonts; no external stylesheet or font requests. */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/outfit.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Nunito Sans';
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: swap;
+  src: url('./fonts/nunitosans.ttf') format('truetype');
+}
 :root {
   --paper: #eceeed;
   --surface: #ffffff;

@@ -1,5 +1,8 @@
 """Upgrade from the actual previous schema preserves unrelated legacy orders."""
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
@@ -10,6 +13,58 @@ from apps.organizations.services import create_organization
 
 
 class DraftConversionMigrationTests(TransactionTestCase):
+    def test_legacy_document_upgrade_preserves_ownership_bytes_and_review(self):
+        previous = [("orders", "0008_draft_conversion")]
+        executor = MigrationExecutor(connection)
+        current = executor.loader.graph.leaf_nodes()
+        executor.migrate(previous)
+        try:
+            apps = executor.loader.project_state(previous).apps
+            user = User.objects.create_user(email="legacy-document@example.test")
+            org = create_organization(actor=user, name="Synthetic document upgrade")
+            order = apps.get_model("orders", "PurchaseOrder").objects.create(
+                organization_id=org.pk,
+                created_by_id=user.pk,
+                customer_name="Legacy buyer",
+                purchase_order_number="LEGACY-DOC-001",
+            )
+            with TemporaryDirectory() as directory:
+                key = "orders/source_documents/legacy-original.pdf"
+                original = b"%PDF-1.7\nSynthetic historical source\n%%EOF\n"
+                source = Path(directory) / key
+                source.parent.mkdir(parents=True)
+                source.write_bytes(original)
+                document = apps.get_model("orders", "OrderDocument").objects.create(
+                    organization_id=org.pk,
+                    order_id=order.pk,
+                    uploaded_by_id=user.pk,
+                    file=key,
+                    original_name="legacy-original.pdf",
+                    content_type="application/pdf",
+                    size_bytes=len(original),
+                )
+                review = apps.get_model("orders", "OrderDocumentReview").objects.create(
+                    organization_id=org.pk,
+                    document_id=document.pk,
+                    created_by_id=user.pk,
+                )
+                MigrationExecutor(connection).migrate(current)
+                from apps.orders.models import OrderDocument, OrderDocumentReview
+
+                upgraded = OrderDocument.objects.get(pk=document.pk)
+                self.assertEqual(
+                    (upgraded.organization_id, upgraded.order_id), (org.pk, order.pk)
+                )
+                self.assertEqual(upgraded.file.name, key)
+                self.assertEqual(upgraded.source_sha256, "")
+                self.assertEqual(source.read_bytes(), original)
+                self.assertEqual(
+                    OrderDocumentReview.objects.get(pk=review.pk).document_id,
+                    document.pk,
+                )
+        finally:
+            MigrationExecutor(connection).migrate(current)
+
     def test_previous_schema_upgrade_preserves_legacy_data(self):
         previous = [("orders", "0007_draft_order_boundary")]
         target = [("orders", "0008_draft_conversion")]
