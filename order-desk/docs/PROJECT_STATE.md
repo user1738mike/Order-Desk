@@ -5,11 +5,24 @@
 New directly supplied audit request supersedes the immediate implementation next
 step below without marking the distributor scope complete. Clean main arrival
 8f20426. Authoritative dated audit matrix: AUDIT_2026-10-24.md; original capability
-checklist remains ROADMAP.md. Current upstream PDF/DRF fixes identified; final
-scans/native/runtime/browser/recovery/performance evidence is pending. Existing
+checklist remains ROADMAP.md. Targeted fixes: DRF 3.18.3, pypdf 6.21.2, Nginx
+1.30.6, uv 0.13.5 and Python 3.14.9 (upstream CA-trust advisory); local licensed
+fonts; unpublished run mode with disjoint small networks; charset/legacy-document
+upgrade regressions and production queue browser/query-budget coverage. Final
+native/runtime/browser/recovery/performance/image-scan evidence is pending. Existing
 8080/8443 synthetic serving project and unrelated applications must be preserved.
-Exact next action: add verified unpublished isolated gate mode, update only the
-affected locked dependencies, resolve external-font/CSP mismatch and execute gates.
+Current run: backend/var/deployment-00c8643512854d69821f1be87d929f07, unpublished.
+quality-patched-toolchain.log under backend/var/audit-2026-10-24 is authoritative.
+Native gate session 8142 is active; earlier bcd87c run was interrupted for patched
+toolchain and stopped, not a pass. Current script suite 40/0.795s, explicit-config
+host lint/format, host Node 117, pip-audit zero matches and triaged Bandit evidence
+are recorded in the dated report. Grype 0.121.0 advisory DB update session 14161
+is still active; it is not validated evidence yet. Private source snapshots and
+scanner reports remain ignored; no public deployment/remote change/spending.
+Exact next action: collect the final quality runner exit (including runtime role,
+real TLS browser and restart gates); then run release_measure.py --large-fixture
+and recovery_drill.py sequentially on this run, finish fresh image scans and final
+source/history scans, update audit matrix/verdicts and commit verified work on main.
 
 ## Distributor platform expansion — 23 October 2026 (active)
 

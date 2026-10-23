@@ -35,9 +35,12 @@ CMD ["python", "/deployment/serve.py"]
 
 FROM nginx:1.30.6 AS proxy
 COPY deployment/nginx.conf /etc/nginx/nginx.conf
+COPY deployment/redact-errors.awk /etc/nginx/redact-errors.awk
+COPY deployment/proxy-entrypoint.sh /usr/local/bin/orderdesk-proxy
+RUN chmod 0555 /usr/local/bin/orderdesk-proxy
 COPY --from=assets /static-output /srv/static
 USER 101:101
-ENTRYPOINT ["nginx"]
+ENTRYPOINT ["/usr/local/bin/orderdesk-proxy"]
 CMD ["-g", "daemon off;"]
 
 FROM python:3.14.9-slim-bookworm AS initialize
