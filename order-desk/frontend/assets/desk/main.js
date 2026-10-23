@@ -12,6 +12,16 @@ import { PurchaseController, purchaseRoute, renderPurchase } from './purchase.js
 import { CatalogueController, renderCatalogue } from './catalogue.js';
 
 const $ = id => document.getElementById(id);
+// Presentation preference only; no workspace or customer data is persisted.
+$('sidebar-toggle').addEventListener('click', () => {
+  const collapsed = $('desk').dataset.sidebar !== 'collapsed';
+  $('desk').dataset.sidebar = collapsed ? 'collapsed' : 'expanded';
+  const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  $('sidebar-toggle').setAttribute('aria-expanded', String(!collapsed));
+  $('sidebar-toggle').setAttribute('aria-label', label);
+  $('sidebar-toggle').title = label;
+  $('sidebar-toggle').querySelector('.sidebar-label').textContent = label;
+});
 const client = new ApiClient();
 let desk;
 let editor;

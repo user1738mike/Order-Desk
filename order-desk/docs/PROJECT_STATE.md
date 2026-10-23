@@ -1,5 +1,41 @@
 # Project state
 
+## Sidebar dashboard 22 October 2026 - verified UI increment
+
+User requested a restrained redesign inspired by the supplied React collapsible
+white/indigo sidebar. Worked on main, clean arrival e2372e5; no new branch.
+Changed only the shared workspace template/CSS and a ten-line presentation toggle
+in main.js. White full-height desktop rail (232px/72px), indigo active navigation
+and actions, pale workspace background and separated white work panels. Existing
+Outfit/Nunito Sans fonts, routes, IDs, form contracts and workflow logic retained.
+No React/motion/icon dependency, fabricated metrics or backend/schema changes.
+Collapsed labels retain accessible names/tooltips; button has an explicit name,
+expanded state and visible focus. Respects reduced motion. At narrow widths all
+four navigation labels remain visible and the desktop collapse control is hidden.
+Preference stays in memory; no browser storage/customer data persistence added.
+
+PASS: `npm test` from frontend,109 tests/2996.9366ms, zero skips; `node --check
+frontend/assets/desk/main.js`; `git diff --check`.
+PASS: `docker compose run --rm manage python manage.py test apps.web.tests
+--settings=config.settings.test --noinput`,2 tests/0.346s, exit0.
+PASS: isolated real Chromium screens harness,25 captures at1440/390/320px with
+no page overflow, keyboard collapse/expand, readable collapsed-mobile labels,
+keyboard skip/dialog focus, actual sign-in/error, catalogue/admin, draft/editor/
+blockers, conversion, submission, approval and export readiness. Actual Django
+and restricted orderdesk_app connection; guarded synthetic test_orderdesk fixtures
+and isolated temporary private storage. Zero browser exceptions. Visual review:
+expanded/collapsed catalogue,320px navigation, desktop draft/editor and approval.
+An initial presentation run exposed a small collapsed-rail horizontal scrollbar
+(fixed with an intentionally clipped horizontal rail and inset focus ring) and
+failed a harness keyboard assumption after the button was hidden on mobile.
+The harness now explicitly refocuses the visible control after returning desktop;
+final full25-capture run exit0, fixture cleanup completed, temporary server stopped.
+Evidence/scripts/screenshots: ignored backend/var/sidebar-redesign-2026-10-22/.
+No main-data seeding/reset/restore or export artifact generation. These UI checks
+do not replace the broader historical RLS/security/recovery release gates.
+Exact next action: refresh http://127.0.0.1:8000/ and sign in/select a workspace
+to review the redesigned dashboard. Changes are local on main, not committed/pushed.
+
 ## Reference layout 21 October 2026 ? implementation checkpoint
 
 User directly requested applying the three attached visual layouts without copying

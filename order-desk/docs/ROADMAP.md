@@ -26,6 +26,13 @@ upgrade, clean-install and local application evidence is in project state.
 
 ## Capability status
 
+22 October sidebar dashboard: white collapsible desktop rail, indigo active states,
+pale background and existing white work panels. Mobile navigation keeps visible
+labels. Native frontend/dependencies, routes and business workflows retained;
+only a small ephemeral toggle handler added.109 frontend/two shell tests and25
+isolated actual-backend Chromium captures passed, including conversion/approval.
+Details, failed-attempt correction and scope limits are in PROJECT_STATE.md.
+
 21 October reference-layout update: shared light gray navigation/frame, rounded
 order details, desktop readiness sidebar, inset summaries and soft dialogs applied
 without copying reference text or changing workflow logic. Frontend tests and

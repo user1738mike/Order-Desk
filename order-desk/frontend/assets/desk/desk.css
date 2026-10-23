@@ -457,3 +457,90 @@ footer { max-width: 1480px; margin: 0 auto; padding: 16px 8px 0; border: 0; }
   dialog { padding: 20px; }
   footer { padding: 16px; }
 }
+
+/* Sidebar dashboard: the existing workflow, framed by a compact navigation rail. */
+body:has(#workspace-tabs:not([hidden])) {
+  --sidebar-width: 232px;
+  --paper: #f4f5fb;
+  --surface-subtle: #f7f8fc;
+  --ink: #20263b;
+  --muted: #626b80;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef0ff;
+  --focus: #6366f1;
+  --line: #e5e7f0;
+  --control-border: #bbc1d2;
+  padding: 0;
+  background: var(--paper);
+}
+body:has(#workspace-tabs:not([hidden])) .topbar {
+  max-width: none; margin-left: var(--sidebar-width); min-height: 76px;
+  padding: 16px 32px; border: 0; border-bottom: 1px solid var(--line);
+  border-radius: 0; background: var(--surface);
+}
+body:has(#workspace-tabs:not([hidden])) .topbar .brand { display: none; }
+body:has(#workspace-tabs:not([hidden])) .environment { border: 0; padding: 0; color: var(--muted); }
+body:has(#workspace-tabs:not([hidden])) main { max-width: none; min-height: calc(100dvh - 134px); border: 0; border-radius: 0; overflow: visible; background: var(--paper); }
+#desk:has(#workspace-tabs:not([hidden])) { display: block; margin-left: var(--sidebar-width); padding: 32px; min-height: 0; }
+#desk > :not(#workspace-tabs) { margin-left: 0; }
+#workspace-tabs {
+  position: fixed; inset: 0 auto 0 0; z-index: 5; width: var(--sidebar-width);
+  height: 100dvh; min-height: 0; padding: 16px 12px 0; overflow-y: auto; overflow-x: hidden;
+  background: var(--surface); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 6px;
+}
+#workspace-tabs a { min-height: 44px; padding: 12px; color: var(--muted); font-weight: 600; gap: 12px; white-space: nowrap; }
+#workspace-tabs a svg { width: 20px; height: 20px; flex-shrink: 0; }
+#workspace-tabs a:hover { background: var(--surface-subtle); color: var(--ink); }
+#workspace-tabs a[aria-current="page"] { background: #eef0ff; color: #4338ca; box-shadow: none; }
+#workspace-tabs .sidebar-brand { padding: 4px 0 24px; gap: 10px; margin-bottom: 12px; border-bottom: 1px solid var(--line); border-radius: 0; color: var(--ink); }
+#workspace-tabs .sidebar-brand:hover { background: transparent; }
+.sidebar-logo { width: 40px; height: 40px; flex-shrink: 0; display: grid; place-items: center; background: var(--accent); color: white; border-radius: 10px; }
+#workspace-tabs .sidebar-logo svg { width: 24px; height: 24px; }
+.sidebar-brand strong { display: block; font: 500 1.125rem var(--font-heading); letter-spacing: -.35px; }
+.sidebar-brand small { display: block; margin-top: 3px; color: var(--muted); font-size: .6875rem; font-weight: 400; }
+#workspace-tabs .nav-caption { padding: 4px 12px 8px; font-size: .625rem; letter-spacing: .12em; }
+.sidebar-toggle { display: flex; align-items: center; flex-shrink: 0; gap: 12px; width: calc(100% + 24px); min-height: 64px; padding: 16px 24px; margin: auto -12px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: white; color: var(--muted); box-shadow: none; white-space: nowrap; }
+.sidebar-toggle svg { width: 20px; height: 20px; flex-shrink: 0; }
+.sidebar-toggle:focus-visible { outline-offset: -4px; background: var(--accent-soft); }
+.sidebar-toggle:hover:not(:disabled) { background: var(--surface-subtle); color: var(--ink); border-color: var(--line); }
+body:has(#workspace-tabs:not([hidden])) .page-heading { padding: 0 0 24px; border: 0; border-radius: 0; background: transparent; align-items: center; }
+body:has(#workspace-tabs:not([hidden])) .page-heading h1 { font-size: 2rem; margin: 8px 0; letter-spacing: -.7px; }
+body:has(#workspace-tabs:not([hidden])) .workspace-picker { width: 240px; min-width: 0; border: 0; padding: 0; }
+body:has(#workspace-tabs:not([hidden])) .workspace-picker select { border-color: var(--line); box-shadow: 0 2px 4px rgb(30 40 80 / 3%); }
+body:has(#workspace-tabs:not([hidden])) :is(#catalogue,#drafts-screen,#documents-screen,#purchase-screen,#choose-workspace) { border-radius: 14px; background: var(--surface); box-shadow: 0 3px 14px rgb(30 40 80 / 3%); }
+body:has(#workspace-tabs:not([hidden])) th { background: var(--surface-subtle); color: var(--muted); }
+body:has(#workspace-tabs:not([hidden])) .catalogue-summary { padding-inline: 0; }
+body:has(#workspace-tabs:not([hidden])) .conversion-panel { background: var(--accent-soft); border-color: #dfe2ff; }
+body:has(#workspace-tabs:not([hidden])) footer { max-width: none; margin-left: var(--sidebar-width); padding: 18px 32px; }
+@media (min-width: 761px) {
+  body:has(#desk[data-sidebar="collapsed"] #workspace-tabs:not([hidden])) { --sidebar-width: 72px; }
+  #desk[data-sidebar="collapsed"] #workspace-tabs .sidebar-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #desk[data-sidebar="collapsed"] .nav-caption { visibility: hidden; height: 16px; padding: 0; }
+  #desk[data-sidebar="collapsed"] #workspace-tabs a { justify-content: center; padding-inline: 0; }
+  #desk[data-sidebar="collapsed"] .sidebar-toggle { padding-inline: 24px; }
+  #desk[data-sidebar="collapsed"] .sidebar-toggle svg { transform: rotate(180deg); }
+}
+@media (prefers-reduced-motion: no-preference) and (min-width: 761px) {
+  #workspace-tabs { transition: width 180ms ease; }
+  body:has(#workspace-tabs:not([hidden])) :is(.topbar,#desk,footer) { transition: margin-left 180ms ease; }
+  #workspace-tabs a { transition: color 120ms ease, background-color 120ms ease; }
+}
+@media (max-width: 1000px) {
+  body:has(#workspace-tabs:not([hidden])) { --sidebar-width: 208px; }
+  #desk:has(#workspace-tabs:not([hidden])) { padding: 24px; }
+  body:has(#workspace-tabs:not([hidden])) .page-heading { align-items: stretch; }
+  body:has(#workspace-tabs:not([hidden])) .workspace-picker { width: 100%; }
+}
+@media (max-width: 760px) {
+  body:has(#workspace-tabs:not([hidden])) .topbar { margin-left: 0; padding: 12px 20px; min-height: 64px; }
+  #desk:has(#workspace-tabs:not([hidden])) { margin-left: 0; padding: 16px 12px; }
+  #workspace-tabs { position: static; width: 100%; height: auto; overflow: visible; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 12px; margin: 0 0 24px; border: 1px solid var(--line); border-radius: 12px; gap: 4px; }
+  #workspace-tabs .sidebar-brand { grid-column: 1 / -1; justify-content: start; padding: 0 0 12px; margin-bottom: 8px; }
+  #workspace-tabs a { padding: 10px 8px; gap: 8px; font-size: .75rem; white-space: normal; }
+  #workspace-tabs .nav-caption,.sidebar-toggle { display: none; }
+  body:has(#workspace-tabs:not([hidden])) .page-heading { padding-bottom: 20px; }
+  body:has(#workspace-tabs:not([hidden])) .page-heading h1 { font-size: 1.75rem; }
+  body:has(#workspace-tabs:not([hidden])) footer { margin-left: 0; padding: 20px 16px; }
+}
