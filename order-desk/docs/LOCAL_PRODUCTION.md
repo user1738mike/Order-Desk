@@ -138,6 +138,11 @@ request bodies, cookies, query strings and arbitrary headers are omitted. Correl
 the request ID with the proxy's safe status/latency log and the operator-visible
 failure. This retains failure visibility without copying database row details into
 central logs. It does not supply alert ownership or a general business audit trail.
+Proxy diagnostics now pass through the supervised allowlist redactor. It preserves
+severity and known failure categories while omitting raw URI/query/referrer/path
+text; request ID/status/timing remain in the separate access log. The proxy build
+tests live-stream redaction, and losing the redactor stops serving. Keep the
+configured entrypoint and TERM-to-graceful-QUIT lifecycle when adapting deployment.
 Development-only traceback logging is for the documented synthetic environment.
 Returning to an older image does not reverse schema changes. Preserve existing
 data and only use a schema-compatible image. Coordinated same-host encrypted backup/restore is verified in the current audit;
@@ -148,4 +153,4 @@ container or one HTTPS page alone does not prove the full workflow. External
 DNS/certificate issuance, host trust, capacity, alerting, off-site backup,
 malware scanning and launch obligations are unverified. Local $0 execution does
 not promise free public production capacity. Current local export UI/runtime and quality-runner evidence is in the dated audit;
-hosted CI remains explicitly deferred.
+hosted CI is not activated, and no approved deferral or hosted-gate claim follows.

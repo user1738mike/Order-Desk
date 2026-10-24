@@ -1,6 +1,6 @@
 # Project state
 
-## Security/release audit — 24 October 2026 (active)
+## Security/release audit — 24 October 2026 (release blocked; evidence recorded)
 
 New directly supplied audit request supersedes the immediate implementation next
 step below without marking the distributor scope complete. Clean main arrival
@@ -8,8 +8,9 @@ step below without marking the distributor scope complete. Clean main arrival
 checklist remains ROADMAP.md. Targeted fixes: DRF 3.18.3, pypdf 6.21.2, Nginx
 1.30.6, uv 0.13.5 and Python 3.14.9 (upstream CA-trust advisory); local licensed
 fonts; unpublished run mode with disjoint small networks; charset/legacy-document
-upgrade regressions and production queue browser/query-budget coverage. Final
-native/runtime/browser/recovery/performance/image-scan evidence is pending. Existing
+upgrade regressions and production queue browser/query-budget coverage. Native,
+runtime, browser, fresh restore and steady-state checks passed; image clearance,
+exhaustive UI acceptance and cold/post-load latency remain blocked/failed. Existing
 8080/8443 synthetic serving project and unrelated applications must be preserved.
 Current run: backend/var/deployment-00c8643512854d69821f1be87d929f07, unpublished.
 quality-patched-toolchain.log under backend/var/audit-2026-10-24 is authoritative.
@@ -20,27 +21,44 @@ all three roles, local fonts and queue, zero unexpected network/CSP/console fail
 Earlier bcd87c run was interrupted for patched toolchain and stopped, not a pass.
 Proxy query-string diagnostic leak was reproduced and fixed with supervised
 allowlist redaction, live-pipe build regression, failure/shutdown checks.
-Current script suite 40/0.795s, explicit-config lint/format, pip-audit zero matches
+Closing script suite 40/1.029s, repository-directory lint/format, pip-audit zero matches
 and triaged Bandit findings are recorded in the dated report. Grype DB prerequisite
 is BLOCKED: native-volume update hit 300s deadline and status confirmed no usable DB;
 partial cache retained, no suppressions/stale-age bypass. No image-clearance claim.
 Performance first burst FAILED: 240 requests/8 clients, P95 833.440ms (queue
 1490.006ms), zero errors/19.142rps on 5000 items/300 drafts/6000 lines/1001 orders.
 Subsequent SQL/full-request profiles were fast. Auto-analyze finished 01:15:39,
-after the first burst; fixture created 01:15:06. Preserve the cold post-load failure
-and distinguish steady-state verification; no app optimization claim yet.
-After the overnight pause, Docker Linux pipe was unavailable at 10:01. Normal
-`docker desktop start` requested; no reset/daemon/config/data change. Steady-state
-attempt failed before startup (performance-steady-state.log), not a latency result.
-Saved synthetic sessions expired during pause; refresh through real CSRF/TLS login
-before measurement/recovery. Offline final Gitleaks: 39 reachable commits and 391
-source files, both exit 0/no findings; source-manifest-final.json at code HEAD
-32f7806 records hashes. Private reports/cookies/keys remain ignored.
-Exact next action: wait for the normal Docker engine startup, refresh only the
-synthetic session, rerun identical performance with statistics timestamps and keep
-both results; execute fresh isolated recovery drill; validate main-target verifier
-refusals without writes; collect final identities/scans/verdicts and verified main
-commits. Missing distributor capabilities and public/pilot gates remain open.
+after the first burst; fixture created 01:15:06. Preserve that failed cold/post-load
+case. Identical source steady state passed P95 193.280ms/75.118rps/zero errors;
+restored workload passed P95 185.450ms/66.677rps/zero errors. No code/resources/
+thresholds changed to pass; Docker restart means no causal optimization claim.
+Query counts 11/11/10/12; actual restricted-role query plans retained. Resource
+repeats now retain UUID-named files after finding latest-only evidence overwrites.
+Fresh encrypted restore PASS 164.418s to deployment-2d739d7797c745b195cbee734ff828b9;
+four private files/667451 reported plaintext bytes, source/export/session and
+direct two-tenant RLS preserved; corrupt/incomplete/nonempty guards refused.
+Both RLS verifiers rejected DATABASE_NAME=orderdesk before fixtures in that isolated
+cluster (expected exit 1); actual development DB was never a fixture target.
+After the pause, normal Docker startup and real CSRF/TLS synthetic session refresh
+restored verification access. Existing development DB resumed with --no-recreate;
+API rebuilt to patched pins, runtime role restricted and loopback readiness healthy.
+No bootstrap/migration/fixture/reset/restore ran against development/main data.
+Last bounded Grype retry also failed to yield a DB; wall-clock duration outlived
+the driver's intended bound before eventual timeout/cleanup, cause unverified.
+No audit scanner remains running; evidence/volumes/caches retained privately.
+Code candidate c835ffd0bfc6b64483bb1a963c3ff54ba8a435da, tree
+2870ab5286845e10c0d22e9c0c61df5f5dabcd52; documentation closure follows. Original
+and restored images have identical backend/frontend/serving byte fingerprints.
+Closing package scan: nine dependencies/zero known matches; Bandit 110 LOW/six
+MEDIUM/zero HIGH, manually triaged. Source/history Gitleaks and SHA256 manifests
+are private audit evidence. No credible incident established; absence of breach
+is not proven. Separate local/security/operational/public/pilot verdicts in report.
+Exact next actions: validate a fresh image advisory DB and scan final images;
+investigate cold/post-load latency with approved workload assumptions; complete
+every-role/contrast/operator-admin UI checks; then resume ROADMAP upload-first
+ownership/provenance before dependent distributor features. Public/pilot readiness
+also needs actual ERP specification, representative orders/ground truth, operations,
+offsite recovery and abuse-policy evidence. No overall PASS or approved deferral.
 
 ## Distributor platform expansion — 23 October 2026 (active)
 

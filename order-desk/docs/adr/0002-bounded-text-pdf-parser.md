@@ -28,3 +28,9 @@ minimal environment, Linux rlimits/no-new-privileges/seccomp, bounded pipes and
 process-group timeout. It never gives the parser database credentials. Native
 Windows execution fails closed and uses Docker for development. No remote
 service, OCR, subprocess renderer or additional queue is permitted.
+
+Maintenance, 24 October 2026: the implementation now pins pypdf 6.21.2 to address
+upstream resource-exhaustion advisories. This retains the profile, provenance,
+human-verification boundary and sandbox above. Current dependency/native/runtime/
+browser evidence and release limitations are in ../AUDIT_2026-10-24.md; the original
+version cited earlier in this decision is historical, not an installation target.
