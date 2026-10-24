@@ -1,0 +1,163 @@
+{
+  "schema": "orderdesk-evaluation-v1",
+  "input_content_sha256": "a7c338c480c19e270c1bd021588202ad67509039797acae649b425e7d6ac2f9b",
+  "dataset_kind": "synthetic",
+  "customer_benefit_verdict": "BLOCKED: synthetic instrumentation only",
+  "independent_ground_truth_attested": false,
+  "cases": 8,
+  "supported_documents": 7,
+  "categories": {
+    "csv": 1,
+    "multi-line": 1,
+    "text-pdf": 1,
+    "fractional": 1,
+    "customer-ambiguity": 1,
+    "delivery-sites": 1,
+    "product-alias": 1,
+    "unit-conversion": 1,
+    "duplicate": 1,
+    "revision": 1,
+    "invalid": 1,
+    "incomplete": 1,
+    "unsupported": 1,
+    "scanned-pdf": 1,
+    "manual-fallback": 1
+  },
+  "observation_counts": {
+    "manual": 8,
+    "orderdesk": 8
+  },
+  "timing_methods": {
+    "synthetic_simulation": 16
+  },
+  "extraction_outcomes": {
+    "succeeded": 6,
+    "failed": 1,
+    "unsupported": 1
+  },
+  "extraction_success_denominator": 8,
+  "extraction_success_percent": "75.00",
+  "learning_order": {
+    "manual": 4,
+    "orderdesk": 4
+  },
+  "active_seconds_including_failed_observations": {
+    "manual": {
+      "n": 8,
+      "median": "705",
+      "min": "600",
+      "max": "810",
+      "p90": "789.00"
+    },
+    "orderdesk": {
+      "n": 8,
+      "median": "487.5",
+      "min": "330",
+      "max": "645",
+      "p90": "613.50"
+    }
+  },
+  "queue_wait_seconds": {
+    "n": 8,
+    "median": "120",
+    "min": "120",
+    "max": "120",
+    "p90": "120.00"
+  },
+  "elapsed_seconds": {
+    "n": 8,
+    "median": "667.5",
+    "min": "510",
+    "max": "825",
+    "p90": "793.50"
+  },
+  "post_export_seconds_included_in_active": {
+    "n": 8,
+    "median": "60",
+    "min": "60",
+    "max": "60",
+    "p90": "60.00"
+  },
+  "completed_orderdesk_tasks": 7,
+  "corrections": 2,
+  "corrections_per_observed_order": "0.25",
+  "corrections_per_observed_line": "0.1818181818181818181818181818",
+  "review_returns": 1,
+  "exceptions": 4,
+  "observed_orderdesk_orders": 8,
+  "observed_orderdesk_lines": 11,
+  "critical_fields": {
+    "customer.id": {
+      "scored": 4,
+      "errors": 0
+    },
+    "delivery.id": {
+      "scored": 4,
+      "errors": 0
+    },
+    "lines.1.quantity": {
+      "scored": 4,
+      "errors": 0
+    },
+    "lines.1.sku": {
+      "scored": 4,
+      "errors": 0
+    },
+    "lines.1.unit": {
+      "scored": 4,
+      "errors": 1
+    },
+    "lines.2.quantity": {
+      "scored": 2,
+      "errors": 0
+    },
+    "lines.2.sku": {
+      "scored": 2,
+      "errors": 0
+    },
+    "lines.2.unit": {
+      "scored": 2,
+      "errors": 0
+    }
+  },
+  "processing_decisions": {
+    "processing.mode": {
+      "scored": 8,
+      "errors": 0
+    }
+  },
+  "critical_correctness_percent": "96.15384615384615384615384615",
+  "destination_outcomes": {
+    "unknown": 4,
+    "not_attempted": 4
+  },
+  "destination_rejection_denominator": 0,
+  "destination_reported_rejection_percent": null,
+  "paired_minutes_saved": {
+    "n": 7,
+    "median": "3.75",
+    "min": "2.75",
+    "max": "4.5",
+    "p90": "4.3500"
+  },
+  "savings_exclusions": [
+    {
+      "case_id": "invalid-quantity",
+      "reason": "missing observation or incomplete equivalent task"
+    }
+  ],
+  "complete_cohort_comparison": false,
+  "cohort_active_time_reduction_percent": null,
+  "eligible_monthly_order_volume": {
+    "value": "1000",
+    "basis": "assumed",
+    "reference": "Fabricated instrumentation example only"
+  },
+  "monthly_capacity_hours": null,
+  "value_interpretation": "Released capacity; cash expenditure reduction is not established.",
+  "targets": {
+    "handling_reduction_percent": "50",
+    "critical_correctness_percent": "99",
+    "customer_targets_met": null
+  }
+}

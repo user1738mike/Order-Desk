@@ -1,0 +1,626 @@
+{
+  "schema": "orderdesk-evaluation-v1",
+  "dataset_kind": "synthetic",
+  "independently_reviewed": false,
+  "provenance": "Fabricated case definitions and durations; not extracted documents, observed staff work or independent customer ground truth.",
+  "cases": [
+    {
+      "id": "csv-multiline",
+      "supported": true,
+      "line_count": 2,
+      "categories": [
+        "csv",
+        "multi-line"
+      ],
+      "first_arm": "manual",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "complete",
+          "critical": false
+        },
+        "customer.id": {
+          "kind": "text",
+          "value": "C0001"
+        },
+        "delivery.id": {
+          "kind": "text",
+          "value": "SITE02"
+        },
+        "lines.1.sku": {
+          "kind": "text",
+          "value": "00042"
+        },
+        "lines.1.quantity": {
+          "kind": "decimal",
+          "value": "1.250"
+        },
+        "lines.1.unit": {
+          "kind": "text",
+          "value": "each"
+        },
+        "lines.2.sku": {
+          "kind": "text",
+          "value": "00007"
+        },
+        "lines.2.quantity": {
+          "kind": "decimal",
+          "value": "2.000"
+        },
+        "lines.2.unit": {
+          "kind": "text",
+          "value": "case"
+        }
+      }
+    },
+    {
+      "id": "text-pdf",
+      "supported": true,
+      "line_count": 2,
+      "categories": [
+        "text-pdf",
+        "fractional"
+      ],
+      "first_arm": "orderdesk",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "complete",
+          "critical": false
+        },
+        "customer.id": {
+          "kind": "text",
+          "value": "C0001"
+        },
+        "delivery.id": {
+          "kind": "text",
+          "value": "SITE02"
+        },
+        "lines.1.sku": {
+          "kind": "text",
+          "value": "00042"
+        },
+        "lines.1.quantity": {
+          "kind": "decimal",
+          "value": "1.250"
+        },
+        "lines.1.unit": {
+          "kind": "text",
+          "value": "each"
+        },
+        "lines.2.sku": {
+          "kind": "text",
+          "value": "00007"
+        },
+        "lines.2.quantity": {
+          "kind": "decimal",
+          "value": "2.000"
+        },
+        "lines.2.unit": {
+          "kind": "text",
+          "value": "case"
+        }
+      }
+    },
+    {
+      "id": "ambiguous-account",
+      "supported": true,
+      "line_count": 1,
+      "categories": [
+        "customer-ambiguity",
+        "delivery-sites"
+      ],
+      "first_arm": "manual",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "manual",
+          "critical": false
+        }
+      }
+    },
+    {
+      "id": "case-conversion",
+      "supported": true,
+      "line_count": 1,
+      "categories": [
+        "product-alias",
+        "unit-conversion"
+      ],
+      "first_arm": "orderdesk",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "complete",
+          "critical": false
+        },
+        "customer.id": {
+          "kind": "text",
+          "value": "C0001"
+        },
+        "delivery.id": {
+          "kind": "text",
+          "value": "SITE02"
+        },
+        "lines.1.sku": {
+          "kind": "text",
+          "value": "00042"
+        },
+        "lines.1.quantity": {
+          "kind": "decimal",
+          "value": "1.250"
+        },
+        "lines.1.unit": {
+          "kind": "text",
+          "value": "each"
+        }
+      }
+    },
+    {
+      "id": "duplicate-request",
+      "supported": true,
+      "line_count": 1,
+      "categories": [
+        "duplicate"
+      ],
+      "first_arm": "manual",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "manual",
+          "critical": false
+        }
+      }
+    },
+    {
+      "id": "revised-request",
+      "supported": true,
+      "line_count": 1,
+      "categories": [
+        "revision"
+      ],
+      "first_arm": "orderdesk",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "complete",
+          "critical": false
+        },
+        "customer.id": {
+          "kind": "text",
+          "value": "C0001"
+        },
+        "delivery.id": {
+          "kind": "text",
+          "value": "SITE02"
+        },
+        "lines.1.sku": {
+          "kind": "text",
+          "value": "00042"
+        },
+        "lines.1.quantity": {
+          "kind": "decimal",
+          "value": "1.250"
+        },
+        "lines.1.unit": {
+          "kind": "text",
+          "value": "each"
+        }
+      }
+    },
+    {
+      "id": "invalid-quantity",
+      "supported": true,
+      "line_count": 1,
+      "categories": [
+        "invalid",
+        "incomplete"
+      ],
+      "first_arm": "manual",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "return",
+          "critical": false
+        }
+      }
+    },
+    {
+      "id": "scanned-pdf",
+      "supported": false,
+      "line_count": 2,
+      "categories": [
+        "unsupported",
+        "scanned-pdf",
+        "manual-fallback"
+      ],
+      "first_arm": "orderdesk",
+      "expected": {
+        "processing.mode": {
+          "kind": "text",
+          "value": "manual",
+          "critical": false
+        }
+      }
+    }
+  ],
+  "observations": [
+    {
+      "case_id": "csv-multiline",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/csv-multiline/manual",
+      "active_seconds": "600",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "780",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "each",
+        "lines.2.sku": "00007",
+        "lines.2.quantity": "2.000",
+        "lines.2.unit": "case"
+      }
+    },
+    {
+      "case_id": "csv-multiline",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/csv-multiline/orderdesk",
+      "active_seconds": "330",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "510",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "each",
+        "lines.2.sku": "00007",
+        "lines.2.quantity": "2.000",
+        "lines.2.unit": "case"
+      }
+    },
+    {
+      "case_id": "text-pdf",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/text-pdf/manual",
+      "active_seconds": "630",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "810",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "each",
+        "lines.2.sku": "00007",
+        "lines.2.quantity": "2.000",
+        "lines.2.unit": "case"
+      }
+    },
+    {
+      "case_id": "text-pdf",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/text-pdf/orderdesk",
+      "active_seconds": "375",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "555",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "each",
+        "lines.2.sku": "00007",
+        "lines.2.quantity": "2.000",
+        "lines.2.unit": "case"
+      }
+    },
+    {
+      "case_id": "ambiguous-account",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/ambiguous-account/manual",
+      "active_seconds": "660",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "840",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "manual"
+      }
+    },
+    {
+      "case_id": "ambiguous-account",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/ambiguous-account/orderdesk",
+      "active_seconds": "420",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "600",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "manual"
+      }
+    },
+    {
+      "case_id": "case-conversion",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/case-conversion/manual",
+      "active_seconds": "690",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "870",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 1,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "each"
+      }
+    },
+    {
+      "case_id": "case-conversion",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/case-conversion/orderdesk",
+      "active_seconds": "465",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "645",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 1,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "case"
+      }
+    },
+    {
+      "case_id": "duplicate-request",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/duplicate-request/manual",
+      "active_seconds": "720",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "900",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "manual"
+      }
+    },
+    {
+      "case_id": "duplicate-request",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/duplicate-request/orderdesk",
+      "active_seconds": "510",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "690",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "manual"
+      }
+    },
+    {
+      "case_id": "revised-request",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/revised-request/manual",
+      "active_seconds": "750",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "930",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 1,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "each"
+      }
+    },
+    {
+      "case_id": "revised-request",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/revised-request/orderdesk",
+      "active_seconds": "555",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "735",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 1,
+      "review_returns": 0,
+      "exceptions": 0,
+      "destination_outcome": "unknown",
+      "extraction_outcome": "succeeded",
+      "actual": {
+        "processing.mode": "complete",
+        "customer.id": "C0001",
+        "delivery.id": "SITE02",
+        "lines.1.sku": "00042",
+        "lines.1.quantity": "1.250",
+        "lines.1.unit": "each"
+      }
+    },
+    {
+      "case_id": "invalid-quantity",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/invalid-quantity/manual",
+      "active_seconds": "780",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "960",
+      "post_export_seconds": "60",
+      "completed": false,
+      "corrections": 0,
+      "review_returns": 1,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "failed",
+      "actual": {
+        "processing.mode": "return"
+      }
+    },
+    {
+      "case_id": "invalid-quantity",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/invalid-quantity/orderdesk",
+      "active_seconds": "600",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "780",
+      "post_export_seconds": "60",
+      "completed": false,
+      "corrections": 0,
+      "review_returns": 1,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "failed",
+      "actual": {
+        "processing.mode": "return"
+      }
+    },
+    {
+      "case_id": "scanned-pdf",
+      "arm": "manual",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/scanned-pdf/manual",
+      "active_seconds": "810",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "990",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "unsupported",
+      "actual": {
+        "processing.mode": "manual"
+      }
+    },
+    {
+      "case_id": "scanned-pdf",
+      "arm": "orderdesk",
+      "timing_method": "synthetic_simulation",
+      "observer": "fabricated-simulator",
+      "session_reference": "simulation/scanned-pdf/orderdesk",
+      "active_seconds": "645",
+      "queue_wait_seconds": "120",
+      "elapsed_seconds": "825",
+      "post_export_seconds": "60",
+      "completed": true,
+      "corrections": 0,
+      "review_returns": 0,
+      "exceptions": 1,
+      "destination_outcome": "not_attempted",
+      "extraction_outcome": "unsupported",
+      "actual": {
+        "processing.mode": "manual"
+      }
+    }
+  ],
+  "eligible_monthly_order_volume": {
+    "value": "1000",
+    "basis": "assumed",
+    "reference": "Fabricated instrumentation example only"
+  }
+}
