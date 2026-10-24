@@ -1,6 +1,6 @@
 """Explicit approved product/unit references and immutable human decisions.
 
-Scaffold only until this app is registered, migrated and verified.
+Requested quantities remain on draft lines; normalized values are separate decisions.
 """
 
 import uuid
@@ -296,6 +296,11 @@ class DraftLineUnitDecision(models.Model):
                     request_hash__regex=SHA, reference_revision__regex=SHA
                 ),
                 name="unit_decision_hashes_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(customer__isnull=True, customer_decision__isnull=True)
+                | models.Q(customer__isnull=False, customer_decision__isnull=False),
+                name="unit_customer_identity_complete",
             ),
             models.CheckConstraint(
                 condition=models.Q(alias__isnull=True)

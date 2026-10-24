@@ -173,6 +173,10 @@ class DraftCustomerDecision(models.Model):
                 name="customer_decision_identity",
             ),
             models.UniqueConstraint(
+                fields=["id", "organization", "draft", "customer"],
+                name="customer_decision_account_identity",
+            ),
+            models.UniqueConstraint(
                 fields=["organization", "operation_key"],
                 name="customer_decision_operation",
             ),

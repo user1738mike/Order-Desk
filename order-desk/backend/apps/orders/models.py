@@ -441,6 +441,10 @@ class PurchaseOrderLine(models.Model):
                 fields=("order", "line_number"),
                 name="purchaseorderline_order_number_unique",
             ),
+            models.UniqueConstraint(
+                fields=("id", "organization", "order"),
+                name="orderline_id_org_order_unique",
+            ),
         ]
 
     def __str__(self) -> str:
