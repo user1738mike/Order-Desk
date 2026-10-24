@@ -77,13 +77,18 @@ def main():
         document_id=document_id,
         data=lambda: link_payload,
     )
-    job_id, _ = enqueue_extraction(
-        actor=actor,
-        organization_id=workspace,
-        order_id=None,
-        document_id=document_id,
-        materialize=lambda job: job.pk,
-    )
+    if "apply" in plan:
+        # A later customer recovery step may have converted the linked draft.
+        # Reuse the saved job/receipt instead of requesting new processing.
+        job_id = UUID(plan["apply"]["job_id"])
+    else:
+        job_id, _ = enqueue_extraction(
+            actor=actor,
+            organization_id=workspace,
+            order_id=None,
+            document_id=document_id,
+            materialize=lambda job: job.pk,
+        )
     if (
         process_extraction(actor=actor, organization_id=workspace, job_id=job_id)
         != "succeeded"

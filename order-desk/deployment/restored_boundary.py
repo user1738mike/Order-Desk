@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import django
+from psycopg import sql
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local_production")
 sys.path.insert(0, "/app")
@@ -42,6 +43,25 @@ with connection.cursor() as cursor:
     require(cursor.fetchone()[0] == 0, "Unscoped restored rows exposed.")
     cursor.execute("SELECT count(*) FROM orders_orderdocument")
     require(cursor.fetchone()[0] == 0, "Unscoped restored sources exposed.")
+    state = json.loads(Path("/run-state/workflow.json").read_text(encoding="utf-8"))
+    if state.get("customer"):
+        from apps.customers.tests.runtime_boundary import audit
+
+        audit(cursor)
+        for table in (
+            "customers_customeraccount",
+            "customers_customerlocation",
+            "customers_customeralias",
+            "customers_draftcustomerdecision",
+            "customers_ordercustomersnapshot",
+            "customers_referencewritereceipt",
+        ):
+            cursor.execute(
+                sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(table))
+            )
+            require(
+                cursor.fetchone()[0] == 0, "Unscoped restored customer data exposed."
+            )
 
 for workspace, foreign in ((fixture["a"], fixture["b"]), (fixture["b"], fixture["a"])):
     with transaction.atomic(), connection.cursor() as cursor:
@@ -80,6 +100,37 @@ for workspace, foreign in ((fixture["a"], fixture["b"]), (fixture["b"], fixture[
             require(
                 cursor.fetchall() == expected,
                 "Restored incoming link tenant boundary failed.",
+            )
+        if customer := state.get("customer"):
+            for table, key in (
+                ("customers_customeraccount", "account_id"),
+                ("customers_customerlocation", "site_id"),
+                ("customers_customeralias", "alias_id"),
+                ("customers_draftcustomerdecision", "decision_id"),
+                ("customers_ordercustomersnapshot", "snapshot_id"),
+            ):
+                cursor.execute(
+                    sql.SQL("SELECT id::text FROM {} WHERE id=%s").format(
+                        sql.Identifier(table)
+                    ),
+                    [customer[key]],
+                )
+                require(
+                    cursor.fetchall()
+                    == (
+                        [(customer[key],)] if workspace == customer["workspace"] else []
+                    ),
+                    "Restored customer record tenant boundary failed.",
+                )
+            cursor.execute(
+                "SELECT organization_id::text FROM customers_referencewritereceipt "
+                "WHERE operation_key=%s",
+                [customer["receipt_key"]],
+            )
+            require(
+                cursor.fetchall()
+                == ([(workspace,)] if workspace == customer["workspace"] else []),
+                "Restored customer receipt tenant boundary failed.",
             )
 print(
     "PASS: restored two-tenant direct restricted-role RLS, "

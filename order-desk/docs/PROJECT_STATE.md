@@ -155,16 +155,35 @@ results retained. Latest host repeat customer-browser-verified.log also exited0;
 viewport-only capture repeat is running to replace full-page fixed-sidebar capture
 distortion. Actual bounded1365px customer viewport inspected with correct sidebar;
 the earlier full-page capture is not accepted visual evidence.
-Script suite50 PASS/0.566s (customer-scripts.log). Customer-specific restore
-seed/probes are now running against this owned source, not yet verified. No customer migration applied to
-development/main; only isolated test_orderdesk has0001-0003. Read-only development
-preflight:0 orders/0 drafts/0 documents, no customer migrations. No external
-specification or real customer identity invented.
+Script suite50 PASS/0.566s (customer-scripts.log). Final host viewport capture run
+customer-browser-viewport.log exited0, complete regressions PASS; actual bounded
+1365/390/320 captures replace distorted full-page captures. Inspected1365/320.
+Customer application committed/pushed on main75979a1. Read-only development
+preflight found0 orders/0 drafts/0 documents and no customer migrations; applied
+only additive customer0001-0003 (customer-development-migration.log), readiness
+ok. No bootstrap, fixtures, resets, restore, account changes or original rewrites.
+Local browser open request queued by the app; URL http://127.0.0.1:8000/.
 
-Exact next action: finish the customer-specific encrypted recovery drill and
-viewport capture repeat, apply only tested additive customer migrations to the
-empty development schema, commit verified increments on main, then implement
-controlled product units/aliases and the processor/team permission matrix.
+Customer-specific recovery now PASS (customer-recovery.log, exit0):
+`python scripts/verify_incoming_recovery.py --source
+backend/var/deployment-2666405089b643409c07da8a9fda1401 --customer`. Twice-seeded
+runtime reference/account/site/alias receipts, selected-site confirmation and
+converted snapshot; encrypted backup backup-efdc907a095647c096cef9cafa733ab7,
+5 files/343311 reported plaintext bytes. Fresh target
+deployment-7e1514e7a0644a568f3edffc20e0b4d4;209.138s. Trusted TLS/session proof
+retained incoming original/link/job/application and identical replay, customer
+receipt/alias/site, one confirmation decision, exact frozen payload and foreign404.
+Restored direct orderdesk_app audit retained six customer table policies/owners/
+grants, unscoped denial and both tenant scopes for references/decision/snapshot/
+receipt. Corrupt/incomplete/authenticated-chunk and nonempty guards refused.
+Owned source/target stopped; volumes/private evidence retained. Same-host keys
+remain separate mounts, not offsite proof or an agreed customer RTO. No main
+restore, external specification or real customer identity invented.
+
+Exact next action: commit the verified customer recovery helper/evidence, then
+implement processor/team permissions and controlled product units/aliases with
+fresh application-role/concurrency and browser checks. Reference-data admin rights
+and actual order approval must remain distinct from routine processing.
 Profile/handoff records, complete support/role matrix and customer evidence remain
 required; previous image-advisory clearance/cold latency blockers remain open.
 

@@ -105,6 +105,66 @@ def main():
             "PASS: incoming original/link/job/application and identical-operation "
             "replay survived recovery; foreign download denied."
         )
+        if customer := state.get("customer"):
+            customer_base = f"/api/v1/workspaces/{customer['workspace']}/customers/"
+            for suffix, expected in (
+                (customer["account_id"] + "/", "000007"),
+                (
+                    customer["account_id"] + "/locations/",
+                    "000020",
+                ),
+            ):
+                status, _, content = request(customer_base + suffix, headers=headers)
+                assert status == 200 and expected.encode() in content
+            status, _, content = request(
+                customer_base + "resolve/?identifier=Recovery.Exact", headers=headers
+            )
+            assert status == 200
+            matches = json.loads(content)["matches"]
+            assert len(matches) == 1
+            assert matches[0]["account"]["id"] == customer["account_id"]
+            status, _, content = request(
+                customer_base + "operations/" + customer["receipt_key"] + "/",
+                headers=headers,
+            )
+            assert status == 200
+            assert json.loads(content)["response"]["id"] == customer["account_id"]
+            confirmation_url = (
+                customer_base + "drafts/" + customer["draft_id"] + "/confirmation/"
+            )
+            status, _, content = request(
+                confirmation_url,
+                headers=mutation_headers,
+                method="POST",
+                body=json.dumps(customer["confirmation"]).encode(),
+            )
+            assert (
+                status == 200 and json.loads(content)["id"] == customer["decision_id"]
+            )
+            status, _, content = request(confirmation_url + "history/", headers=headers)
+            assert status == 200 and json.loads(content)["count"] == 1
+            snapshot_url = (
+                customer_base + "orders/" + customer["order_id"] + "/snapshot/"
+            )
+            status, _, content = request(snapshot_url, headers=headers)
+            assert status == 200
+            frozen = json.loads(content)["snapshot"]
+            assert frozen["id"] == customer["snapshot_id"]
+            assert frozen["payload"] == customer["payload"]
+            assert frozen["payload"]["location"]["id"] == customer["site_id"]
+            assert (
+                request(
+                    snapshot_url.replace(
+                        customer["workspace"], incoming["foreign_workspace"]
+                    ),
+                    headers=headers,
+                )[0]
+                == 404
+            )
+            print(
+                "PASS: customer account/site/alias and durable reference receipt, "
+                "identical confirmation replay and frozen snapshot survived recovery."
+            )
     print(
         "PASS: persisted secure session, private source/export digests and "
         "immutable extraction result survived restart/recreation."

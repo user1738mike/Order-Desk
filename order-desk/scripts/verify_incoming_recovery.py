@@ -13,6 +13,7 @@ from recovery_drill import owned_run
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--customer", action="store_true")
     arguments = parser.parse_args()
     source, project = owned_run(arguments.source)
     for name in ("fixture.json", "workflow.json", "session.json", "prepared"):
@@ -32,18 +33,22 @@ def main():
         )
         # Repeating the seed verifies its receipts instead of creating a second
         # source/draft/application after an interrupted fixture command.
-        for _ in range(2):
-            execute(
-                [
-                    *acceptance,
-                    "run",
-                    "--rm",
-                    *mounts,
-                    "extract",
-                    "python",
-                    "/checks/incoming_recovery.py",
-                ]
-            )
+        seeders = ["incoming_recovery.py"]
+        if arguments.customer:
+            seeders.append("customer_recovery.py")
+        for seeder in seeders:
+            for _ in range(2):
+                execute(
+                    [
+                        *acceptance,
+                        "run",
+                        "--rm",
+                        *mounts,
+                        "extract",
+                        "python",
+                        "/checks/" + seeder,
+                    ]
+                )
         execute(
             [
                 *acceptance,
