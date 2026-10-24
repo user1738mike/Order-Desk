@@ -1,5 +1,13 @@
 # Roadmap
 
+Active six-improvement request (24 October): [implementation and acceptance
+matrix](WORKFLOW_IMPLEMENTATION.md), with actual commands/outcomes in
+PROJECT_STATE.md. Upload-first source lifecycle is implemented with migration0015,
+focused native/runtime and actual-backend browser evidence; full fresh-candidate
+gates are running. The generic customer/unit/exception/profile capabilities below
+remain required. [Evaluation tooling/protocol](evaluation/README.md) verifies
+synthetic arithmetic only; representative customer outcomes remain blocked.
+
 Current security/release review: [24 October audit](AUDIT_2026-10-24.md).
 That evidence ledger does not mark the expanded distributor checklist complete.
 Missing functionality below remains required; no deferral or risk acceptance was
@@ -17,7 +25,7 @@ BLOCKED, APPROVED DEFERRED. No deferrals have been approved for this request.
 | --- | --- |
 | 1 Baseline | VERIFIED: clean main at 890cf55; stack/spec/source inspected; current execution evidence in state ledger. |
 | 2 Workflow terminology | MISSING: neutral UI labels agreed below; full correction/handoff state design pending. |
-| 3 Upload-first inbox | MISSING: documents require PurchaseOrder; migrate ownership with composite tenant constraints, historical links and crash recovery before enabling unowned intake. |
+| 3 Upload-first inbox | Implemented: nullable historical order plus constrained immutable incoming source/draft link, request receipts, private inbox/download, duplicate warnings, linked extraction/review/application. Focused native/runtime and browser pass; final fresh gates/evidence in PROJECT_STATE.md. |
 | 4 Operational navigation | VERIFIED for scalar searchable order queue/direct source-draft/documents/approval links, URL filters/reload/history and 50-row pages; received date, assignment and draft search remain MISSING. Evidence in state ledger. |
 | 5 Workspace UI | DEFECTIVE: existing screens/session cancellation present; six coherent queues and source/draft workspace remain incomplete. |
 | 6 Team processing | MISSING: admin/reviewer/viewer only; processor, assignment, reasoned returns and permission matrix pending. |

@@ -24,6 +24,7 @@ const pending = new Map();
 const exceptions = [];
 let dropConversionResponse = false;
 let dropApplicationResponse = false;
+let dropIncomingResponse = false;
 let submittedApplication;
 let acceptNextDialog = false;
 // Refuse existing fixtures or occupied ports before entering owned cleanup.
@@ -105,9 +106,9 @@ try {
       command('Page.handleJavaScriptDialog', { accept }).catch(error => exceptions.push(error.message));
     }
     if (reply.method === 'Fetch.requestPaused') {
-      if ((dropConversionResponse || dropApplicationResponse) && reply.params.responseStatusCode === 201) {
+      if ((dropConversionResponse || dropApplicationResponse || dropIncomingResponse) && reply.params.responseStatusCode === 201) {
         if (dropApplicationResponse) submittedApplication = JSON.parse(reply.params.request.postData);
-        dropConversionResponse = false; dropApplicationResponse = false;
+        dropConversionResponse = false; dropApplicationResponse = false; dropIncomingResponse = false;
         command('Fetch.failRequest', { requestId: reply.params.requestId, errorReason: 'ConnectionClosed' }).then(() => command('Fetch.disable')).catch(error => exceptions.push(error.message));
       } else command('Fetch.continueRequest', { requestId: reply.params.requestId }).catch(error => exceptions.push(error.message));
     }
@@ -385,7 +386,9 @@ try {
   await confirm();
   await waitFor("document.getElementById('draft-message').textContent.includes('Existing internal') && !document.getElementById('convert-draft').disabled");
   fixtures('assert_conversion', orderId);
+  const conversionReloadTime = await evaluate('performance.timeOrigin');
   await command('Page.reload');
+  await waitFor(`performance.timeOrigin !== ${conversionReloadTime} && document.readyState === 'complete' && Boolean(document.getElementById('draft-status'))`);
   await waitFor("document.getElementById('draft-status').textContent.includes('Converted') && !document.getElementById('convert-draft').disabled");
   assert.equal(await evaluate("document.getElementById('edit-header').hidden && document.getElementById('add-line').hidden && document.querySelectorAll('#draft-lines button').length===0"), true);
   await confirm();
@@ -443,6 +446,60 @@ try {
     const xref = result.length;
     return result + `xref\n0 ${offsets.length}\n0000000000 65535 f \n` + offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('') + `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   }
+  // Receive before creating a draft, lose real committed acknowledgements and
+  // reconcile through operator controls. Existing-order documents remain separate.
+  await evaluate(`location.hash='#/workspaces/${data.a}/incoming/'`);
+  await waitFor("!document.getElementById('incoming-controls').hidden && !document.getElementById('documents-refresh').disabled");
+  const incomingCsv = 'sku,quantity,unit\n0001.Mixed-Case,1.250,case\n';
+  await pickDocument('incoming-first.csv', incomingCsv);
+  dropIncomingResponse = true;
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*incoming/', requestStage: 'Response' }] });
+  await evaluate("document.getElementById('document-upload-form').requestSubmit()");
+  await waitFor("!document.getElementById('documents-check').hidden && document.getElementById('document-file').disabled");
+  await evaluate("document.getElementById('documents-check').click()");
+  await waitFor("document.getElementById('documents-rows').textContent.includes('incoming-first.csv') && document.getElementById('documents-check').hidden");
+  let incomingRows = await evaluate(`fetch('/api/v1/workspaces/${data.a}/incoming/').then(r=>r.json())`);
+  assert.equal(incomingRows.count, 1); assert.equal(incomingRows.results[0].draft, null);
+  assert.equal(await evaluate(`fetch(${JSON.stringify(incomingRows.results[0].download_url)}).then(r=>r.text())`), incomingCsv);
+  await evaluate("[...document.querySelectorAll('#documents-rows button')].find(b=>b.textContent==='Create or link draft').click()");
+  await waitFor("!document.getElementById('incoming-link-submit').disabled && !document.getElementById('incoming-link-panel').hidden");
+  await field('incoming-customer', 'Synthetic incoming customer'); await field('incoming-reference', 'INCOMING-00007');
+  dropIncomingResponse = true;
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*incoming/*/link/', requestStage: 'Response' }] });
+  await evaluate("document.getElementById('incoming-link-form').requestSubmit()");
+  await waitFor("!document.getElementById('incoming-link-reconcile').hidden && !document.getElementById('incoming-link-reconcile').disabled");
+  await evaluate("document.getElementById('incoming-link-reconcile').click()");
+  await waitFor("document.getElementById('incoming-link-panel').hidden && document.getElementById('documents-rows').textContent.includes('INCOMING-00007')");
+  incomingRows = await evaluate(`fetch('/api/v1/workspaces/${data.a}/incoming/').then(r=>r.json())`);
+  const incomingSource = incomingRows.results[0], incomingDraft = incomingSource.draft;
+  assert.match(incomingDraft, /^[0-9a-f-]{36}$/);
+  await evaluate("[...document.querySelectorAll('#documents-rows button')].find(b=>b.textContent==='CSV extraction').click()");
+  await waitFor("!document.getElementById('extraction-queue').disabled");
+  await evaluate("document.getElementById('extraction-queue').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('Queued')");
+  const incomingJob = await evaluate(`fetch(${JSON.stringify(incomingSource.extraction_url)}).then(r=>r.json())`);
+  processCSV(incomingJob.job.id);
+  await evaluate("document.getElementById('extraction-refresh').click()");
+  await waitFor("document.getElementById('extraction-status').textContent.includes('ready for staff review')");
+  await evaluate("document.getElementById('review-load-drafts').click()");
+  await waitFor("!document.getElementById('review-content').hidden && document.querySelectorAll('#review-candidates article').length===1");
+  const incomingCandidate = await evaluate("document.querySelector('#review-candidates article').dataset.candidate");
+  await selectValue(`review-action-${incomingCandidate}`, 'create'); await field(`review-position-${incomingCandidate}`, '1');
+  for (const name of ['sku', 'quantity', 'unit']) await checkValue(`review-select-${incomingCandidate}-${name}`);
+  acceptNextDialog = true; await evaluate("document.getElementById('review-apply').click()");
+  await waitFor("document.getElementById('review-receipt').textContent.includes('Committed application')");
+  const incomingLines = await evaluate(`fetch('/api/v1/workspaces/${data.a}/draft-orders/${incomingDraft}/lines/').then(r=>r.json())`);
+  assert.equal(incomingLines.count, 1); assert.equal(incomingLines.results[0].requested_sku, '0001.Mixed-Case');
+  assert.equal(incomingLines.results[0].quantity, '1.250'); assert.equal(incomingLines.results[0].unit, 'case');
+  for (const [width, height] of [[1365, 900], [390, 844], [320, 844]]) {
+    await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 500 });
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), `Incoming viewport ${width} overflows.`);
+    const inboxShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    await writeFile(resolve(scratch, `incoming-${width}.png`), Buffer.from(inboxShot.data, 'base64'));
+  }
+  await evaluate(`location.hash='#/workspaces/${data.a}/orders/${orderId}/documents/'`);
+  await waitFor("!document.getElementById('documents-screen').hidden && document.getElementById('documents-empty').textContent==='No source documents listed.' && !document.getElementById('documents-refresh').disabled");
   await pickDocument('empty.pdf', ''); assert.match(await evaluate("document.getElementById('documents-message').textContent"), /nonempty/);
   await pickDocument('unsafe.html', '<script>alert(1)</script>'); assert.equal(await evaluate("document.getElementById('document-upload').disabled"), true);
   await pickDocument('malformed.pdf', 'not pdf'); await evaluate("document.getElementById('document-upload-form').requestSubmit()");
@@ -674,6 +731,7 @@ try {
   assert.deepEqual(exceptions, []);
   console.log('PASS: real browser session/catalogue regressions; manual creation/header/line editing, validation and dirty navigation, two authenticated sessions with stale-write rejection/input preservation, active catalogue pagination/attach/detach, exact decimals and readiness invalidation; draft review, role denial, locked source, lost conversion response and same-order replay.');
   console.log('Runtime server: orderdesk_app; synthetic fixtures: test_orderdesk; screenshots: ignored backend/var/frontend-browser/.');
+  console.log('PASS: upload before draft/order, lost committed upload/link response reconciliation, original-byte download, one-time linked draft creation, restricted local extraction and explicit exact-SKU/decimal/unit proposal application to that draft; 1365/390/320px inbox.');
   console.log('PASS: private PDF/CSV source intake, malformed and oversized rejection, exact browser attachment download, recorded status, viewer upload denial, cross-tenant/revoked download denial; isolated temporary storage.');
   console.log('PASS: durable local CSV job, real processor exit/recovery, exact field provenance, immutable download, visible failure and explicit retry; restricted worker and viewer denial.');
   console.log('PASS: explicit CSV source/target selection and corrected quantity with immutable provenance, stale revision preservation/comparison, lost application response and identical-key reconciliation, no duplicate lines or overwrite of later manual corrections, independent readiness/conversion, viewer replay denial and late workspace-response isolation.');

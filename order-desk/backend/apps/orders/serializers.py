@@ -490,7 +490,10 @@ class PrivateDocumentSerializer(serializers.ModelSerializer):
         if not document.file.name.startswith("intake/"):
             return None
         if document.order_id is None:
-            return f"/api/v1/workspaces/{document.organization_id}/incoming/{document.pk}/download/"
+            return (
+                f"/api/v1/workspaces/{document.organization_id}/incoming/"
+                f"{document.pk}/download/"
+            )
         return (
             f"/api/v1/workspaces/{document.organization_id}/orders/"
             f"{document.order_id}/documents/{document.pk}/download/"
@@ -503,7 +506,10 @@ class PrivateDocumentSerializer(serializers.ModelSerializer):
         } or not document.file.name.startswith("intake/"):
             return None
         if document.order_id is None:
-            return f"/api/v1/workspaces/{document.organization_id}/incoming/{document.pk}/extraction/"
+            return (
+                f"/api/v1/workspaces/{document.organization_id}/incoming/"
+                f"{document.pk}/extraction/"
+            )
         return (
             f"/api/v1/workspaces/{document.organization_id}/orders/"
             f"{document.order_id}/documents/{document.pk}/extraction/"

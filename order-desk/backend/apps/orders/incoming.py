@@ -53,6 +53,7 @@ class LinkInput(StrictInputSerializer):
 class IncomingSerializer(PrivateDocumentSerializer):
     processing_status = serializers.CharField(read_only=True, allow_null=True)
     duplicate_count = serializers.IntegerField(read_only=True, default=0)
+    reference_duplicate_count = serializers.IntegerField(read_only=True, default=0)
     customer_name = serializers.CharField(
         source="draft.customer_name", read_only=True, default=""
     )
@@ -69,6 +70,7 @@ class IncomingSerializer(PrivateDocumentSerializer):
             "linked_at",
             "processing_status",
             "duplicate_count",
+            "reference_duplicate_count",
             "customer_name",
             "customer_reference",
         )
@@ -76,6 +78,17 @@ class IncomingSerializer(PrivateDocumentSerializer):
 
 
 def inbox(organization_id):
+    references = (
+        DraftOrder.objects.filter(
+            organization_id=organization_id,
+            customer_reference=OuterRef("draft__customer_reference"),
+        )
+        .exclude(customer_reference="")
+        .exclude(pk=OuterRef("draft_id"))
+        .values("customer_reference")
+        .annotate(total=Count("pk"))
+        .values("total")
+    )
     peers = (
         OrderDocument.objects.filter(
             organization_id=organization_id,
@@ -100,7 +113,9 @@ def inbox(organization_id):
         )
         .select_related("draft")
         .annotate(
-            processing_status=Subquery(jobs[:1]), duplicate_count=Subquery(peers[:1])
+            processing_status=Subquery(jobs[:1]),
+            duplicate_count=Subquery(peers[:1]),
+            reference_duplicate_count=Subquery(references[:1]),
         )
         .order_by("-uploaded_at", "id")
     )
@@ -132,7 +147,7 @@ def receive(*, actor, organization_id, operation_key, upload):
                 ).data, False
             document = OrderDocument(
                 organization_id=organization_id,
-                uploaded_by=actor,
+                uploaded_by_id=actor.pk,
                 intake_key=operation_key,
                 file=staged["key"],
                 original_name=staged["name"],
@@ -179,14 +194,14 @@ def link(*, actor, organization_id, document_id, data):
         else:
             draft = DraftOrder(
                 organization_id=organization_id,
-                initiating_user=actor,
+                initiating_user_id=actor.pk,
                 customer_name=values["customer_name"],
                 customer_reference=values["customer_reference"],
             )
             draft.full_clean()
             draft.save()
         document.draft = draft
-        document.linked_by = actor
+        document.linked_by_id = actor.pk
         document.linked_at = timezone.now()
         document.link_key, document.link_hash = key, digest
         document.full_clean()

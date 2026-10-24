@@ -1,5 +1,101 @@
 # Project state
 
+## Six-improvement workflow request — 24 October 2026 (active)
+
+Current request and acceptance matrix: WORKFLOW_IMPLEMENTATION.md. Arrival clean
+main at 469519510d919af0620f1279a613098275b69e22. Existing local API/db healthy;
+other projects and 8080/8443 synthetic deployment preserved. Applicable AGENTS,
+continuation spec, roadmap, tenant/export ADRs and source inspected. Existing
+documents require an order; no customer directory, controlled units, real import
+contract or representative independently scored customer evaluation exists.
+
+First vertical increment: migration 0015 evolves OrderDocument with nullable
+historical order ownership and constrained one-time incoming draft link; immutable
+private originals, upload request receipt, link actor/time/key/hash and tenant FK.
+Incoming API/inbox, duplicate-byte and repeated-reference warnings, original
+download, create/link selection, existing extraction/provenance/application and
+manual fallback wired together. Existing order routes remain. Operator contract:
+UPLOAD_FIRST_INTAKE.md. Customer text remains unconfirmed; commercial checks remain
+not checked. New source extraction/application can target only its linked draft.
+
+Actual checks so far: seven new PostgreSQL tests PASS/3.971s; focused incoming,
+private-intake, CSV, review/application and historical upgrade suite 75 PASS,
+0 skips/144.546s. Initial Node baseline117 and expanded122 PASS/0 skips (2.440s).
+Final targeted incoming/legacy suite12 PASS/21.576s; added direct0014 private
+source/digest/queued-job preservation regression plus historical upgrades3 PASS/
+16.250s. Both use dedicated test_orderdesk, not main. Node final122 PASS/0 skips,
+2.588s. No migration drift; maintained-source Ruff checks pass.
+Repository workflow auto-created d9fbac8 during implementation; this commit is not
+the verification boundary. Subsequent fixes remain part of this increment.
+
+First restricted run FAILED: existing tampering tests expected earlier constraint
+SQLSTATEs, but new immutable ownership guards reject earlier with23514. Retained
+independent foreign-parent INSERT proof and adjusted those exact expectations.
+It also exposed cross-connection actor-instance routing in incoming.receive:
+owner-loaded fixture actor could route INSERT to maintenance and wait on the
+runtime transaction's organization lock. Fixed by scalar actor IDs for source,
+new draft and link writes; canceled only that identified blocked synthetic query,
+allowing verifier cleanup/remaining tests. First log: incoming-runtime.log.
+Second run (incoming-runtime-final.log) retained one stale SQLSTATE expectation.
+Third run incoming-runtime-verified.log:59 PASS/347.409s, actual orderdesk_app,
+no skips, including separate-connection competing link creation and fresh
+viewer/revocation/tenant/actor checks. Additional same-key/PID assertions added
+afterward passed in the fresh quality run below. New composite FK audited by the
+maintained verifier. No tenant permission/grant was weakened.
+
+Browser attempt1 FAILED before inbox at pre-existing draft reload assertion:
+predicate dereferenced a temporarily absent DOM element. Added explicit changed
+performance.timeOrigin/document-ready wait after reload. Attempt2 PASS with
+actual session/CSRF runtime server, guarded test_orderdesk fixtures/private tmp
+storage, lost committed upload/link responses and linked-source application.
+Final repeat incoming-browser-final.log PASS: lost committed upload/link responses,
+exact original download, create/link without typing UUIDs, restricted local worker,
+explicit selected exact SKU/1.250 quantity/case-unit application to linked draft,
+existing workflows and1365/390/320px inbox captures. Visually inspected1365/320
+viewport images (first named-desktop capture was actually320px and superseded).
+Logs/screens ignored in backend/var/incoming-* and frontend-browser/.
+
+Fresh unpublished `python scripts/quality_gates.py --unpublished` exited0. Run
+backend/var/deployment-3c7e5cf99da0473b88a9a4f467b7c34c; incoming-quality.log:
+fresh migration0015, lock/migration/system/static build and lint/format checks;
+native870 PASS/505.962s, direct orderdesk_app order59 PASS/198.397s (distinct
+connection PIDs, competing keys and same-key replay), catalogue115 PASS/282.870s,
+Node122, strict certificate/hostname/CSP/real-browser role/workflow checks,
+worker/private-byte/session digests, DB/storage outage, restart/recreation and
+UID/DB-TLS-hostname checks. No skips. Own containers stopped, volumes retained.
+The subsequent private0014 upgrade regression was added after the frozen quality
+image and verified separately above; it does not change runtime implementation.
+
+Evaluation increment (independent of account/unit schema): standard-library
+scripts/evaluate_workflow.py, eight fabricated case definitions/16 simulated
+observations and deterministic report in docs/evaluation. Eight regression tests
+pass. Exact identifier/Decimal scoring, all-selected-case denominators, missing
+outputs as errors, separate noncritical manual decisions, explicit timing evidence,
+failure retention, unknown destination outcomes and blocked incomplete-cohort
+capacity calculation. No representative or independent customer ground truth;
+customer targets remain unmeasured. Full script suite48 PASS/0.419s in pinned
+Python3.14 container with public source mounts. First host invocation FAILED due
+to Python3.13 parsing established3.14 syntax; incomplete first container mount
+FAILED on missing public template/recovery files. Corrected mounts, no source or
+test weakened. A broad local Ruff invocation also had invalid /frontend relative
+config/ignored-evidence traversal; stopped that own helper and checked explicit
+maintained directories/config instead. No private evidence included in images.
+
+Development preflight found0 orders/0 drafts/0 documents. Applied only the tested
+additive0015 migration to existing development DB; no bootstrap, fixture, reset,
+restore, original rewrite or user-account change. API readiness remains ok.
+Record: incoming-development-migration.log. No destructive main-data operation.
+No external submissions, customer communications, paid services or public deploy.
+All six improvements remain active; no overall/pilot readiness claim. Real customer
+handoff needs the actual destination contract/accepted sample; measured benefit
+needs representative orders and independently reviewed ground truth/observations.
+Exact next action: commit verified upload-first fixes and evaluation tooling;
+extend synthetic recovery fixture/probe for incoming source/link/original bytes
+and run fresh encrypted isolated restore, then implement customer reference data
+with tenant constraints/permissions/UI/tests before controlled units and exceptions.
+Profile/handoff records, complete support/role matrix and customer evidence remain
+required; previous image-advisory clearance/cold latency blockers remain open.
+
 ## Security/release audit — 24 October 2026 (release blocked; evidence recorded)
 
 New directly supplied audit request supersedes the immediate implementation next

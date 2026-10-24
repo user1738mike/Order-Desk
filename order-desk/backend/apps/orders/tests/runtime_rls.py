@@ -144,10 +144,18 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
                 ),
             )
             barrier = Barrier(2)
+            identities = []
 
             def contender(key):
                 close_old_connections()
                 try:
+                    with connection.cursor() as cursor:
+                        cursor.execute("SET lock_timeout='5s'")
+                        cursor.execute("SET statement_timeout='10s'")
+                        cursor.execute(
+                            "SELECT current_user, session_user, pg_backend_pid()"
+                        )
+                        identities.append(cursor.fetchone())
                     barrier.wait(timeout=10)
                     _, created = incoming.link(
                         actor=self.admin,
@@ -164,11 +172,30 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 outcomes = list(pool.map(contender, [uuid4(), uuid4()]))
             self.assertCountEqual(outcomes, ["created", "conflict"])
+            self.assertEqual(len({identity[2] for identity in identities}), 2)
+            self.assertTrue(
+                all(
+                    identity[:2] == ("orderdesk_app", "orderdesk_app")
+                    for identity in identities
+                )
+            )
             with tenant_scope(user=self.admin, workspace_id=self.a.pk):
                 self.assertEqual(
                     DraftOrder.objects.filter(organization=self.a).count(), 2
                 )
                 self.assertIsNotNone(OrderDocument.objects.get(pk=row["id"]).draft_id)
+            row, _ = incoming.receive(
+                actor=self.admin,
+                organization_id=self.a.pk,
+                operation_key=uuid4(),
+                upload=lambda: SimpleUploadedFile(
+                    "repeat.csv", b"sku,quantity\n00042,3\n"
+                ),
+            )
+            key = uuid4()
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                outcomes = list(pool.map(contender, [key, key]))
+            self.assertCountEqual(outcomes, ["created", "replay"])
 
     def test_operational_queue_actual_runtime_scope_and_revocation(self):
         from apps.orders.queue import order_queue
@@ -2449,7 +2476,7 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         for model in BUSINESS_MODELS:
             with self.subTest(model=model):
                 self._expect_error(
-                    "42501",
+                    "23514" if model is OrderDocument else "42501",
                     self._write_scope(),
                     lambda model=model: model.objects.filter(
                         pk=self.rows[self.a.pk][model].pk
@@ -2464,7 +2491,7 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         ):
             with self.subTest(child=child):
                 self._expect_error(
-                    "23503",
+                    "23514" if child is OrderDocument else "23503",
                     self._write_scope(),
                     lambda child=child, parent=parent, field=field: (
                         child.objects.filter(pk=self.rows[self.a.pk][child].pk).update(
@@ -2472,6 +2499,21 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
                         )
                     ),
                 )
+
+        # Existing document ownership is now immutable before FK evaluation;
+        # insertion independently proves the historical composite FK remains active.
+        self._expect_error(
+            "23503",
+            self._write_scope(),
+            lambda: OrderDocument.objects.create(
+                organization_id=self.a.pk,
+                order_id=self.rows[self.b.pk][PurchaseOrder].pk,
+                uploaded_by_id=self.admin.pk,
+                file="legacy/foreign.pdf",
+                original_name="foreign.pdf",
+                size_bytes=1,
+            ),
+        )
 
     def test_viewer_can_read_all_four_business_tables(self) -> None:
         with tenant_scope(user=self.viewer, workspace_id=self.a.pk):

@@ -307,11 +307,11 @@ $('next').addEventListener('click', () => desk.goToPage(desk.state.page + 1));
 $('retry').addEventListener('click', () => desk.state.catalogError ? desk.loadCatalogue() : desk.state.retryAction === 'logout' ? desk.logout() : desk.start());
 // Revalidate on return from another tab, where selection, auth or access changed.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !catalogue.state.pending && !catalogue.state.uncertain && !catalogue.state.file && !orders.state.converting && !purchase.state.pending && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
+  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !documents.state.pending && !documents.state.uncertain && !documents.state.linkOperation && !documents.state.file && !catalogue.state.pending && !catalogue.state.uncertain && !catalogue.state.file && !orders.state.converting && !purchase.state.pending && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
 });
 window.addEventListener('pageshow', event => { if (event.persisted) desk.start().then(applyRoute); });
 window.addEventListener('hashchange', applyRoute);
-window.addEventListener('beforeunload', event => { if (catalogue.state.pending || catalogue.state.uncertain || purchase.state.pending || editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (documents.state.pending || documents.state.uncertain || documents.state.linkOperation || catalogue.state.pending || catalogue.state.uncertain || purchase.state.pending || editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
 $('matching-load').addEventListener('click', () => matching.load());
 $('matching-reload').addEventListener('click', () => matching.reload());
 $('new-draft').addEventListener('click', () => editor.begin('create'));

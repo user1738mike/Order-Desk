@@ -2,14 +2,16 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 from uuid import uuid4
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
+from apps.orders import incoming
 from apps.orders.extraction_services import process_extraction
 from apps.orders.models import DraftOrder, OrderDocument, PurchaseOrder
 from apps.orders.revisions import draft_revision
@@ -20,6 +22,55 @@ CSV = b"sku,quantity,unit\n00042,1.250,case\n"
 
 
 class IncomingTests(TransactionTestCase):
+    def test_demotion_during_receive_denies_metadata_and_cleans_staged_bytes(self):
+        def upload():
+            Membership.objects.filter(organization=self.org, user=self.actor).update(
+                role=MembershipRole.VIEWER
+            )
+            return SimpleUploadedFile("demoted.csv", CSV)
+
+        from django.core.exceptions import PermissionDenied
+
+        with self.assertRaises(PermissionDenied):
+            incoming.receive(
+                actor=self.actor,
+                organization_id=self.org.pk,
+                operation_key=uuid4(),
+                upload=upload,
+            )
+        self.assertEqual(OrderDocument.objects.count(), 0)
+        self.assertEqual(list(Path(self.directory.name).iterdir()), [])
+
+    def test_unknown_commit_retains_original_for_reconciliation(self):
+        original = connection._commit
+        calls = 0
+
+        def commit():
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                original()
+                raise IntegrityError("synthetic acknowledgement lost")
+            return original()
+
+        with patch.object(connection, "_commit", side_effect=commit):
+            response = self.upload()
+        self.assertEqual(response.status_code, 503, response.content)
+        self.assertEqual(OrderDocument.objects.count(), 1)
+        self.assertEqual(len(list(Path(self.directory.name).iterdir())), 1)
+        receipt = self.client.get(self.base, {"operation_key": self.key})
+        self.assertEqual(receipt.json()["count"], 1)
+        self.assertEqual(self.upload().status_code, 200)
+
+    def test_malformed_unsupported_and_oversized_sources_have_no_rows(self):
+        for raw in (b"", b"not a csv", b"a,b\n1,2,3", b"a,b\n\xff,1"):
+            response = self.upload(key=str(uuid4()), raw=raw)
+            self.assertEqual(response.status_code, 400, response.content)
+        with patch("apps.orders.uploads.MAX_ORDER_DOCUMENT_BYTES", len(CSV)):
+            self.assertEqual(self.upload(raw=CSV + b" ").status_code, 413)
+        self.assertEqual(OrderDocument.objects.count(), 0)
+        self.assertEqual(list(Path(self.directory.name).iterdir()), [])
+
     def setUp(self):
         self.directory = TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -94,6 +145,13 @@ class IncomingTests(TransactionTestCase):
             self.post(path, {**payload, "operation_key": str(uuid4())}).status_code, 409
         )
         self.assertEqual(self.client.get(self.base, {"q": "00007"}).json()["count"], 1)
+        DraftOrder.objects.create(
+            organization=self.org,
+            initiating_user=self.actor,
+            customer_reference="00007",
+        )
+        listed = self.client.get(self.base, {"q": "00007"}).json()
+        self.assertEqual(listed["results"][0]["reference_duplicate_count"], 1)
 
     def test_link_existing_draft_requires_revision_and_same_tenant(self):
         row = self.upload().json()

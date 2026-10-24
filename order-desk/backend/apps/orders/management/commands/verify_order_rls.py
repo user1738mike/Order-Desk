@@ -468,6 +468,12 @@ class Command(CatalogVerifierCommand):
 
         for name, source, target, columns in (
             (
+                "document_draft_org_fk",
+                "orders_orderdocument",
+                "orders_draftorder",
+                ["draft_id", "organization_id"],
+            ),
+            (
                 "draftline_order_org_fk",
                 "orders_draftorderline",
                 "orders_draftorder",

@@ -32,7 +32,10 @@ export class DocumentController {
       const data = await this.client.request(`${this.path()}${suffix}`, { signal: abort.signal });
       if (version !== this.version || abort.signal.aborted) return;
       if (!Array.isArray(data.results) || data.results.length > 50 || !Number.isSafeInteger(data.count) || data.count < 0) throw new Error('Document response unavailable.');
-      data.results.forEach(row => this.validate(row)); this.update({ rows: data.results, count: data.count }); return true;
+      data.results.forEach(row => this.validate(row));
+      const extraction = this.state.extraction;
+      const current = extraction && data.results.find(row => row.id === extraction.row.id);
+      this.update({ rows: data.results, count: data.count, ...(current ? { extraction: { ...extraction, row: current } } : {}) }); return true;
     } catch (error) { if (version === this.version && !abort.signal.aborted) { this.update({ message: error.status === 404 ? 'Purchase order not found or unavailable in this workspace.' : error.message }); if (error.status === 403) await this.denied(false); } }
     finally { if (version === this.version && !abort.signal.aborted) this.update({ busy: false }); }
   }
@@ -210,7 +213,7 @@ export function renderDocuments(controller, visible) {
   $('documents-check').hidden = !s.uncertain;
   $('documents-rows').replaceChildren(...s.rows.map(row => {
     const tr = document.createElement('tr');
-    const status = incoming ? `${row.processing_status || 'Received'} · ${row.draft ? 'Linked: review draft' : 'Next: create or link draft'}${row.duplicate_count ? ` · Possible duplicate: ${row.duplicate_count} other source(s) with identical bytes` : ''} · Received ${new Date(row.uploaded_at).toLocaleString()} · ${row.customer_name || 'Unresolved customer'} ${row.customer_reference || ''}` : row.status === 'received' ? 'Received · not automatically reviewed' : row.status === 'pending_review' ? 'Pending review' : 'Rejected';
+    const status = incoming ? `${row.processing_status || 'Received'} · ${row.draft ? 'Linked: review draft' : 'Next: create or link draft'}${row.duplicate_count ? ` · Possible duplicate: ${row.duplicate_count} other source(s) with identical bytes` : ''}${row.reference_duplicate_count ? ` · Possible repeated reference: ${row.reference_duplicate_count} other draft(s). Confirm customer and revision before proceeding.` : ''} · Received ${new Date(row.uploaded_at).toLocaleString()} · ${row.customer_name || 'Unresolved customer'} ${row.customer_reference || ''}` : row.status === 'received' ? 'Received · not automatically reviewed' : row.status === 'pending_review' ? 'Pending review' : 'Rejected';
     for (const value of [row.original_name, `${row.size_bytes} bytes`, status]) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
     const td = document.createElement('td'); const button = document.createElement('button'); button.textContent = row.download_url ? 'Download source' : 'Legacy storage requires adoption'; button.disabled = s.pending || s.busy || !row.download_url;
     button.addEventListener('click', async () => {

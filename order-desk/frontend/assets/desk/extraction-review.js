@@ -29,7 +29,7 @@ export class ExtractionReviewController {
   update(patch) { Object.assign(this.state, patch); this.render(this.state); }
   context(workspace, generation, order, extraction) {
     const source = extraction?.row ?? null;
-    const key = `${generation}/${workspace?.id ?? ''}/${order ?? ''}/${source?.id ?? ''}`;
+    const key = `${generation}/${workspace?.id ?? ''}/${workspace?.role ?? ''}/${order ?? ''}/${source?.id ?? ''}/${source?.draft ?? ''}`;
     const job = extraction?.job ?? null;
     if (key !== this.contextKey || (job && this.state.sourceJob && job.id !== this.state.sourceJob.id)) {
       this.contextKey = key; this.version++; this.abort?.abort(); this.state = { ...this.empty(), workspace, generation, order, source, sourceJob: job, available: job?.status === 'succeeded' }; this.render(this.state); return;
@@ -200,6 +200,8 @@ export function renderExtractionReview(controller, visible = true) {
   if (panel.hidden) { if (!s.source) { $('review-candidates').replaceChildren(); $('review-preview').replaceChildren(); $('review-drafts').replaceChildren(); $('review-receipt').textContent = ''; $('review-message').textContent = ''; $('review-draft-id').value = ''; } return; }
   const focused = panel.contains(document.activeElement) ? { id: document.activeElement.id, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd } : null;
   const writable = ['admin', 'reviewer'].includes(s.workspace?.role); const locked = !controller.canChange() || !writable;
+  $('review-open-form').hidden = s.order === 'incoming';
+  $('review-load-drafts').textContent = s.order === 'incoming' ? 'Review linked draft' : 'List available drafts';
   $('review-message').textContent = s.message;
   $('review-open').disabled = !controller.canChange();
   $('review-draft-id').disabled = !controller.canChange();
