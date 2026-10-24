@@ -99,6 +99,9 @@ class ProductUnitPolicy(ApprovedRecord):
         ordering = ["requested_token", "-created_at", "id"]
         constraints = [
             models.UniqueConstraint(
+                fields=["id", "organization"], name="unit_policy_id_org_unique"
+            ),
+            models.UniqueConstraint(
                 fields=["id", "organization", "catalogue_item"],
                 name="unit_policy_identity_unique",
             ),
@@ -109,7 +112,8 @@ class ProductUnitPolicy(ApprovedRecord):
             ),
             models.CheckConstraint(
                 condition=models.Q(
-                    requested_token__regex=r"\S", provenance__regex=r"\S"
+                    requested_token__regex=r"\S",  # noqa: S106 -- PO unit token
+                    provenance__regex=r"\S",
                 ),
                 name="unit_policy_nonblank",
             ),
@@ -161,6 +165,9 @@ class CustomerProductAlias(ApprovedRecord):
     class Meta:
         ordering = ["value", "-created_at", "id"]
         constraints = [
+            models.UniqueConstraint(
+                fields=["id", "organization"], name="product_alias_id_org_unique"
+            ),
             models.UniqueConstraint(
                 fields=["id", "organization", "customer", "catalogue_item"],
                 name="product_alias_identity_unique",
@@ -234,6 +241,9 @@ class UnitReferenceReceipt(models.Model):
             ),
         ]
 
+    def __str__(self):
+        return str(self.pk)
+
 
 class DraftLineUnitDecision(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -298,7 +308,9 @@ class DraftLineUnitDecision(models.Model):
                 name="unit_decision_hashes_valid",
             ),
             models.CheckConstraint(
-                condition=models.Q(customer__isnull=True, customer_decision__isnull=True)
+                condition=models.Q(
+                    customer__isnull=True, customer_decision__isnull=True
+                )
                 | models.Q(customer__isnull=False, customer_decision__isnull=False),
                 name="unit_customer_identity_complete",
             ),
@@ -323,6 +335,9 @@ class DraftLineUnitDecision(models.Model):
             ),
         ]
 
+    def __str__(self):
+        return str(self.pk)
+
 
 class OrderLineUnitSnapshot(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -343,3 +358,6 @@ class OrderLineUnitSnapshot(models.Model):
     )
     payload = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return str(self.pk)
