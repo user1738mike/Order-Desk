@@ -6,6 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 from threading import Event, Thread
+from uuid import uuid4
 
 from local_deploy import ROOT, compose_prefix
 from recovery_drill import owned_run
@@ -93,10 +94,13 @@ def main():
                 failures.append(script)
         done.set()
         sampling.join(timeout=16)
-        (run / "resource-samples.json").write_text(
-            json.dumps(snapshots), encoding="ascii"
-        )
-        print(f"Resource snapshots recorded: {len(snapshots)}")
+        resource_json = json.dumps(snapshots)
+        evidence_name = f"resource-samples-{uuid4().hex}.json"
+        with (run / evidence_name).open("x", encoding="ascii") as output:
+            output.write(resource_json)
+        # Preserve the existing latest-result contract as well as every repeat.
+        (run / "resource-samples.json").write_text(resource_json, encoding="ascii")
+        print(f"Resource snapshots recorded: {len(snapshots)} ({evidence_name})")
         if failures:
             raise RuntimeError(f"Performance checks failed: {', '.join(failures)}")
     finally:

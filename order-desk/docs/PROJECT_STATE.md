@@ -13,16 +13,34 @@ native/runtime/browser/recovery/performance/image-scan evidence is pending. Exis
 8080/8443 synthetic serving project and unrelated applications must be preserved.
 Current run: backend/var/deployment-00c8643512854d69821f1be87d929f07, unpublished.
 quality-patched-toolchain.log under backend/var/audit-2026-10-24 is authoritative.
-Native gate session 8142 is active; earlier bcd87c run was interrupted for patched
-toolchain and stopped, not a pass. Current script suite 40/0.795s, explicit-config
-host lint/format, host Node 117, pip-audit zero matches and triaged Bandit evidence
-are recorded in the dated report. Grype 0.121.0 advisory DB update session 14161
-is still active; it is not validated evidence yet. Private source snapshots and
-scanner reports remain ignored; no public deployment/remote change/spending.
-Exact next action: collect the final quality runner exit (including runtime role,
-real TLS browser and restart gates); then run release_measure.py --large-fixture
-and recovery_drill.py sequentially on this run, finish fresh image scans and final
-source/history scans, update audit matrix/verdicts and commit verified work on main.
+Final quality runner exited 0: native 860/588.294s, direct orderdesk_app order RLS
+57/147.146s and catalogue RLS 115/211.497s, Node 117, strict TLS/browser/worker,
+outages/recreation/UID/DB-hostname checks. No test skips. Browser checked ten pages,
+all three roles, local fonts and queue, zero unexpected network/CSP/console failures.
+Earlier bcd87c run was interrupted for patched toolchain and stopped, not a pass.
+Proxy query-string diagnostic leak was reproduced and fixed with supervised
+allowlist redaction, live-pipe build regression, failure/shutdown checks.
+Current script suite 40/0.795s, explicit-config lint/format, pip-audit zero matches
+and triaged Bandit findings are recorded in the dated report. Grype DB prerequisite
+is BLOCKED: native-volume update hit 300s deadline and status confirmed no usable DB;
+partial cache retained, no suppressions/stale-age bypass. No image-clearance claim.
+Performance first burst FAILED: 240 requests/8 clients, P95 833.440ms (queue
+1490.006ms), zero errors/19.142rps on 5000 items/300 drafts/6000 lines/1001 orders.
+Subsequent SQL/full-request profiles were fast. Auto-analyze finished 01:15:39,
+after the first burst; fixture created 01:15:06. Preserve the cold post-load failure
+and distinguish steady-state verification; no app optimization claim yet.
+After the overnight pause, Docker Linux pipe was unavailable at 10:01. Normal
+`docker desktop start` requested; no reset/daemon/config/data change. Steady-state
+attempt failed before startup (performance-steady-state.log), not a latency result.
+Saved synthetic sessions expired during pause; refresh through real CSRF/TLS login
+before measurement/recovery. Offline final Gitleaks: 39 reachable commits and 391
+source files, both exit 0/no findings; source-manifest-final.json at code HEAD
+32f7806 records hashes. Private reports/cookies/keys remain ignored.
+Exact next action: wait for the normal Docker engine startup, refresh only the
+synthetic session, rerun identical performance with statistics timestamps and keep
+both results; execute fresh isolated recovery drill; validate main-target verifier
+refusals without writes; collect final identities/scans/verdicts and verified main
+commits. Missing distributor capabilities and public/pilot gates remain open.
 
 ## Distributor platform expansion — 23 October 2026 (active)
 
