@@ -14,6 +14,7 @@ urlpatterns = [
     path("", WorkspaceListView.as_view(), name="list"),
     path("current/", CurrentWorkspaceView.as_view(), name="current"),
     path("<uuid:workspace_id>/catalog/", include("apps.catalog.urls")),
+    path("<uuid:workspace_id>/customers/", include("apps.customers.urls")),
     path("<uuid:workspace_id>/orders/", include("apps.orders.urls")),
     path("<uuid:workspace_id>/incoming/", include(incoming_urlpatterns)),
     path(

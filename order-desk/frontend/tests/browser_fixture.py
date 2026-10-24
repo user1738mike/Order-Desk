@@ -15,6 +15,14 @@ from django.db import connection, transaction
 from apps.accounts.login_limits import login_bucket_key
 from apps.accounts.models import LoginAttemptBucket, User
 from apps.catalog.models import CatalogItem
+from apps.customers.models import (
+    CustomerAccount,
+    CustomerAlias,
+    CustomerLocation,
+    DraftCustomerDecision,
+    OrderCustomerSnapshot,
+    ReferenceWriteReceipt,
+)
 from apps.orders.models import (
     DocumentExtractionJob,
     DraftOrder,
@@ -196,6 +204,16 @@ elif action in (
                 )
             else:
                 # Remove only this user's sessions and this run's identities.
+                workspace_ids = [data["a"], data["b"]]
+                for model in (
+                    OrderCustomerSnapshot,
+                    DraftCustomerDecision,
+                    ReferenceWriteReceipt,
+                    CustomerAlias,
+                    CustomerLocation,
+                    CustomerAccount,
+                ):
+                    model.objects.filter(organization_id__in=workspace_ids).delete()
                 ExtractionCreatedRow.objects.filter(
                     organization_id__in=[data["a"], data["b"]]
                 ).delete()

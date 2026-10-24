@@ -107,18 +107,64 @@ separately mounted same-host keys retained. This is not offsite recovery or an
 approved customer RTO. Script suite with two new wrapper-refusal tests50 PASS/
 0.333s; maintained helper/probe lint/format pass. No main restore.
 
-Customer reference increment started (UNVERIFIED): new apps.customers models and
-initial migration draft; stable codes, destination IDs, locations and explicitly
-approved exact aliases. No API/UI or draft confirmation wired yet. No customer
-schema migration applied to development/main. Required next work includes admin
-reference-data permissions, actor/ownership/tenant guards and forced RLS, scoped
-directory/import validation, explicit account/location confirmation and immutable
-conversion snapshots, then native/restricted/concurrency/browser proofs. Do not
-count the model draft as functionality or apply its incomplete migration.
+Incoming recovery helpers/evidence committed and pushed on main as59f3ddf.
+Customer reference increment in progress (NOT release verified): apps.customers
+account/location/exact approved alias directory, bounded create-only CSV validation
+and import, durable reference write receipts, explicit draft confirmation/history
+and immutable conversion snapshots. Six new tenant tables have FORCE RLS,
+composite tenant/site/parent FKs, fresh actors and role-specific immutable guards.
+Admin-only reference changes require an observed If-Match revision; reviewer/admin
+customer confirmation binds both observed reference and draft revisions. Incoming
+drafts require confirmation; legacy drafts retain existing structural readiness
+without inventing confirmed identity or destination compatibility. Canonical name
+application retains the original requested text in the confirmation decision.
 
-Exact next action: commit verified incoming recovery helpers/evidence separately,
-then finish the customer reference vertical increment including its database
-boundary, API/UI, confirmation/readiness and snapshot tests before controlled units.
+Native directory/confirmation/receipt suite21 PASS/15.466s in dedicated
+test_orderdesk (customer-reference-final-native.log), including required/stale
+edit preconditions. Restricted orderdesk_app suite64 PASS/139.363s before the
+latest edit-precondition/UI changes (customer-runtime-receipts.log), with all six
+table audits, independent alias races and admin-demotion waits, cross-tenant and
+unscoped denial, immutable snapshots and receipts, CSV source/replay. These
+restricted checks must be repeated against the final increment. Native readiness
+regression preserved the zero serialization query contract. Expanded Node130
+PASS/0 skips/2.451s (customer-node-final.log), including lost writes, exact receipt
+reconciliation, context changes during CSRF, stale edits and confirmation replay.
+Directory/customer selection/frozen snapshot actual-backend Chromium journey PASS
+(customer-browser-repeat.log, exit0): exact approved alias, two sites/no implicit
+selection, required-site validation, stale reference preview, lost committed
+account/confirmation responses, one decision and unchanged converted snapshot after
+later account edits. Existing upload/extraction/manual edit/approval/export/session
+regressions pass. Attempt1 passed customer flow but old queue assertion assumed one
+order; now asserts both created records. Attempt2 hit an early editor click while
+draft loading; wait now requires the visible enabled editing state. Neither is
+accepted as a full passing run. Ignored captures1365/390/320px; narrow tables fixed
+to scroll with readable columns and visually inspected320px. Previous-schema plus
+native/readiness suite32 PASS/50.589s (customer-native-upgrade.log), including
+unchanged linked source keys/digest/bytes/queued job, requested text and historical
+order/line; no invented account/decision backfill. Final restricted verifier64
+PASS/217.543s, no skips (customer-runtime-final.log). Full fresh unpublished run
+deployment-2666405089b643409c07da8a9fda1401: native893 PASS/489.324s, order64
+PASS/181.387s and catalogue115 PASS/273.670s. Trusted TLS/static/CSRF probes pass.
+First runner then FAILED resolving the pinned browser base image at Docker Hub
+(network timeout), not an accepted overall pass. Exact pinned build retry succeeded;
+owned continuation in that same run (customer-quality-resumed.log, exit0) passed
+Node130, trusted production browser, required storage/DB outages, process/volume
+recreation, actual UID/application-role/DB TLS identity and wrong hostname denial.
+Only incomplete Node/browser/restart stages repeated; completed native/runtime
+results retained. Latest host repeat customer-browser-verified.log also exited0;
+viewport-only capture repeat is running to replace full-page fixed-sidebar capture
+distortion. Actual bounded1365px customer viewport inspected with correct sidebar;
+the earlier full-page capture is not accepted visual evidence.
+Script suite50 PASS/0.566s (customer-scripts.log). Customer-specific restore
+seed/probes are now running against this owned source, not yet verified. No customer migration applied to
+development/main; only isolated test_orderdesk has0001-0003. Read-only development
+preflight:0 orders/0 drafts/0 documents, no customer migrations. No external
+specification or real customer identity invented.
+
+Exact next action: finish the customer-specific encrypted recovery drill and
+viewport capture repeat, apply only tested additive customer migrations to the
+empty development schema, commit verified increments on main, then implement
+controlled product units/aliases and the processor/team permission matrix.
 Profile/handoff records, complete support/role matrix and customer evidence remain
 required; previous image-advisory clearance/cold latency blockers remain open.
 

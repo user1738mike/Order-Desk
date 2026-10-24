@@ -65,6 +65,11 @@ class DraftAlreadyConverted(Exception):
 class DraftNotReady(Exception):
     def __init__(self, reasons):
         paths = {
+            "customer_unconfirmed": "customer_confirmation",
+            "customer_inactive": "customer_confirmation",
+            "customer_location_inactive": "customer_confirmation",
+            "customer_location_required": "customer_confirmation",
+            "customer_reference_changed": "customer_confirmation",
             "customer_name_missing": "customer_name",
             "lines_missing": "lines",
             "line_limit": "lines",
@@ -182,6 +187,9 @@ def convert_draft_to_purchase_order(
                     ),
                     preserve_snapshot=True,
                 )
+            from apps.customers.confirmation import freeze
+
+            freeze(order=order, draft=draft, actor_id=context.user_id)
             order.source_draft_id = draft.pk
             order.save(update_fields=["source_draft"])
             draft.status = DraftOrder.Status.CONVERTED

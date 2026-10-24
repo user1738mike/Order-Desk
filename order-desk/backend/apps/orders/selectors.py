@@ -72,6 +72,8 @@ def get_draft_review(organization_id: UUID, order_id: UUID) -> DraftOrder:
 
 
 def get_draft_readiness(organization_id: UUID, order_id: UUID) -> DraftOrder:
+    from apps.customers.readiness import annotations
+
     lines = Q(draft_lines__organization_id=organization_id)
     orders = DraftOrder.objects.filter(organization_id=organization_id).annotate(
         line_count=Count("draft_lines", filter=lines),
@@ -96,7 +98,9 @@ def get_draft_readiness(organization_id: UUID, order_id: UUID) -> DraftOrder:
             & Q(GreaterThan(Length("draft_lines__catalogue_sku_snapshot"), 128)),
         ),
     )
-    return get_object_or_404(orders, pk=order_id)
+    return get_object_or_404(
+        orders.annotate(**annotations(organization_id)), pk=order_id
+    )
 
 
 def draft_lines_for_order(

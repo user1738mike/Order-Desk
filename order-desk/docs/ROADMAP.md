@@ -29,7 +29,7 @@ BLOCKED, APPROVED DEFERRED. No deferrals have been approved for this request.
 | 4 Operational navigation | VERIFIED for scalar searchable order queue/direct source-draft/documents/approval links, URL filters/reload/history and 50-row pages; received date, assignment and draft search remain MISSING. Evidence in state ledger. |
 | 5 Workspace UI | DEFECTIVE: existing screens/session cancellation present; six coherent queues and source/draft workspace remain incomplete. |
 | 6 Team processing | MISSING: admin/reviewer/viewer only; processor, assignment, reasoned returns and permission matrix pending. |
-| 7 Customer directory | MISSING: only customer text snapshots; tenant directory and unresolved-customer rules pending. |
+| 7 Customer directory | Implemented account/site directory, exact approved aliases, create-only CSV, versioned admin receipts, explicit confirmation and frozen snapshots. Native32, Node130, restricted64 and real Chromium pass; fresh/recovery gates in progress. See CUSTOMER_REFERENCE.md/PROJECT_STATE.md for current evidence and legacy structural exemption. |
 | 8 Units/packs | MISSING: exact quantities and raw units exist; controlled units/product factors require explicit decimal policy. |
 | 9 Approved aliases | MISSING: exact SKU suggestions only; customer directory precedes approved mapping model. |
 | 10 Duplicate orders | MISSING: conversion/application/export repeat safety exists; customer reference/fingerprint warning and audited resolution pending. |

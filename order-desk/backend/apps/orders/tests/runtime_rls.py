@@ -71,6 +71,31 @@ EXTRACTION_MODELS = (DocumentExtractionJob, ExtractionApplication, ExtractionCre
 
 
 class RuntimeOrderRLSChecks(unittest.TestCase):
+    def test_customer_reference_runtime_roles_tenant_and_relationships(self):
+        from apps.customers.tests.runtime_boundary import reference_scope
+
+        reference_scope(self)
+
+    def test_customer_approved_alias_independent_connection_collision(self):
+        from apps.customers.tests.runtime_boundary import alias_race
+
+        alias_race(self)
+
+    def test_customer_reference_waiting_writer_rechecks_admin_demotion(self):
+        from apps.customers.tests.runtime_boundary import waiting_admin_demotion
+
+        waiting_admin_demotion(self)
+
+    def test_customer_confirmation_and_frozen_snapshot_as_runtime_role(self):
+        from apps.customers.tests.runtime_boundary import confirmation_scope
+
+        confirmation_scope(self)
+
+    def test_customer_import_and_write_receipt_as_runtime_role(self):
+        from apps.customers.tests.runtime_boundary import import_scope
+
+        import_scope(self)
+
     def test_incoming_runtime_scope_actor_constraints_and_revocation(self):
         from apps.orders import incoming
 
@@ -1316,8 +1341,11 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
         )
 
     def _cleanup_fixtures(self) -> None:
+        from apps.customers.tests.runtime_boundary import cleanup, cleanup_references
+
         connection.close()
         with transaction.atomic(using=OWNER_ALIAS):
+            cleanup(self)
             PurchaseOrderExport.objects.using(OWNER_ALIAS).filter(
                 organization_id__in=self.workspace_ids
             ).delete()
@@ -1344,6 +1372,7 @@ class RuntimeOrderRLSChecks(unittest.TestCase):
                 model.objects.using(OWNER_ALIAS).filter(
                     organization_id__in=self.workspace_ids
                 ).delete()
+            cleanup_references(self)
             CatalogItem.objects.using(OWNER_ALIAS).filter(
                 organization_id__in=self.workspace_ids
             ).delete()

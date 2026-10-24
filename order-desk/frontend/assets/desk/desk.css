@@ -1,4 +1,13 @@
 /* Same-origin SIL OFL fonts; no external stylesheet or font requests. */
+.reference-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; align-items: end; margin: 16px 0; }
+.reference-grid label { min-width: 0; }
+.reference-grid input[type="checkbox"] { width: auto; }
+#customer-confirm-accounts { flex-wrap: wrap; margin: 12px 0; }
+#customer-alias-rows { overflow-wrap: anywhere; }
+#customers-screen .small, #customer-confirm-accounts button { overflow-wrap: anywhere; }
+#customer-confirm-accounts button { max-width: 100%; }
+#customers-screen table { min-width: 640px; }
+#customers-screen th, #customers-screen td { overflow-wrap: normal; word-break: normal; }
 @font-face {
   font-family: 'Outfit';
   font-style: normal;

@@ -49,7 +49,7 @@ test('critical response validators reject foreign resources, numeric decimals an
   }
 });
 test('readiness validates blocker types, unique codes and ready consistency; no invented warnings', async () => {
-  assert.equal(Object.keys(blockers).length, 8);
+  assert.equal(Object.keys(blockers).length, 13);
   for (const code of Object.keys(blockers)) assert.deepEqual(validateReasons([{ code, count: 1 }]), [{ code, count: 1 }]);
   for (const changed of [{ ...ready, ready_to_convert: 'true' }, { ...ready, blocking_reasons: [{ code: 'quantity_missing', count: 1 }] }, { ...ready, ready_to_convert: false, blocking_reasons: [{ code: 'guessed_warning', count: 1 }] }]) {
     const api = new OrdersApi({ request: async () => changed }); await assert.rejects(api.readiness(w, d), /Unsupported response/);

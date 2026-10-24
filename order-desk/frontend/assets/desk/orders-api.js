@@ -1,6 +1,11 @@
 // Allowlisted response validation; decimal quantities remain strings throughout.
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const blockers = {
+  customer_unconfirmed: ['Confirm the customer account and required delivery location.', 'customer-confirmation'],
+  customer_inactive: ['The confirmed customer is inactive. Choose an active account.', 'customer-confirmation'],
+  customer_location_inactive: ['The confirmed delivery location is inactive.', 'customer-confirmation'],
+  customer_location_required: ['Choose a delivery location for this account.', 'customer-confirmation'],
+  customer_reference_changed: ['Customer reference data changed. Refresh and renew confirmation.', 'customer-confirmation'],
   draft_already_converted: ['This source draft has already been converted.', 'draft-header'],
   customer_name_missing: ['A customer name is required.', 'draft-header'],
   lines_missing: ['Add at least one requested line.', 'draft-lines-section'],
@@ -108,6 +113,8 @@ export class OrdersApi {
   }
 }
 export function parseRoute(hash) {
+  const customers = /^#\/workspaces\/([^/]+)\/customers\/$/.exec(hash);
+  if (customers && UUID.test(customers[1])) return { screen: 'customers', workspace: customers[1].toLowerCase() };
   const incoming = /^#\/workspaces\/([^/]+)\/incoming\/$/.exec(hash);
   if (incoming && UUID.test(incoming[1])) return { screen: 'documents', workspace: incoming[1].toLowerCase(), order: 'incoming' };
   const queue = /^#\/workspaces\/([^/]+)\/(purchase-orders|documents)\/\?(.+)$/.exec(hash);

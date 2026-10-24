@@ -11,8 +11,12 @@ import { MatchingController, renderMatching } from './matching.js';
 import { PurchaseController, purchaseRoute, renderPurchase } from './purchase.js';
 import { CatalogueController, renderCatalogue } from './catalogue.js';
 import { OrderQueueController, queueRoute, renderOrderQueue } from './order-queue.js';
+import { CustomerController, customerRoute, renderCustomers } from './customers.js';
 
 const $ = id => document.getElementById(id);
+const customerTab = $('catalogue-tab').cloneNode(true);
+customerTab.id = 'customers-tab'; customerTab.title = 'Customers'; customerTab.querySelector('.sidebar-label').textContent = 'Customers';
+$('workspace-tabs').insertBefore(customerTab, $('drafts-tab'));
 // Presentation preference only; no workspace or customer data is persisted.
 $('sidebar-toggle').addEventListener('click', () => {
   const collapsed = $('desk').dataset.sidebar !== 'collapsed';
@@ -28,6 +32,7 @@ let desk;
 let editor;
 let extractionReview;
 let matching;
+const customers = new CustomerController(client, () => { renderCustomers(customers); if (desk) renderOrders(orders.state); }, async () => desk.startWithoutSelection(), async id => { if (orders.state.draftId === id) await orders.open(id, true); });
 const catalogue = new CatalogueController(client, () => renderCatalogue(catalogue, desk?.state.phase === 'desk' && parseRoute(location.hash).screen === 'catalogue'), async () => desk.loadCatalogue(), async () => desk.startWithoutSelection());
 const queue = new OrderQueueController(client, () => renderOrderQueue(queue, desk?.state.phase === 'desk' && Boolean(queue.state.screen)), async () => desk.startWithoutSelection());
 const purchase = new PurchaseController(client, () => { const route = parseRoute(location.hash); renderPurchase(purchase, desk?.state.phase === 'desk' && route.screen === 'purchase' && route.workspace === purchase.state.workspace?.id); }, async () => {
@@ -70,10 +75,11 @@ editor = new DraftEditor(orders.api, orders, () => renderEditor(editor), async i
 }, () => recheckAccess(true));
 function renderOrders(state) {
   const route = parseRoute(location.hash);
+  if (customers.state.mode === 'draft' && customers.state.draftId === state.draftId && customers.state.workspace?.id === state.workspace?.id && customers.state.generation === state.generation) customers.observeRevision(state.revision);
   editor?.context();
   matching?.context();
   if (matching) renderMatching(matching);
-  renderDrafts(state, desk?.state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'drafts' && route.workspace === state.workspace.id, orders.canConvert(), (mode, line) => editor.begin(mode, line));
+  renderDrafts(state, desk?.state.phase === 'desk' && Boolean(state.workspace) && route.screen === 'drafts' && route.workspace === state.workspace.id, orders.canConvert() && !customers.hasUnsaved(), (mode, line) => editor.begin(mode, line));
   let documentLink = $('conversion-documents');
   if (!documentLink) { documentLink = document.createElement('a'); documentLink.id = 'conversion-documents'; documentLink.textContent = 'Open purchase-order documents'; $('conversion-result').append(documentLink); }
   documentLink.hidden = !state.result; documentLink.href = state.result ? documentRoute(state.workspace.id, state.result.id) : '#';
@@ -83,7 +89,7 @@ function renderOrders(state) {
   if (editor) {
     $('new-draft').hidden = !editor.canEdit('create');
     $('edit-header').hidden = !editor.canEdit(); $('add-line').hidden = !editor.canEdit();
-    for (const id of ['new-draft', 'edit-header', 'add-line']) $(id).disabled = editor.state.open || state.converting;
+    for (const id of ['new-draft', 'edit-header', 'add-line']) $(id).disabled = editor.state.open || state.converting || customers.state.pending || Boolean(customers.state.operation);
   }
 }
 async function recheckAccess(action) {
@@ -107,6 +113,8 @@ async function recheckAccess(action) {
 let navigation = 0;
 let acceptedHash = location.hash;
 function discardForNavigation(signingOut = false) {
+  if (customers.state.pending || customers.state.operation) { customers.update({ message: 'Reconcile the saved reference operation before leaving. Signing out clears private in-memory state.' }); if (!signingOut) return false; }
+  if (!signingOut && customers.state.mode === 'draft' && customers.state.account && !customers.state.operation) { if (!window.confirm('Discard this proposed customer selection before leaving?')) return false; customers.update({ account: null, locations: [], candidate: null }); }
   if (documents.state.pending || documents.state.linkOperation || documents.state.uncertain) { documents.update({ message: 'Reconcile the pending source operation before leaving. Sign out clears private in-memory state.' }); if (!signingOut) return false; }
   if (!signingOut && catalogue.state.pending) return false;
   if (!signingOut && catalogue.state.uncertain) { catalogue.update({ message: 'Reconcile the unconfirmed catalogue write before leaving. Reloading discards the in-memory retry receipt.' }); return false; }
@@ -135,6 +143,8 @@ async function applyRoute() {
   }
   render(desk.state);
   if (queue.state.screen) await queue.load();
+  if (customers.state.mode === 'directory') await customers.list();
+  if (customers.state.mode === 'snapshot') await customers.loadSnapshot();
   if (route.screen === 'drafts' && orders.state.workspace) {
     if (route.draft) await orders.open(route.draft); else await orders.list();
     if (version === navigation) $('page-title').focus();
@@ -144,6 +154,9 @@ async function applyRoute() {
 }
 function render(state) {
   const route = parseRoute(location.hash);
+  const customerMode = route.screen === 'customers' ? 'directory' : route.screen === 'drafts' && route.draft ? 'draft' : route.screen === 'purchase' && route.order ? 'snapshot' : null;
+  customers.context(state.phase === 'desk' && route.workspace === state.workspace?.id && customerMode ? state.workspace : null, state.generation, customerMode, route.draft ?? route.order ?? null);
+  renderCustomers(customers);
   queue.context(state.phase === 'desk' ? state.workspace : null, state.generation, route);
   renderOrderQueue(queue, state.phase === 'desk' && Boolean(queue.state.screen));
   catalogue.context(state.phase === 'desk' ? state.workspace : null, state.generation);
@@ -171,6 +184,8 @@ function render(state) {
   $('catalogue').hidden = !state.workspace || route.screen !== 'catalogue';
   $('workspace-tabs').hidden = !state.workspace;
   $('catalogue-tab').href = state.workspace ? `#/workspaces/${state.workspace.id}/catalogue/` : '#';
+  $('customers-tab').href = state.workspace ? customerRoute(state.workspace.id) : '#';
+  $('customers-tab').setAttribute('aria-current', route.screen === 'customers' ? 'page' : 'false');
   $('drafts-tab').href = state.workspace ? draftRoute(state.workspace.id) : '#';
   $('documents-tab').href = state.workspace ? incomingRoute(state.workspace.id) : '#';
   $('purchase-tab').href = state.workspace ? purchaseRoute(state.workspace.id) : '#';
@@ -188,6 +203,7 @@ function render(state) {
   $('breadcrumb').textContent = route.screen === 'drafts' ? 'WORKSPACE / DRAFT ORDERS' : 'WORKSPACE / CATALOGUE';
   $('page-title').textContent = route.screen === 'drafts' ? route.draft ? 'Draft review' : 'Draft orders' : 'Product catalogue';
   $('page-subtitle').textContent = route.screen === 'drafts' ? 'Inspect manual requests and their readiness for internal conversion.' : 'Browse your workspace’s products and catalogue status.';
+  if (route.screen === 'customers') { $('breadcrumb').textContent = 'WORKSPACE / CUSTOMER REFERENCE DATA'; $('page-title').textContent = 'Customers'; $('page-subtitle').textContent = 'Approved identifiers, delivery locations and explicit account confirmation.'; }
   $('catalogue').setAttribute('aria-busy', String(state.catalogBusy));
   if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = route.order === 'incoming' ? 'Incoming orders' : route.order ? 'Document intake' : 'Find an order for document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
   if (route.screen === 'purchase') { $('breadcrumb').textContent = 'WORKSPACE / INTERNAL ORDERS'; $('page-title').textContent = route.order ? 'Approval and CSV export' : 'Internal orders'; $('page-subtitle').textContent = 'Find an order, inspect its source and review its next action.'; }
@@ -252,6 +268,34 @@ $('purchase-download').addEventListener('click', async () => {
   const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = `order-${purchase.state.orderId}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 $('documents-open-form').addEventListener('submit', event => { event.preventDefault(); const id = $('documents-order-id').value.trim().toLowerCase(); if (/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id) && documents.state.workspace) location.hash = documentRoute(documents.state.workspace.id, id); else documents.update({ message: 'Enter a valid purchase-order UUID.' }); });
+$('customer-search-form').addEventListener('submit', event => { event.preventDefault(); customers.list(1, $('customer-query').value.trim(), $('customer-active').value); });
+$('customer-refresh').addEventListener('click', () => customers.list(customers.state.page));
+$('customer-previous').addEventListener('click', () => customers.list(customers.state.page - 1));
+$('customer-next').addEventListener('click', () => customers.list(customers.state.page + 1));
+$('customer-create-form').addEventListener('submit', event => { event.preventDefault(); customers.mutate('account', customers.base(), { code: $('customer-new-code').value, display_name: $('customer-new-name').value, destination_id: $('customer-new-destination').value, requires_location: $('customer-new-location-required').checked }); });
+$('customer-edit-form').addEventListener('submit', event => { event.preventDefault(); const account = customers.state.account; if (!account) return; customers.mutate('account', `${customers.base()}${account.id}/`, { display_name: $('customer-edit-name').value, destination_id: $('customer-edit-destination').value, requires_location: $('customer-edit-location-required').checked, is_active: $('customer-edit-active').checked }, { id: account.id, method: 'PATCH', revision: account.revision }); });
+$('customer-location-form').addEventListener('submit', event => { event.preventDefault(); const account = customers.state.account; if (!account) return; customers.mutate('location', `${customers.base()}${account.id}/locations/`, { code: $('customer-location-code').value, display_name: $('customer-location-name').value, destination_id: $('customer-location-destination').value }, { customer: account.id }); });
+$('customer-alias-form').addEventListener('submit', event => { event.preventDefault(); const account = customers.state.account; if (!account) return; customers.mutate('alias', `${customers.base()}${account.id}/aliases/`, { value: $('customer-alias-value').value, provenance: $('customer-alias-provenance').value }, { customer: account.id }); });
+for (const [previous, next, kind] of [['customer-site-previous', 'customer-site-next', 'site'], ['customer-alias-previous', 'customer-alias-next', 'alias'], ['customer-confirm-site-previous', 'customer-confirm-site-next', 'site']]) {
+  for (const [id, increment] of [[previous, -1], [next, 1]]) $(id).addEventListener('click', () => { const s = customers.state; if (s.account) customers.openAccount(s.account.id, s.sitePage + (kind === 'site' ? increment : 0), s.aliasPage + (kind === 'alias' ? increment : 0)); });
+}
+$('customer-import-file').addEventListener('change', event => customers.selectFile(event.target.files[0] ?? null));
+$('customer-import-validate').addEventListener('click', () => customers.validateFile());
+$('customer-import-create').addEventListener('click', () => { if (customers.state.file && customers.state.report?.valid) customers.mutate('import', `${customers.base()}imports/create/`, {}, { file: customers.state.file }); });
+for (const prefix of ['customer', 'customer-confirm']) {
+  $(`${prefix}-reconcile`).addEventListener('click', () => customers.reconcile());
+  $(`${prefix}-retry`).addEventListener('click', () => customers.send());
+}
+$('customer-confirm-refresh').addEventListener('click', () => customers.loadStatus());
+$('customer-lookup-form').addEventListener('submit', event => { event.preventDefault(); customers.list(1, $('customer-confirm-query').value.trim()); });
+$('customer-confirm-exact').addEventListener('click', () => customers.resolve($('customer-confirm-query').value));
+$('customer-confirm-previous').addEventListener('click', () => customers.list(customers.state.page - 1));
+$('customer-confirm-next').addEventListener('click', () => customers.list(customers.state.page + 1));
+$('customer-confirm-preview').addEventListener('click', () => customers.preview($('customer-site-choice').value || null));
+$('customer-site-choice').addEventListener('change', () => customers.preview($('customer-site-choice').value || null));
+$('customer-confirm-save').addEventListener('click', () => customers.confirm());
+$('customer-confirm-cancel').addEventListener('click', () => { if (!customers.state.pending && !customers.state.operation) customers.update({ account: null, locations: [], candidate: null, locationId: null }); });
+$('order-customer-refresh').addEventListener('click', () => customers.loadSnapshot());
 $('document-file').addEventListener('change', event => documents.select(event.target.files[0] ?? null));
 $('document-upload-form').addEventListener('submit', event => { event.preventDefault(); documents.upload(); });
 $('documents-refresh').addEventListener('click', () => documents.list(documents.state.page));
@@ -307,11 +351,11 @@ $('next').addEventListener('click', () => desk.goToPage(desk.state.page + 1));
 $('retry').addEventListener('click', () => desk.state.catalogError ? desk.loadCatalogue() : desk.state.retryAction === 'logout' ? desk.logout() : desk.start());
 // Revalidate on return from another tab, where selection, auth or access changed.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !documents.state.pending && !documents.state.uncertain && !documents.state.linkOperation && !documents.state.file && !catalogue.state.pending && !catalogue.state.uncertain && !catalogue.state.file && !orders.state.converting && !purchase.state.pending && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
+  if (!document.hidden && desk.state.phase === 'desk' && !desk.state.busy && !customers.hasUnsaved() && !customers.state.file && !documents.state.pending && !documents.state.uncertain && !documents.state.linkOperation && !documents.state.file && !catalogue.state.pending && !catalogue.state.uncertain && !catalogue.state.file && !orders.state.converting && !purchase.state.pending && !editor.state.open && !extractionReview.hasUnsaved() && !extractionReview.state.pending) desk.start().then(applyRoute);
 });
 window.addEventListener('pageshow', event => { if (event.persisted) desk.start().then(applyRoute); });
 window.addEventListener('hashchange', applyRoute);
-window.addEventListener('beforeunload', event => { if (documents.state.pending || documents.state.uncertain || documents.state.linkOperation || catalogue.state.pending || catalogue.state.uncertain || purchase.state.pending || editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (customers.hasUnsaved() || documents.state.pending || documents.state.uncertain || documents.state.linkOperation || catalogue.state.pending || catalogue.state.uncertain || purchase.state.pending || editor.state.dirty || editor.state.pending || extractionReview.hasUnsaved() || extractionReview.state.pending || matching.state.pending || matching.state.uncertain) { event.preventDefault(); event.returnValue = ''; } });
 $('matching-load').addEventListener('click', () => matching.load());
 $('matching-reload').addEventListener('click', () => matching.reload());
 $('new-draft').addEventListener('click', () => editor.begin('create'));

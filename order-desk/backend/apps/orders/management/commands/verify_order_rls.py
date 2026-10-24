@@ -30,10 +30,13 @@ class Command(CatalogVerifierCommand):
     help = "Verify order RLS as orderdesk_app, using only test_orderdesk."
 
     def _audit_runtime_boundary(self) -> None:
+        from apps.customers.tests.runtime_boundary import audit
+
         # Retain the existing target, actual session identity, restricted-role,
         # and catalogue-policy audits. Do not substitute an owner impersonation.
         super()._audit_runtime_boundary()
         with connection.cursor() as cursor:
+            audit(cursor)
             for table, prefix in TABLE_PREFIXES.items():
                 cursor.execute(
                     "SELECT pg_catalog.pg_get_userbyid(c.relowner), "

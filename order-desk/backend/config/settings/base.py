@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "apps.health.apps.HealthConfig",
     "apps.organizations.apps.OrganizationsConfig",
     "apps.catalog.apps.CatalogConfig",
+    "apps.customers.apps.CustomersConfig",
     "apps.orders.apps.OrdersConfig",
     "apps.web.apps.WebConfig",
 ]

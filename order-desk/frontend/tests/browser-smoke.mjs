@@ -56,6 +56,9 @@ async function evaluate(expression) {
 }
 async function waitFor(expression) {
   for (let count = 0; count < 150; count++) { if (await evaluate(expression)) return; await delay(100); }
+  await writeFile(resolve(scratch, 'browser-failure.json'), JSON.stringify(await evaluate(`({hash:location.hash, requested:${JSON.stringify(expression)}, fields: [...document.querySelectorAll('[role="status"], #editor-message, #draft-detail-state')].map(e=>({id:e.id,text:e.textContent})), edit:document.getElementById('edit-header') ? {hidden:document.getElementById('edit-header').hidden,disabled:document.getElementById('edit-header').disabled}:null})`), null, 2));
+  const failedShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  await writeFile(resolve(scratch, 'browser-failure.png'), Buffer.from(failedShot.data, 'base64'));
   throw new Error(`Timed out waiting for: ${expression}`);
 }
 async function choose(id) {
@@ -194,7 +197,7 @@ try {
   await field('edit-customer-name', 'Manual Browser Customer'); await field('edit-customer-reference', '00042');
   await field('edit-intake', '<img src=x onerror=window.injected=true> Synthetic manual intake');
   await saveEdit();
-  await waitFor("document.getElementById('draft-fields').textContent.includes('Manual Browser Customer') && document.getElementById('draft-blockers').textContent.includes('requested line')");
+  await waitFor("document.getElementById('draft-fields').textContent.includes('Manual Browser Customer') && document.getElementById('draft-blockers').textContent.includes('requested line') && !document.getElementById('edit-header').hidden && !document.getElementById('draft-refresh').disabled");
   const manualId = (await evaluate('location.hash')).split('/').at(-2);
   assert.equal(await evaluate("document.querySelectorAll('#draft-intake img').length"), 0);
   await evaluate("document.getElementById('edit-header').click()"); await editOpen();
@@ -498,6 +501,99 @@ try {
     const inboxShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     await writeFile(resolve(scratch, `incoming-${width}.png`), Buffer.from(inboxShot.data, 'base64'));
   }
+  // Customer identities are administered separately from requested source text.
+  await evaluate(`location.hash='#/workspaces/${data.a}/customers/'`);
+  await waitFor("!document.getElementById('customers-screen').hidden && !document.getElementById('customer-refresh').disabled");
+  await evaluate("document.getElementById('customer-create-panel').open=true");
+  await field('customer-new-code', '00042'); await field('customer-new-name', 'Synthetic confirmed customer');
+  await field('customer-new-destination', '000007');
+  await evaluate("document.getElementById('customer-new-location-required').checked=true");
+  dropIncomingResponse = true;
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*customers/', requestStage: 'Response' }] });
+  await evaluate("document.getElementById('customer-create-form').requestSubmit()");
+  await waitFor("document.getElementById('customer-message').textContent.includes('Outcome unconfirmed') && !document.getElementById('customer-reconcile').disabled");
+  await evaluate("document.getElementById('customer-reconcile').click()");
+  await waitFor("document.getElementById('customer-message').textContent.includes('durable receipt') && document.querySelector('#customer-rows button')");
+  const customerBase = `/api/v1/workspaces/${data.a}/customers/`;
+  const accounts = (await secondRequest(customerBase)).data;
+  assert.equal(accounts.count, 1); assert.equal(accounts.results[0].code, '00042');
+  const customerId = accounts.results[0].id;
+  await evaluate("document.querySelector('#customer-rows button').click()");
+  await waitFor("!document.getElementById('customer-details').hidden && !document.getElementById('customer-edit-name').disabled");
+  for (const [code, name, destination] of [['00A', 'Synthetic north site', '000010'], ['00B', 'Synthetic south site', '000020']]) {
+    await field('customer-location-code', code); await field('customer-location-name', name); await field('customer-location-destination', destination);
+    await evaluate("document.getElementById('customer-location-form').requestSubmit()");
+    await waitFor(`document.getElementById('customer-location-rows').textContent.includes(${JSON.stringify(code)}) && !document.getElementById('customer-location-code').disabled`);
+  }
+  await field('customer-alias-value', 'PO-Exact.Mixed'); await field('customer-alias-provenance', 'Synthetic operator approval; no customer evidence');
+  await evaluate("document.getElementById('customer-alias-form').requestSubmit()");
+  await waitFor("document.getElementById('customer-alias-rows').textContent.includes('PO-Exact.Mixed') && !document.getElementById('customer-edit-name').disabled");
+  // A second authenticated session wins an edit; the first proposal stays visible.
+  const accountBefore = (await secondRequest(`${customerBase}${customerId}/`)).data;
+  await field('customer-edit-name', 'Unsaved first operator name');
+  assert.equal((await secondRequest(`${customerBase}${customerId}/`, 'PATCH', { display_name: 'Synthetic latest customer' }, accountBefore.revision)).status, 200);
+  await evaluate("document.getElementById('customer-edit-form').requestSubmit()");
+  await waitFor("document.getElementById('customer-message').textContent.includes('Reference data changed') && !document.getElementById('customer-edit-name').disabled");
+  assert.equal(await evaluate("document.getElementById('customer-edit-name').value"), 'Unsaved first operator name');
+  for (const [width, height] of [[1365, 900], [390, 844], [320, 844]]) {
+    await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 500 });
+    await evaluate('Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})))');
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), `Customer directory ${width} overflows.`);
+    if (width > 760) assert.ok(await evaluate("document.getElementById('workspace-tabs').getBoundingClientRect().width <= 260"), 'Desktop sidebar must finish resizing before capture.');
+    const customerShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    await writeFile(resolve(scratch, `customers-${width}.png`), Buffer.from(customerShot.data, 'base64'));
+  }
+  await evaluate(`location.hash='#/workspaces/${data.a}/draft-orders/${incomingDraft}/'`);
+  await waitFor("document.getElementById('customer-confirm-state').textContent.includes('Blocking:') && !document.getElementById('customer-confirm-exact').disabled");
+  await field('customer-confirm-query', 'PO-Exact.Mixed'); await evaluate("document.getElementById('customer-confirm-exact').click()");
+  await waitFor("document.querySelector('#customer-confirm-accounts button') && !document.querySelector('#customer-confirm-accounts button').disabled");
+  assert.match(await evaluate("document.getElementById('customer-confirm-accounts').textContent"), /00042/);
+  await evaluate("document.querySelector('#customer-confirm-accounts button').click()");
+  await waitFor("document.querySelectorAll('#customer-site-choice option').length===3 && !document.getElementById('customer-confirm-preview').disabled");
+  assert.equal(await evaluate("document.getElementById('customer-site-choice').value"), '');
+  await evaluate("document.getElementById('customer-confirm-preview').click()");
+  await waitFor("document.getElementById('customer-confirm-message').textContent.includes('location') && !document.getElementById('customer-confirm-preview').disabled");
+  assert.equal(await evaluate("document.getElementById('customer-confirm-save').disabled"), true);
+  const sites = (await secondRequest(`${customerBase}${customerId}/locations/`)).data.results;
+  const selectedSite = sites.find(site => site.code === '00B');
+  await selectValue('customer-site-choice', selectedSite.id);
+  await evaluate("document.getElementById('customer-confirm-preview').click()");
+  await waitFor("!document.getElementById('customer-confirm-save').disabled");
+  assert.match(await evaluate("document.getElementById('customer-confirm-proposal').textContent"), /Synthetic incoming customer.*Synthetic latest customer.*00B/);
+  const currentAccount = (await secondRequest(`${customerBase}${customerId}/`)).data;
+  assert.equal((await secondRequest(`${customerBase}${customerId}/`, 'PATCH', { destination_id: '000008' }, currentAccount.revision)).status, 200);
+  await evaluate("document.getElementById('customer-confirm-save').click()");
+  await waitFor("document.getElementById('customer-confirm-message').textContent.includes('reference data changed') && !document.getElementById('customer-confirm-preview').disabled");
+  assert.equal(await evaluate("document.getElementById('customer-confirm-save').disabled"), true);
+  await evaluate("document.getElementById('customer-confirm-preview').click()");
+  await waitFor("!document.getElementById('customer-confirm-save').disabled");
+  dropIncomingResponse = true;
+  await command('Fetch.enable', { patterns: [{ urlPattern: '*customers/drafts/*/confirmation/', requestStage: 'Response' }] });
+  await evaluate("document.getElementById('customer-confirm-save').click()");
+  await waitFor("document.getElementById('customer-confirm-message').textContent.includes('Outcome unconfirmed') && !document.getElementById('customer-confirm-reconcile').disabled");
+  await evaluate("document.getElementById('customer-confirm-reconcile').click()");
+  await waitFor("document.getElementById('customer-confirm-state').textContent.includes('Customer account confirmed') && document.getElementById('customer-confirm-reconcile').hidden");
+  const confirmed = (await secondRequest(`${customerBase}drafts/${incomingDraft}/confirmation/`)).data;
+  assert.equal(confirmed.decision.snapshot.source_requested.customer_name, 'Synthetic incoming customer');
+  assert.equal(confirmed.decision.snapshot.account.code, '00042'); assert.equal(confirmed.decision.snapshot.location.code, '00B');
+  assert.equal((await secondRequest(`${customerBase}drafts/${incomingDraft}/confirmation/history/`)).data.count, 1);
+  await evaluate("document.getElementById('matching-load').click()");
+  await waitFor("document.querySelector('#matching-results button') && !document.querySelector('#matching-results button').disabled");
+  await evaluate("document.querySelector('#matching-results button').click()");
+  await waitFor("document.getElementById('draft-readiness-state').textContent==='Ready for internal conversion' && !document.getElementById('convert-draft').disabled");
+  await confirm();
+  await waitFor("!document.getElementById('conversion-purchase').hidden");
+  await evaluate("document.getElementById('conversion-purchase').click()");
+  await waitFor("document.getElementById('order-customer-summary').textContent.includes('Frozen account 00042')");
+  assert.match(await evaluate("document.getElementById('order-customer-summary').textContent"), /000008.*00B.*000020.*Synthetic incoming customer/);
+  const frozenCustomer = await evaluate("document.getElementById('order-customer-summary').textContent");
+  const latestAccount = (await secondRequest(`${customerBase}${customerId}/`)).data;
+  assert.equal((await secondRequest(`${customerBase}${customerId}/`, 'PATCH', { display_name: 'Changed after conversion' }, latestAccount.revision)).status, 200);
+  await evaluate("document.getElementById('order-customer-refresh').click()");
+  await waitFor("!document.getElementById('order-customer-refresh').disabled");
+  assert.equal(await evaluate("document.getElementById('order-customer-summary').textContent"), frozenCustomer);
+  console.log('PASS: customer admin directory, leading zeros, two delivery locations and approved exact alias; committed-response receipt reconciliation, stale edit/input preservation, stale preview rejection, explicit selected-site confirmation with identical replay, one decision and immutable converted customer snapshot.');
   await evaluate(`location.hash='#/workspaces/${data.a}/orders/${orderId}/documents/'`);
   await waitFor("!document.getElementById('documents-screen').hidden && document.getElementById('documents-empty').textContent==='No source documents listed.' && !document.getElementById('documents-refresh').disabled");
   await pickDocument('empty.pdf', ''); assert.match(await evaluate("document.getElementById('documents-message').textContent"), /nonempty/);
@@ -703,7 +799,7 @@ try {
   await evaluate("document.getElementById('purchase-download').click()");
   await waitFor("document.getElementById('purchase-message').textContent.includes('CSV verified')");
   await evaluate("document.getElementById('purchase-queue-link').click()");
-  await waitFor("document.querySelectorAll('#queue-rows tr').length===1 && document.getElementById('queue-rows').textContent.includes('approved')");
+  await waitFor("document.querySelectorAll('#queue-rows tr').length===2 && document.getElementById('queue-rows').textContent.includes('approved') && document.getElementById('queue-rows').textContent.includes('Synthetic latest customer')");
   await evaluate("document.getElementById('queue-status').value='pending_review'; document.getElementById('queue-search-form').requestSubmit()");
   await waitFor("document.getElementById('queue-message').textContent.includes('No orders match')");
   await evaluate(`location.hash='#/workspaces/${data.a}/orders/${orderId}/documents/'`);

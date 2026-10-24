@@ -4,7 +4,9 @@ from apps.orders.response_limits import MAX_ORDER_LINES
 
 
 def evaluate_draft_readiness(order) -> dict:
-    reasons = []
+    from apps.customers.readiness import blockers
+
+    reasons = [{"code": code, "count": 1} for code in blockers(order)]
     counts = (
         ("draft_already_converted", int(order.status == "converted")),
         ("customer_name_missing", int(not order.customer_name.strip())),
