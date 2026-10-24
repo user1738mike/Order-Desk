@@ -40,6 +40,8 @@ with connection.cursor() as cursor:
     require(cursor.fetchone()[0] == 0, "Restored order RLS/ownership missing.")
     cursor.execute("SELECT count(*) FROM orders_purchaseorder")
     require(cursor.fetchone()[0] == 0, "Unscoped restored rows exposed.")
+    cursor.execute("SELECT count(*) FROM orders_orderdocument")
+    require(cursor.fetchone()[0] == 0, "Unscoped restored sources exposed.")
 
 for workspace, foreign in ((fixture["a"], fixture["b"]), (fixture["b"], fixture["a"])):
     with transaction.atomic(), connection.cursor() as cursor:
@@ -65,6 +67,20 @@ for workspace, foreign in ((fixture["a"], fixture["b"]), (fixture["b"], fixture[
             cursor.fetchall() == [(workspace,)],
             "Restored catalogue tenant boundary failed.",
         )
+        state = json.loads(Path("/run-state/workflow.json").read_text(encoding="utf-8"))
+        if incoming := state.get("incoming"):
+            cursor.execute(
+                "SELECT draft_id::text FROM orders_orderdocument "
+                "WHERE id=%s AND order_id IS NULL",
+                [incoming["document"]["id"]],
+            )
+            expected = (
+                [(incoming["draft_id"],)] if workspace == incoming["workspace"] else []
+            )
+            require(
+                cursor.fetchall() == expected,
+                "Restored incoming link tenant boundary failed.",
+            )
 print(
     "PASS: restored two-tenant direct restricted-role RLS, "
     "unscoped denial and migrator ownership."

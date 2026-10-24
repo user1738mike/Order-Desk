@@ -1,5 +1,17 @@
 # Coordinated synthetic backup and recovery
 
+Upload-first coverage: `python scripts/verify_incoming_recovery.py --source
+backend/var/deployment-<owned UUID>` extends a completed synthetic acceptance run
+with a private incoming CSV, one-time draft link, extraction and applied receipt.
+Its saved request plan makes interrupted/repeated fixture preparation repeat-safe.
+It then invokes the existing encrypted fresh-target drill. The restored TLS probe
+checks original digest, linked draft, job and application identity, repeats the
+same link/application operations without additional lines, and refuses foreign
+downloads; direct runtime SQL checks the incoming link across two tenants.
+24 October run:122.125s, five files/246374 reported plaintext bytes, all restore
+refusal guards passed. Exact identities/logs are in PROJECT_STATE.md. This covers
+synthetic same-host recovery only, not offsite custody or a customer RTO.
+
 This procedure proves recovery of the local acceptance installation. It deliberately
 refuses every database except `test_orderdesk`, and does not back up or restore the
 developer's main database. Production/customer backup coverage is still a release

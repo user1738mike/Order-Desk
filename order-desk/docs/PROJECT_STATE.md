@@ -89,10 +89,36 @@ No external submissions, customer communications, paid services or public deploy
 All six improvements remain active; no overall/pilot readiness claim. Real customer
 handoff needs the actual destination contract/accepted sample; measured benefit
 needs representative orders and independently reviewed ground truth/observations.
-Exact next action: commit verified upload-first fixes and evaluation tooling;
-extend synthetic recovery fixture/probe for incoming source/link/original bytes
-and run fresh encrypted isolated restore, then implement customer reference data
-with tenant constraints/permissions/UI/tests before controlled units and exceptions.
+Verified increments committed/pushed on main: evaluation27d34c2 and inbox fixes
+436acbb, following auto-created initial feature d9fbac8. Incoming-specific recovery
+now PASS: `python scripts/verify_incoming_recovery.py --source
+backend/var/deployment-3c7e5cf99da0473b88a9a4f467b7c34c`. Repeat-safe seed plan,
+actual runtime source/link/job/application, trusted TLS session/private bytes,
+same link/application replays with exactly one line and cross-tenant download404.
+First seed attempt failed on UUID normalization in the verification helper, before
+application; saved receipt plan safely resumed without duplicate rows/files.
+Corrected run incoming-recovery-final.log exited0: five encrypted private files,
+246374 reported plaintext bytes; fresh target
+deployment-c3abdebed6174ff7a81f9e76d3348e13,122.125s. Backup
+backup-b5b3c4a824a049cc987e110705ddfcd5. Corrupt/incomplete/authenticated-chunk and
+nonempty target guards refused; restored direct orderdesk_app two-tenant source
+link/RLS/ownership checks passed. Own source/target stopped; volumes/evidence and
+separately mounted same-host keys retained. This is not offsite recovery or an
+approved customer RTO. Script suite with two new wrapper-refusal tests50 PASS/
+0.333s; maintained helper/probe lint/format pass. No main restore.
+
+Customer reference increment started (UNVERIFIED): new apps.customers models and
+initial migration draft; stable codes, destination IDs, locations and explicitly
+approved exact aliases. No API/UI or draft confirmation wired yet. No customer
+schema migration applied to development/main. Required next work includes admin
+reference-data permissions, actor/ownership/tenant guards and forced RLS, scoped
+directory/import validation, explicit account/location confirmation and immutable
+conversion snapshots, then native/restricted/concurrency/browser proofs. Do not
+count the model draft as functionality or apply its incomplete migration.
+
+Exact next action: commit verified incoming recovery helpers/evidence separately,
+then finish the customer reference vertical increment including its database
+boundary, API/UI, confirmation/readiness and snapshot tests before controlled units.
 Profile/handoff records, complete support/role matrix and customer evidence remain
 required; previous image-advisory clearance/cold latency blockers remain open.
 
