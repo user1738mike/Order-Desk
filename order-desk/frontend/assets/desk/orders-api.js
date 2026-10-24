@@ -108,6 +108,8 @@ export class OrdersApi {
   }
 }
 export function parseRoute(hash) {
+  const incoming = /^#\/workspaces\/([^/]+)\/incoming\/$/.exec(hash);
+  if (incoming && UUID.test(incoming[1])) return { screen: 'documents', workspace: incoming[1].toLowerCase(), order: 'incoming' };
   const queue = /^#\/workspaces\/([^/]+)\/(purchase-orders|documents)\/\?(.+)$/.exec(hash);
   if (queue) {
     if (!UUID.test(queue[1])) return { screen: 'missing' };

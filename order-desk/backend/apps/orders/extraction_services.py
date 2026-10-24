@@ -8,10 +8,11 @@ from django.utils import timezone
 
 from apps.orders import selectors
 from apps.orders.csv_extraction import PARSER_VERSION, ExtractionFailure, extract_csv
+from apps.orders.incoming import require_source_editable
 from apps.orders.models import DocumentExtractionJob, ExtractionJobStatus
 from apps.orders.pdf_extraction import extract_pdf
 from apps.orders.private_documents import open_document
-from apps.orders.services import _locked_order, _require_editable_order, _require_writer
+from apps.orders.services import _require_writer
 from apps.organizations.transactions import tenant_scope
 
 LEASE_SECONDS = 120
@@ -40,12 +41,10 @@ def can_retry(job):
 def enqueue_extraction(*, actor, organization_id, order_id, document_id, materialize):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
         _require_writer(context)
-        _require_editable_order(
-            _locked_order(organization_id=organization_id, order_id=order_id)
-        )
         document = selectors.get_private_document(
             organization_id, order_id, document_id
         )
+        require_source_editable(organization_id, document)
         if (
             parser_version(document.content_type) is None
             or not document.file.name.startswith("intake/")
@@ -70,10 +69,8 @@ def enqueue_extraction(*, actor, organization_id, order_id, document_id, materia
 def retry_extraction(*, actor, organization_id, order_id, document_id, materialize):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
         _require_writer(context)
-        _require_editable_order(
-            _locked_order(organization_id=organization_id, order_id=order_id)
-        )
         job = selectors.get_extraction_job(organization_id, order_id, document_id)
+        require_source_editable(organization_id, job.document)
         if not can_retry(job):
             raise ValidationError(
                 {"job": "Only a failed job with attempts remaining can be retried."}
@@ -109,7 +106,6 @@ def process_extraction(*, actor, organization_id, job_id):
         token = job.claim_token
         document = job.document
         source = (document.file.name, document.size_bytes, job.source_sha256)
-        order_id = document.order_id
         source_matches = document.source_sha256 == job.source_sha256
     result, pages, metrics, failure = [], [], {}, None
     try:
@@ -150,9 +146,7 @@ def process_extraction(*, actor, organization_id, job_id):
         if (document.file.name, document.size_bytes, document.source_sha256) != source:
             failure = ExtractionFailure("source_changed")
         try:
-            _require_editable_order(
-                _locked_order(organization_id=organization_id, order_id=order_id)
-            )
+            require_source_editable(organization_id, document)
         except ValidationError:
             failure = ExtractionFailure("order_locked")
         current.result = [] if failure else result

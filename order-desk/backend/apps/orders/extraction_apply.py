@@ -238,6 +238,8 @@ def apply_extraction(*, actor, organization_id, order_id, document_id, data):
         document = selectors.get_private_document(
             organization_id, order_id, document_id
         )
+        if document.order_id is None and document.draft_id != draft.pk:
+            _invalid("draft_id", "Use the draft linked to this incoming source.")
         job = get_object_or_404(
             DocumentExtractionJob.objects.filter(
                 organization_id=organization_id, document=document

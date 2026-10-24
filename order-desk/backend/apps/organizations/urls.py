@@ -1,5 +1,6 @@
 from django.urls import include, path
 
+from apps.orders.incoming_urls import urlpatterns as incoming_urlpatterns
 from apps.orders.urls import draft_urlpatterns
 from apps.organizations.views import (
     CurrentWorkspaceView,
@@ -14,6 +15,7 @@ urlpatterns = [
     path("current/", CurrentWorkspaceView.as_view(), name="current"),
     path("<uuid:workspace_id>/catalog/", include("apps.catalog.urls")),
     path("<uuid:workspace_id>/orders/", include("apps.orders.urls")),
+    path("<uuid:workspace_id>/incoming/", include(incoming_urlpatterns)),
     path(
         "<uuid:workspace_id>/draft-orders/",
         include((draft_urlpatterns, "draft_orders"), namespace="draft-orders"),

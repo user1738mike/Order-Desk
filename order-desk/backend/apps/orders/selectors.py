@@ -208,6 +208,13 @@ def private_documents_for_order(
 def get_private_document(
     organization_id: UUID, order_id: UUID, document_id: UUID
 ) -> OrderDocument:
+    if order_id is None:
+        return get_object_or_404(
+            OrderDocument.objects.filter(
+                organization_id=organization_id, order__isnull=True
+            ),
+            pk=document_id,
+        )
     return get_object_or_404(
         private_documents_for_order(organization_id, order_id), pk=document_id
     )

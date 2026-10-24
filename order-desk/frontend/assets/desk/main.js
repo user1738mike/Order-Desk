@@ -5,7 +5,7 @@ import { DraftController } from './orders-controller.js';
 import { draftRoute, renderDrafts } from './orders-view.js';
 import { DraftEditor } from './editor.js';
 import { renderEditor } from './editor-view.js';
-import { DocumentController, documentRoute, renderDocuments } from './documents.js';
+import { DocumentController, documentRoute, incomingRoute, renderDocuments } from './documents.js';
 import { ExtractionReviewController, renderExtractionReview } from './extraction-review.js';
 import { MatchingController, renderMatching } from './matching.js';
 import { PurchaseController, purchaseRoute, renderPurchase } from './purchase.js';
@@ -107,6 +107,7 @@ async function recheckAccess(action) {
 let navigation = 0;
 let acceptedHash = location.hash;
 function discardForNavigation(signingOut = false) {
+  if (documents.state.pending || documents.state.linkOperation || documents.state.uncertain) { documents.update({ message: 'Reconcile the pending source operation before leaving. Sign out clears private in-memory state.' }); if (!signingOut) return false; }
   if (!signingOut && catalogue.state.pending) return false;
   if (!signingOut && catalogue.state.uncertain) { catalogue.update({ message: 'Reconcile the unconfirmed catalogue write before leaving. Reloading discards the in-memory retry receipt.' }); return false; }
   if (purchase.state.pending) return false;
@@ -171,12 +172,14 @@ function render(state) {
   $('workspace-tabs').hidden = !state.workspace;
   $('catalogue-tab').href = state.workspace ? `#/workspaces/${state.workspace.id}/catalogue/` : '#';
   $('drafts-tab').href = state.workspace ? draftRoute(state.workspace.id) : '#';
-  $('documents-tab').href = state.workspace ? documentRoute(state.workspace.id) : '#';
+  $('documents-tab').href = state.workspace ? incomingRoute(state.workspace.id) : '#';
   $('purchase-tab').href = state.workspace ? purchaseRoute(state.workspace.id) : '#';
   $('purchase-queue-link').href = $('purchase-tab').href;
   $('documents-queue-link').href = $('documents-tab').href;
   $('purchase-documents-link').href = state.workspace && route.order ? documentRoute(state.workspace.id, route.order) : '#';
   $('documents-purchase-link').href = state.workspace && route.order ? purchaseRoute(state.workspace.id, route.order) : '#';
+  $('documents-purchase-link').hidden = route.order === 'incoming';
+  $('documents-queue-link').href = state.workspace ? documentRoute(state.workspace.id) : '#';
   $('purchase-tab').setAttribute('aria-current', route.screen === 'purchase' ? 'page' : 'false');
   $('documents-tab').setAttribute('aria-current', route.screen === 'documents' ? 'page' : 'false');
   $('catalogue-tab').setAttribute('aria-current', route.screen === 'catalogue' ? 'page' : 'false');
@@ -186,7 +189,7 @@ function render(state) {
   $('page-title').textContent = route.screen === 'drafts' ? route.draft ? 'Draft review' : 'Draft orders' : 'Product catalogue';
   $('page-subtitle').textContent = route.screen === 'drafts' ? 'Inspect manual requests and their readiness for internal conversion.' : 'Browse your workspace’s products and catalogue status.';
   $('catalogue').setAttribute('aria-busy', String(state.catalogBusy));
-  if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = route.order ? 'Document intake' : 'Find an order for document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
+  if (route.screen === 'documents') { $('breadcrumb').textContent = 'WORKSPACE / SOURCE DOCUMENTS'; $('page-title').textContent = route.order === 'incoming' ? 'Incoming orders' : route.order ? 'Document intake' : 'Find an order for document intake'; $('page-subtitle').textContent = 'Private source bytes and their recorded review status.'; }
   if (route.screen === 'purchase') { $('breadcrumb').textContent = 'WORKSPACE / INTERNAL ORDERS'; $('page-title').textContent = route.order ? 'Approval and CSV export' : 'Internal orders'; $('page-subtitle').textContent = 'Find an order, inspect its source and review its next action.'; }
   purchase.context(state.phase === 'desk' ? state.workspace : null, state.generation, route.screen === 'purchase' && route.workspace === state.workspace?.id ? route.order ?? null : null);
   renderPurchase(purchase, state.phase === 'desk' && route.screen === 'purchase' && Boolean(route.order) && route.workspace === state.workspace?.id);
@@ -252,7 +255,13 @@ $('documents-open-form').addEventListener('submit', event => { event.preventDefa
 $('document-file').addEventListener('change', event => documents.select(event.target.files[0] ?? null));
 $('document-upload-form').addEventListener('submit', event => { event.preventDefault(); documents.upload(); });
 $('documents-refresh').addEventListener('click', () => documents.list(documents.state.page));
-$('documents-check').addEventListener('click', async () => { const workspace = documents.state.workspace?.id; const generation = documents.state.generation; const order = documents.state.order; documents.update({ file: null }); const loaded = await documents.list(); if (loaded && documents.state.workspace?.id === workspace && documents.state.generation === generation && documents.state.order === order) documents.update({ uncertain: false, message: 'Compare listed filenames and sizes before deliberately selecting a file again.' }); });
+$('documents-check').addEventListener('click', async () => { if (documents.state.order === 'incoming') return documents.reconcileUpload(); const workspace = documents.state.workspace?.id; const generation = documents.state.generation; const order = documents.state.order; documents.update({ file: null }); const loaded = await documents.list(); if (loaded && documents.state.workspace?.id === workspace && documents.state.generation === generation && documents.state.order === order) documents.update({ uncertain: false, message: 'Compare listed filenames and sizes before deliberately selecting a file again.' }); });
+$('incoming-search-form').addEventListener('submit', event => { event.preventDefault(); if (documents.state.pending) return; documents.update({ query: $('incoming-query').value.trim(), filter: $('incoming-filter').value }); documents.list(); });
+$('incoming-link-form').addEventListener('submit', event => { event.preventDefault(); documents.linkSource({ draft_id: $('incoming-drafts').value, customer_name: $('incoming-customer').value, customer_reference: $('incoming-reference').value }); });
+$('incoming-link-cancel').addEventListener('click', () => { if (!documents.state.pending && !documents.state.linkOperation) documents.update({ linkSource: null, drafts: [] }); });
+$('incoming-link-reconcile').addEventListener('click', () => documents.linkSource());
+$('incoming-draft-previous').addEventListener('click', () => documents.chooseLink(documents.state.linkSource, documents.state.draftPage - 1));
+$('incoming-draft-next').addEventListener('click', () => documents.chooseLink(documents.state.linkSource, documents.state.draftPage + 1));
 $('documents-previous').addEventListener('click', () => documents.list(documents.state.page - 1));
 $('documents-next').addEventListener('click', () => documents.list(documents.state.page + 1));
 $('extraction-queue').addEventListener('click', () => documents.queueExtraction());

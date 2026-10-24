@@ -76,7 +76,15 @@
       </section>
       <section id="documents-screen" class="card" hidden aria-label="Purchase-order source documents">
         <a id="documents-queue-link" href="#">All internal orders</a> · <a id="documents-purchase-link" href="#">Open order and approval</a>
-        <p class="eyebrow">SOURCE FILES</p><h2>Documents for this order</h2><p id="documents-order"></p>
+        <p class="eyebrow">SOURCE FILES</p><h2 id="documents-heading">Documents for this order</h2><p id="documents-order"></p>
+        <div id="incoming-controls" hidden>
+          <form id="incoming-search-form"><label for="incoming-query">Search source, customer or reference</label><input id="incoming-query" maxlength="200"><label for="incoming-filter">Processing state</label><select id="incoming-filter"><option value="">All sources</option><option value="unlinked">Needs draft</option><option value="linked">Linked to draft</option><option value="queued">Queued</option><option value="running">Processing</option><option value="succeeded">Proposals available</option><option value="failed">Manual processing / failed extraction</option></select><button>Search inbox</button></form>
+          <p id="incoming-request" class="small"></p>
+          <section id="incoming-link-panel" hidden aria-label="Link source to draft"><h3>Create or link draft</h3><p id="incoming-link-label"></p>
+            <form id="incoming-link-form"><label for="incoming-drafts">Existing editable draft or new draft</label><select id="incoming-drafts"></select><label for="incoming-customer">Customer name for new draft (unconfirmed)</label><input id="incoming-customer" maxlength="255"><label for="incoming-reference">Customer reference for new draft</label><input id="incoming-reference" maxlength="128"><button id="incoming-link-submit">Save source link</button><button id="incoming-link-cancel" type="button">Cancel</button></form>
+            <span id="incoming-draft-page"></span><button id="incoming-draft-previous" type="button">Previous drafts</button><button id="incoming-draft-next" type="button">Next drafts</button><button id="incoming-link-reconcile" type="button" hidden>Reconcile saved draft-link request</button>
+          </section>
+        </div>
         <details><summary>Diagnostic order lookup</summary><form id="documents-open-form" class="order-lookup"><label for="documents-order-id">Internal order ID</label><input id="documents-order-id" maxlength="36" required><button>Open documents</button></form></details>
         <p class="muted">PDF or UTF-8 CSV, up to 10 MiB. Source bytes stay private. Upload does not extract, match, review or approve an order. Downloaded files remain untrusted; no malware scan is performed.</p>
         <form id="document-upload-form" hidden><label for="document-file">Source file</label><input id="document-file" type="file" accept=".pdf,.csv"><p id="documents-file-info"></p><button id="document-upload" disabled>Upload source</button></form>

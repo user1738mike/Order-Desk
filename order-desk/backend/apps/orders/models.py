@@ -473,7 +473,27 @@ class OrderDocument(models.Model):
         PurchaseOrder,
         on_delete=models.PROTECT,
         related_name="documents",
+        null=True,
+        blank=True,
     )
+    draft = models.ForeignKey(
+        DraftOrder,
+        on_delete=models.PROTECT,
+        related_name="source_documents",
+        null=True,
+        blank=True,
+    )
+    intake_key = models.UUIDField(null=True, blank=True, editable=False)
+    linked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="linked_source_documents",
+        null=True,
+        blank=True,
+    )
+    linked_at = models.DateTimeField(null=True, blank=True)
+    link_key = models.UUIDField(null=True, blank=True, editable=False)
+    link_hash = models.CharField(max_length=64, blank=True, default="")
     organization = models.ForeignKey(
         "organizations.Organization",
         on_delete=models.PROTECT,
@@ -503,6 +523,41 @@ class OrderDocument(models.Model):
 
     class Meta:
         constraints = [
+            models.UniqueConstraint(
+                fields=("organization", "intake_key"), name="document_intake_key_unique"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(order__isnull=True)
+                | models.Q(draft__isnull=True, intake_key__isnull=True),
+                name="document_one_owner",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(order__isnull=False)
+                | (
+                    models.Q(file__startswith="intake/", intake_key__isnull=False)
+                    & models.Q(source_sha256__regex=r"^[0-9a-f]{64}$")
+                ),
+                name="incoming_private_source",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    draft__isnull=True,
+                    linked_by__isnull=True,
+                    linked_at__isnull=True,
+                    link_key__isnull=True,
+                    link_hash="",
+                )
+                | (
+                    models.Q(
+                        draft__isnull=False,
+                        linked_by__isnull=False,
+                        linked_at__isnull=False,
+                        link_key__isnull=False,
+                    )
+                    & models.Q(link_hash__regex=r"^[0-9a-f]{64}$")
+                ),
+                name="document_link_metadata",
+            ),
             models.CheckConstraint(
                 condition=models.Q(size_bytes__gt=0),
                 name="orderdocument_size_positive",

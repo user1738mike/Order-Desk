@@ -818,6 +818,13 @@ class DocumentExtractionReviewView(DraftOrderWriteView):
                     {"draft_id": ["Provide a draft UUID."]}
                 ) from error
             draft = selectors.get_draft_order(workspace_id, draft_id)
+            document = selectors.get_private_document(
+                workspace_id, order_id, document_id
+            )
+            if order_id is None and document.draft_id != draft.pk:
+                raise ValidationError(
+                    {"draft_id": ["Use the draft linked to this incoming source."]}
+                )
             job = selectors.current_extraction_job(workspace_id, order_id, document_id)
             if job is None or job.status != "succeeded":
                 raise ExtractionApplicationConflict("extraction_not_completed")

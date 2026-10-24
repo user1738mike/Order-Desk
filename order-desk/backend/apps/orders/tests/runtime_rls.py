@@ -71,6 +71,105 @@ EXTRACTION_MODELS = (DocumentExtractionJob, ExtractionApplication, ExtractionCre
 
 
 class RuntimeOrderRLSChecks(unittest.TestCase):
+    def test_incoming_runtime_scope_actor_constraints_and_revocation(self):
+        from apps.orders import incoming
+
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            client, csrf = self._credential_client(self.admin)
+            base = f"/api/v1/workspaces/{self.a.pk}/incoming/"
+            response = client.post(
+                base,
+                {"file": SimpleUploadedFile("runtime.csv", b"sku,quantity\n00042,2\n")},
+                format="multipart",
+                HTTP_X_CSRFTOKEN=csrf,
+                HTTP_IDEMPOTENCY_KEY=str(uuid4()),
+            )
+            self.assertEqual(response.status_code, 201, response.content)
+            row = response.json()
+            with tenant_scope(user=self.admin, workspace_id=self.b.pk):
+                self.assertFalse(
+                    incoming.inbox(self.b.pk).filter(pk=row["id"]).exists()
+                )
+            with tenant_scope(user=self.admin, workspace_id=self.a.pk, write=True):
+                with self.assertRaises(DatabaseError), transaction.atomic():
+                    OrderDocument.objects.filter(pk=row["id"]).update(
+                        draft_id=self.drafts[self.b.pk][DraftOrder].pk,
+                        linked_by=self.admin,
+                        linked_at=timezone.now(),
+                        link_key=uuid4(),
+                        link_hash="0" * 64,
+                    )
+                with self.assertRaises(DatabaseError), transaction.atomic():
+                    OrderDocument.objects.filter(pk=row["id"]).update(
+                        draft_id=self.drafts[self.a.pk][DraftOrder].pk,
+                        linked_by=self.reviewer,
+                        linked_at=timezone.now(),
+                        link_key=uuid4(),
+                        link_hash="0" * 64,
+                    )
+            viewer, token = self._credential_client(self.viewer)
+            self.assertEqual(viewer.get(base).status_code, 200)
+            self.assertEqual(
+                viewer.post(
+                    base + row["id"] + "/link/",
+                    {"operation_key": str(uuid4())},
+                    format="json",
+                    HTTP_X_CSRFTOKEN=token,
+                ).status_code,
+                403,
+            )
+            with transaction.atomic(using=OWNER_ALIAS):
+                Membership.objects.using(OWNER_ALIAS).filter(
+                    pk=self.admin_membership.pk
+                ).update(is_active=False)
+            self.assertEqual(client.get(row["download_url"]).status_code, 403)
+            self.assertEqual(client.get(base).status_code, 403)
+
+    def test_incoming_independent_connection_link_race_creates_one_draft(self):
+        from apps.orders import incoming
+
+        with (
+            TemporaryDirectory() as private,
+            override_settings(PRIVATE_DOCUMENT_ROOT=private),
+        ):
+            row, _ = incoming.receive(
+                actor=self.admin,
+                organization_id=self.a.pk,
+                operation_key=uuid4(),
+                upload=lambda: SimpleUploadedFile(
+                    "race.csv", b"sku,quantity\n00042,2\n"
+                ),
+            )
+            barrier = Barrier(2)
+
+            def contender(key):
+                close_old_connections()
+                try:
+                    barrier.wait(timeout=10)
+                    _, created = incoming.link(
+                        actor=self.admin,
+                        organization_id=self.a.pk,
+                        document_id=UUID(row["id"]),
+                        data=lambda: {"operation_key": str(key)},
+                    )
+                    return "created" if created else "replay"
+                except incoming.IncomingConflict:
+                    return "conflict"
+                finally:
+                    connection.close()
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                outcomes = list(pool.map(contender, [uuid4(), uuid4()]))
+            self.assertCountEqual(outcomes, ["created", "conflict"])
+            with tenant_scope(user=self.admin, workspace_id=self.a.pk):
+                self.assertEqual(
+                    DraftOrder.objects.filter(organization=self.a).count(), 2
+                )
+                self.assertIsNotNone(OrderDocument.objects.get(pk=row["id"]).draft_id)
+
     def test_operational_queue_actual_runtime_scope_and_revocation(self):
         from apps.orders.queue import order_queue
 

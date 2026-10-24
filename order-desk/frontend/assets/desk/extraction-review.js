@@ -40,7 +40,8 @@ export class ExtractionReviewController {
   }
   path(suffix) {
     const s = this.state;
-    valid(UUID.test(s.workspace?.id) && UUID.test(s.order) && UUID.test(s.source?.id));
+    valid(UUID.test(s.workspace?.id) && (UUID.test(s.order) || s.order === 'incoming') && UUID.test(s.source?.id));
+    if (s.order === 'incoming') return `/api/v1/workspaces/${s.workspace.id}/incoming/${s.source.id}/extraction/${suffix}/`;
     return `/api/v1/workspaces/${s.workspace.id}/orders/${s.order}/documents/${s.source.id}/extraction/${suffix}/`;
   }
   live(version, abort) { return version === this.version && !abort.signal.aborted; }
@@ -61,6 +62,7 @@ export class ExtractionReviewController {
     return data;
   }
   async listDrafts(page = 1) {
+    if (this.state.order === 'incoming') { if (this.state.source?.draft) await this.load(this.state.source.draft); else this.update({ message: 'Create or link a draft from this source before reviewing proposals.' }); return; }
     if (!this.state.available || !this.canChange()) return;
     this.abort?.abort(); const abort = this.abort = new AbortController(); const version = ++this.version;
     this.update({ busy: true, message: '', draftPage: page });
@@ -69,6 +71,7 @@ export class ExtractionReviewController {
     finally { if (this.live(version, abort)) this.update({ busy: false }); }
   }
   async load(draftId, page = 1, compare = false) {
+    if (this.state.order === 'incoming' && draftId !== this.state.source?.draft) return;
     if (!this.state.available || !UUID.test(draftId) || !this.canChange()) return;
     this.abort?.abort(); const abort = this.abort = new AbortController(); const version = ++this.version;
     const changedTarget = this.state.draftId !== draftId;
