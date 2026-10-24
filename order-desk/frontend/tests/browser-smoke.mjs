@@ -172,6 +172,7 @@ try {
     await waitFor("document.getElementById('draft-readiness-state').textContent === 'Ready for internal conversion' && document.querySelectorAll('#draft-lines tr').length === 50 && !document.getElementById('draft-line-next').disabled");
   }
   async function confirm() {
+    await waitFor("!document.getElementById('convert-draft').hidden && !document.getElementById('convert-draft').disabled && !document.getElementById('draft-refresh').disabled");
     await evaluate("document.getElementById('convert-draft').click()");
     await waitFor("document.getElementById('conversion-confirm').open");
     await evaluate("document.getElementById('confirm-conversion').click()");
@@ -451,6 +452,8 @@ try {
   }
   // Receive before creating a draft, lose real committed acknowledgements and
   // reconcile through operator controls. Existing-order documents remain separate.
+  fixtures('processor'); await command('Page.reload');
+  await waitFor("document.getElementById('role')?.textContent.includes('processor') && !document.getElementById('workspace').disabled");
   await evaluate(`location.hash='#/workspaces/${data.a}/incoming/'`);
   await waitFor("!document.getElementById('incoming-controls').hidden && !document.getElementById('documents-refresh').disabled");
   const incomingCsv = 'sku,quantity,unit\n0001.Mixed-Case,1.250,case\n';
@@ -502,6 +505,8 @@ try {
     await writeFile(resolve(scratch, `incoming-${width}.png`), Buffer.from(inboxShot.data, 'base64'));
   }
   // Customer identities are administered separately from requested source text.
+  fixtures('admin'); await command('Page.reload');
+  await waitFor("document.getElementById('role')?.textContent.includes('admin') && !document.getElementById('workspace').disabled");
   await evaluate(`location.hash='#/workspaces/${data.a}/customers/'`);
   await waitFor("!document.getElementById('customers-screen').hidden && !document.getElementById('customer-refresh').disabled");
   await evaluate("document.getElementById('customer-create-panel').open=true");
@@ -544,6 +549,8 @@ try {
     const customerShot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     await writeFile(resolve(scratch, `customers-${width}.png`), Buffer.from(customerShot.data, 'base64'));
   }
+  fixtures('processor'); await command('Page.reload');
+  await waitFor("document.getElementById('role')?.textContent.includes('processor') && !document.getElementById('workspace').disabled");
   await evaluate(`location.hash='#/workspaces/${data.a}/draft-orders/${incomingDraft}/'`);
   await waitFor("document.getElementById('customer-confirm-state').textContent.includes('Blocking:') && !document.getElementById('customer-confirm-exact').disabled");
   await field('customer-confirm-query', 'PO-Exact.Mixed'); await evaluate("document.getElementById('customer-confirm-exact').click()");
@@ -562,7 +569,9 @@ try {
   await waitFor("!document.getElementById('customer-confirm-save').disabled");
   assert.match(await evaluate("document.getElementById('customer-confirm-proposal').textContent"), /Synthetic incoming customer.*Synthetic latest customer.*00B/);
   const currentAccount = (await secondRequest(`${customerBase}${customerId}/`)).data;
+  fixtures('admin');
   assert.equal((await secondRequest(`${customerBase}${customerId}/`, 'PATCH', { destination_id: '000008' }, currentAccount.revision)).status, 200);
+  fixtures('processor');
   await evaluate("document.getElementById('customer-confirm-save').click()");
   await waitFor("document.getElementById('customer-confirm-message').textContent.includes('reference data changed') && !document.getElementById('customer-confirm-preview').disabled");
   assert.equal(await evaluate("document.getElementById('customer-confirm-save').disabled"), true);
@@ -581,7 +590,10 @@ try {
   await evaluate("document.getElementById('matching-load').click()");
   await waitFor("document.querySelector('#matching-results button') && !document.querySelector('#matching-results button').disabled");
   await evaluate("document.querySelector('#matching-results button').click()");
-  await waitFor("document.getElementById('draft-readiness-state').textContent==='Ready for internal conversion' && !document.getElementById('convert-draft').disabled");
+  await waitFor("document.getElementById('draft-readiness-state').textContent==='Ready for internal conversion' && document.getElementById('convert-draft').hidden");
+  assert.equal((await secondRequest(`/api/v1/workspaces/${data.a}/draft-orders/${incomingDraft}/convert/`, 'POST', {})).status, 403);
+  fixtures('admin'); await command('Page.reload');
+  await waitFor("document.getElementById('role')?.textContent.includes('admin') && document.getElementById('draft-fields').textContent.includes('Synthetic latest customer') && document.getElementById('draft-readiness-state').textContent==='Ready for internal conversion' && !document.getElementById('draft-refresh').disabled && !document.getElementById('convert-draft').hidden && !document.getElementById('convert-draft').disabled");
   await confirm();
   await waitFor("!document.getElementById('conversion-purchase').hidden");
   await evaluate("document.getElementById('conversion-purchase').click()");
@@ -594,6 +606,7 @@ try {
   await waitFor("!document.getElementById('order-customer-refresh').disabled");
   assert.equal(await evaluate("document.getElementById('order-customer-summary').textContent"), frozenCustomer);
   console.log('PASS: customer admin directory, leading zeros, two delivery locations and approved exact alias; committed-response receipt reconciliation, stale edit/input preservation, stale preview rejection, explicit selected-site confirmation with identical replay, one decision and immutable converted customer snapshot.');
+  console.log('PASS: actual processor source intake/link, restricted worker extraction, explicit application/matching and customer/site confirmation; processor conversion denied and administrator handoff completed with unchanged frozen customer identity.');
   await evaluate(`location.hash='#/workspaces/${data.a}/orders/${orderId}/documents/'`);
   await waitFor("!document.getElementById('documents-screen').hidden && document.getElementById('documents-empty').textContent==='No source documents listed.' && !document.getElementById('documents-refresh').disabled");
   await pickDocument('empty.pdf', ''); assert.match(await evaluate("document.getElementById('documents-message').textContent"), /nonempty/);

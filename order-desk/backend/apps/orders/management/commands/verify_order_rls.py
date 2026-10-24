@@ -24,6 +24,13 @@ APPEND_ONLY_TABLES = {
     "orders_extractionapplication",
     "orders_extractioncreatedrow",
 }
+PREPARATION_TABLES = {
+    "orders_documentextractionjob",
+    "orders_extractionapplication",
+    "orders_extractioncreatedrow",
+    "orders_orderdocument",
+    "orders_orderdocumentreview",
+}
 
 
 class Command(CatalogVerifierCommand):
@@ -336,6 +343,8 @@ class Command(CatalogVerifierCommand):
         boundary = policies[f"{prefix}_tenant_boundary"]
         update = policies[f"{prefix}_reviewer_update"]
         insert = policies[f"{prefix}_reviewer_insert"]
+        if ("'processor'" in (insert[4] or "")) != (table in PREPARATION_TABLES):
+            raise CommandError(f"Unexpected processing rights for {table}.")
         if (
             not boundary[3]
             or boundary[3] != boundary[4]
@@ -462,6 +471,7 @@ class Command(CatalogVerifierCommand):
                 or required_fragment not in insert[4]
                 or "admin" not in insert[4]
                 or "reviewer" not in insert[4]
+                or "processor" not in insert[4]
                 or not update[3]
                 or update[3] != update[4]
                 or policies[f"{prefix}_member_read"][3:] != ("true", None)

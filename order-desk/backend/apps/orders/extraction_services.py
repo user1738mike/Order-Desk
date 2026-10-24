@@ -12,7 +12,7 @@ from apps.orders.incoming import require_source_editable
 from apps.orders.models import DocumentExtractionJob, ExtractionJobStatus
 from apps.orders.pdf_extraction import extract_pdf
 from apps.orders.private_documents import open_document
-from apps.orders.services import _require_writer
+from apps.orders.services import _require_preparer
 from apps.organizations.transactions import tenant_scope
 
 LEASE_SECONDS = 120
@@ -40,7 +40,7 @@ def can_retry(job):
 
 def enqueue_extraction(*, actor, organization_id, order_id, document_id, materialize):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         document = selectors.get_private_document(
             organization_id, order_id, document_id
         )
@@ -61,14 +61,14 @@ def enqueue_extraction(*, actor, organization_id, order_id, document_id, materia
             document=document,
             source_sha256=document.source_sha256,
             parser_version=parser_version(document.content_type),
-            defaults={"requested_by": actor},
+            defaults={"requested_by_id": actor.pk},
         )
         return materialize(job), created
 
 
 def retry_extraction(*, actor, organization_id, order_id, document_id, materialize):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         job = selectors.get_extraction_job(organization_id, order_id, document_id)
         require_source_editable(organization_id, job.document)
         if not can_retry(job):
@@ -84,7 +84,7 @@ def retry_extraction(*, actor, organization_id, order_id, document_id, materiali
 
 def process_extraction(*, actor, organization_id, job_id):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         job = selectors.get_extraction_job_by_id(organization_id, job_id)
         now = timezone.now()
         if job.status not in (ExtractionJobStatus.QUEUED, ExtractionJobStatus.RUNNING):
@@ -101,7 +101,7 @@ def process_extraction(*, actor, organization_id, job_id):
         job.attempts += 1
         job.claim_token = uuid4()
         job.lease_expires_at = now + timedelta(seconds=LEASE_SECONDS)
-        job.processed_by = actor
+        job.processed_by_id = actor.pk
         job.save()
         token = job.claim_token
         document = job.document
@@ -133,7 +133,7 @@ def process_extraction(*, actor, organization_id, job_id):
     # Unexpected exceptions deliberately leave the durable lease for recovery;
     # do not fabricate success or expose exception text/source contents.
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         current = selectors.get_extraction_job_by_id(organization_id, job_id)
         if (
             current.status != ExtractionJobStatus.RUNNING

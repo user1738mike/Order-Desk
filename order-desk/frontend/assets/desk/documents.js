@@ -45,7 +45,7 @@ export class DocumentController {
     if (file && (!/\.(pdf|csv)$/i.test(file.name) || !file.size || file.size > MAX_DOCUMENT_BYTES)) message = 'Choose a nonempty PDF or CSV, up to 10 MiB. Server validation still applies.';
     this.update({ file: message ? null : file, message, uploadKey: file && !message && this.state.order === 'incoming' ? crypto.randomUUID() : null });
   }
-  canUpload() { return ['admin', 'reviewer'].includes(this.state.workspace?.role) && this.state.order && this.state.file && !this.state.busy && !this.state.pending && !this.state.uncertain; }
+  canUpload() { return ['admin', 'reviewer', 'processor'].includes(this.state.workspace?.role) && this.state.order && this.state.file && !this.state.busy && !this.state.pending && !this.state.uncertain; }
   async upload() {
     if (!this.canUpload()) return;
     const version = this.version; const abort = this.abort = new AbortController();
@@ -92,7 +92,7 @@ export class DocumentController {
     finally { if (version === this.version && !abort.signal.aborted) this.update({ busy: false }); }
   }
   async linkSource(values = null) {
-    if (this.state.pending || this.state.busy || !this.state.linkSource || !['admin', 'reviewer'].includes(this.state.workspace?.role)) return;
+    if (this.state.pending || this.state.busy || !this.state.linkSource || !['admin', 'reviewer', 'processor'].includes(this.state.workspace?.role)) return;
     const version = this.version, abort = this.abort = new AbortController();
     this.update({ pending: true });
     try {
@@ -166,7 +166,7 @@ export class DocumentController {
   }
   canExtract(retry = false) {
     const e = this.state.extraction;
-    return ['admin', 'reviewer'].includes(this.state.workspace?.role) && e?.loaded && !this.state.busy && !this.state.pending && (retry ? e.job?.status === 'failed' && e.job.attempts < 3 && e.job.can_retry !== false : e.job === null);
+    return ['admin', 'reviewer', 'processor'].includes(this.state.workspace?.role) && e?.loaded && !this.state.busy && !this.state.pending && (retry ? e.job?.status === 'failed' && e.job.attempts < 3 && e.job.can_retry !== false : e.job === null);
   }
   async queueExtraction(retry = false) {
     if (!this.canExtract(retry)) return;
@@ -207,7 +207,7 @@ export function renderDocuments(controller, visible) {
   $('documents-message').textContent = s.message;
   $('documents-file-info').textContent = s.file ? `${s.file.name} · ${s.file.size} bytes` : 'No file selected';
   if (!s.file) $('document-file').value = '';
-  $('document-upload-form').hidden = !s.order || !['admin', 'reviewer'].includes(s.workspace?.role);
+  $('document-upload-form').hidden = !s.order || !['admin', 'reviewer', 'processor'].includes(s.workspace?.role);
   $('document-file').disabled = s.pending || s.uncertain; $('document-upload').disabled = !controller.canUpload();
   $('documents-refresh').disabled = s.pending || s.busy || !s.order;
   $('documents-check').hidden = !s.uncertain;
@@ -224,7 +224,7 @@ export function renderDocuments(controller, visible) {
       const action = document.createElement(row.draft ? 'a' : 'button');
       action.textContent = row.draft ? 'Review linked draft' : 'Create or link draft';
       if (row.draft) action.href = `#/workspaces/${s.workspace.id}/draft-orders/${row.draft}/`;
-      else { action.disabled = s.busy || s.pending || Boolean(s.linkOperation) || !['admin', 'reviewer'].includes(s.workspace?.role); action.addEventListener('click', () => controller.chooseLink(row)); }
+      else { action.disabled = s.busy || s.pending || Boolean(s.linkOperation) || !['admin', 'reviewer', 'processor'].includes(s.workspace?.role); action.addEventListener('click', () => controller.chooseLink(row)); }
       td.append(action);
     }
     if (row.extraction_url) { const extraction = document.createElement('button'); extraction.textContent = /\.pdf$/i.test(row.original_name) ? 'PDF extraction' : 'CSV extraction'; extraction.disabled = s.busy || s.pending; extraction.addEventListener('click', () => controller.openExtraction(row)); td.append(extraction); }

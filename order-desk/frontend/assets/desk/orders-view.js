@@ -62,7 +62,7 @@ export function renderDrafts(state, visible, canConvert, editLine = null) {
     const match = document.createElement('td');
     match.append(text('div', line.catalogue_item_id ? line.catalogue_sku_snapshot : 'Unmatched · manual request', 'sku'), text('div', line.catalogue_description_snapshot, 'muted small'));
     if (line.catalogue_item_id) match.append(text('div', line.catalogue_item_id, 'muted small identity'));
-    if (editLine && ['admin', 'reviewer'].includes(state.workspace.role) && state.draft.status === 'draft') {
+    if (editLine && ['admin', 'reviewer', 'processor'].includes(state.workspace.role) && state.draft.status === 'draft') {
       const actions = document.createElement('div'); actions.className = 'line-actions';
       for (const [label, mode] of [['Edit line', 'line'], [line.catalogue_item_id ? 'Detach catalogue' : 'Attach catalogue', line.catalogue_item_id ? 'detach' : 'attach']]) {
         const button = text('button', label, 'quiet'); button.type = 'button';

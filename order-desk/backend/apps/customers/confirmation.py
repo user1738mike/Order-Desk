@@ -18,7 +18,7 @@ from apps.customers.services import ReferenceConflict
 from apps.orders.models import DraftOrder, OrderDocument
 from apps.orders.revisions import check_revision, draft_revision
 from apps.orders.serializers import StrictInputSerializer
-from apps.orders.services import _require_draft_editable, _require_writer
+from apps.orders.services import _require_draft_editable, _require_preparer
 from apps.organizations.transactions import tenant_scope
 
 
@@ -150,7 +150,7 @@ class DecisionSerializer(serializers.ModelSerializer):
 
 def confirm(*, actor, organization_id, draft_id, data):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         form = ConfirmationInput(data=data())
         form.is_valid(raise_exception=True)
         values = form.validated_data

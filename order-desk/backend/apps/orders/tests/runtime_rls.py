@@ -71,6 +71,16 @@ EXTRACTION_MODELS = (DocumentExtractionJob, ExtractionApplication, ExtractionCre
 
 
 class RuntimeOrderRLSChecks(unittest.TestCase):
+    def test_processor_preparation_and_final_approval_denial_as_runtime_role(self):
+        from apps.orders.tests.processor_boundary import preparation_scope
+
+        preparation_scope(self)
+
+    def test_processor_waiting_writer_rechecks_demotion(self):
+        from apps.orders.tests.processor_boundary import waiting_demotion
+
+        waiting_demotion(self)
+
     def test_customer_reference_runtime_roles_tenant_and_relationships(self):
         from apps.customers.tests.runtime_boundary import reference_scope
 

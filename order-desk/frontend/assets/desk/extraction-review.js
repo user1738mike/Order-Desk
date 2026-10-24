@@ -159,9 +159,9 @@ export class ExtractionReviewController {
     if (mappings.length > 50) errors.push('Apply at most 50 source rows in one operation.');
     return { mappings, errors };
   }
-  canApply() { return ['admin', 'reviewer'].includes(this.state.workspace?.role) && this.state.review?.draft.status === 'draft' && this.state.available && this.canChange() && !this.state.blocked && !this.selection().errors.length; }
+  canApply() { return ['admin', 'reviewer', 'processor'].includes(this.state.workspace?.role) && this.state.review?.draft.status === 'draft' && this.state.available && this.canChange() && !this.state.blocked && !this.selection().errors.length; }
   async apply(retry = false) {
-    if (retry ? !this.state.uncertain || this.state.pending || this.state.busy || !['admin', 'reviewer'].includes(this.state.workspace?.role) : !this.canApply()) return;
+    if (retry ? !this.state.uncertain || this.state.pending || this.state.busy || !['admin', 'reviewer', 'processor'].includes(this.state.workspace?.role) : !this.canApply()) return;
     const version = this.version; const abort = this.abort = new AbortController();
     const operation = retry ? this.state.operation : { job_id: this.state.review.job.id, draft_id: this.state.draftId, result_revision: this.state.review.result_revision, expected_draft_revision: this.state.review.draft_revision, operation_key: this.operationKey(), mappings: this.selection().mappings };
     this.update({ pending: true, operation, message: 'Submitting the explicit selection...', errors: [], readiness: null });
@@ -199,7 +199,7 @@ export function renderExtractionReview(controller, visible = true) {
   const s = controller.state; const panel = $('extraction-review'); panel.hidden = !visible || !s.available;
   if (panel.hidden) { if (!s.source) { $('review-candidates').replaceChildren(); $('review-preview').replaceChildren(); $('review-drafts').replaceChildren(); $('review-receipt').textContent = ''; $('review-message').textContent = ''; $('review-draft-id').value = ''; } return; }
   const focused = panel.contains(document.activeElement) ? { id: document.activeElement.id, start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd } : null;
-  const writable = ['admin', 'reviewer'].includes(s.workspace?.role); const locked = !controller.canChange() || !writable;
+  const writable = ['admin', 'reviewer', 'processor'].includes(s.workspace?.role); const locked = !controller.canChange() || !writable;
   $('review-open-form').hidden = s.order === 'incoming';
   $('review-load-drafts').textContent = s.order === 'incoming' ? 'Review linked draft' : 'List available drafts';
   $('review-message').textContent = s.message;

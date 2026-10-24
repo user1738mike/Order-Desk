@@ -19,7 +19,7 @@ validation/import. Account/location name and destination edits are available via
 the versioned API; the location screen currently exposes creation and activation
 changes. Reference administration is reserved to administrators. All active members
 may read their own workspace's directory and recorded decisions. Reviewer/admin
-roles can deliberately confirm an editable draft's customer; conversion retains
+and processor roles can deliberately confirm an editable draft's customer; conversion retains
 the existing administrator-only policy. Processor permissions remain pending.
 
 Select an account from the draft's customer card, select a delivery location when

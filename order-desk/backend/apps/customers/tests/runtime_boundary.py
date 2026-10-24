@@ -117,8 +117,13 @@ def audit(cursor):
                 or not expression
             ):
                 raise CommandError("Customer writer policy is invalid.")
-            if "'admin'" not in expression or (
-                ("'reviewer'" in expression) != (writers == "reviewer")
+            if (
+                "'admin'" not in expression
+                or (("'reviewer'" in expression) != (writers == "reviewer"))
+                or (
+                    ("'processor'" in expression)
+                    != (table == "customers_draftcustomerdecision")
+                )
             ):
                 raise CommandError("Customer writer role matrix is invalid.")
 

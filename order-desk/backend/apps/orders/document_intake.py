@@ -3,13 +3,17 @@
 from apps.orders import selectors
 from apps.orders.models import OrderDocument
 from apps.orders.private_documents import staged_document
-from apps.orders.services import _locked_order, _require_editable_order, _require_writer
+from apps.orders.services import (
+    _locked_order,
+    _require_editable_order,
+    _require_preparer,
+)
 from apps.organizations.transactions import tenant_scope
 
 
 def create_private_document(*, actor, organization_id, order_id, upload, materialize):
     with tenant_scope(user=actor, workspace_id=organization_id) as context:
-        _require_writer(context)
+        _require_preparer(context)
         order = selectors.private_document_parent(organization_id, order_id)
         _require_editable_order(order)
     # No DB transaction/organization lock while receiving or validating source bytes.
@@ -18,7 +22,7 @@ def create_private_document(*, actor, organization_id, order_id, upload, materia
         with tenant_scope(
             user=actor, workspace_id=organization_id, write=True
         ) as context:
-            _require_writer(context)
+            _require_preparer(context)
             order = _locked_order(organization_id=organization_id, order_id=order_id)
             _require_editable_order(order)
             document = OrderDocument(

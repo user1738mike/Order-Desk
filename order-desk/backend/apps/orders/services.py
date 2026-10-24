@@ -215,6 +215,15 @@ def _require_writer(context) -> None:
         raise PermissionDenied("Workspace review access is required.")
 
 
+def _require_preparer(context) -> None:
+    if context.role not in {
+        MembershipRole.ADMIN,
+        MembershipRole.REVIEWER,
+        MembershipRole.PROCESSOR,
+    }:
+        raise PermissionDenied("Workspace processing access is required.")
+
+
 def create_draft_order(
     *,
     actor,
@@ -225,7 +234,7 @@ def create_draft_order(
     materialize: Materializer | None = None,
 ):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         order = DraftOrder(
             organization_id=organization_id,
             initiating_user_id=actor.pk,
@@ -249,7 +258,7 @@ def update_draft_customer_fields(
 ):
     """Apply customer-only changes to fresh protected, locked draft state."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         order = get_object_or_404(
             DraftOrder.objects.select_for_update().filter(
                 organization_id=context.organization_id
@@ -298,7 +307,7 @@ def create_draft_order_line(
         with tenant_scope(
             user=actor, workspace_id=organization_id, write=True
         ) as context:
-            _require_writer(context)
+            _require_preparer(context)
             order = get_object_or_404(
                 DraftOrder.objects.select_for_update().filter(
                     organization_id=context.organization_id
@@ -351,7 +360,7 @@ def update_draft_order_line(
 ):
     """Merge a patch into fresh locked state, preserving successful no-ops."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         order = get_object_or_404(
             DraftOrder.objects.select_for_update().filter(
                 organization_id=context.organization_id
@@ -395,7 +404,7 @@ def attach_catalogue_item_to_draft_order_line(
 ):
     """Attach one active, same-workspace catalogue item to an unmatched line."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         order = get_object_or_404(
             DraftOrder.objects.select_for_update().filter(
                 organization_id=context.organization_id
@@ -470,7 +479,7 @@ def detach_catalogue_item_from_draft_order_line(
 ):
     """Clear catalogue state only when requested identity remains valid."""
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         order = get_object_or_404(
             DraftOrder.objects.select_for_update().filter(
                 organization_id=context.organization_id
@@ -687,7 +696,7 @@ def create_order_document(
         with tenant_scope(
             user=actor, workspace_id=organization_id, write=True
         ) as context:
-            _require_writer(context)
+            _require_preparer(context)
             order = _locked_order(organization_id=organization_id, order_id=order_id)
             _require_editable_order(order)
             upload = file() if callable(file) else file
@@ -748,7 +757,7 @@ def create_document_review(
     materialize: Materializer | None = None,
 ):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         documents = OrderDocument.objects.filter(
             pk=document_id, organization_id=organization_id
         )
@@ -805,7 +814,7 @@ def resolve_document_review(
     materialize: Materializer | None = None,
 ):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         reviews = OrderDocumentReview.objects.filter(
             pk=review_id, organization_id=organization_id
         )

@@ -180,10 +180,73 @@ Owned source/target stopped; volumes/private evidence retained. Same-host keys
 remain separate mounts, not offsite proof or an agreed customer RTO. No main
 restore, external specification or real customer identity invented.
 
-Exact next action: commit the verified customer recovery helper/evidence, then
-implement processor/team permissions and controlled product units/aliases with
-fresh application-role/concurrency and browser checks. Reference-data admin rights
-and actual order approval must remain distinct from routine processing.
+Customer recovery helper/evidence committed/pushed93c6e33. Processor preparation
+increment in progress: PROCESSOR_PERMISSIONS.md defines the explicit matrix.
+Adds processor role without changing any existing memberships; only draft/source/
+extraction/application/customer-confirmation writer policies expand. Conversion,
+internal-order mutation/approval, export and permanent reference administration
+retain existing rights. New organization0002/order0016 migrations are installed
+only in dedicated test_orderdesk, not development/main. Preparation controls wired
+in the native frontend and production role fixture; processor browser proof pending.
+No assignment/reasoned-return/team-queue claim yet.
+
+Processor native2 PASS/3.486s (processor-native-final.log), then broader tenant/
+customer/incoming and prior-schema preservation suite161 PASS/113.562s
+(processor-native-upgrade.log), including unchanged old roles/data and refusal to
+roll back existing processor memberships by silently relabeling them. Node130
+PASS/2.382s, maintained-source Ruff checks pass. First restricted run66 tests
+FAILED with one error: worker assigned a maintenance-loaded actor instance to a
+runtime-loaded job. Scalar requested_by_id/processed_by_id fixes cross-connection
+relation routing while preserving fresh actor authorization. Independent processor
+demotion/wait test passed. Final full restricted repeat66 PASS/318.853s, no skips
+(processor-runtime-final.log): real processor intake/link/extraction/application
+replay/catalogue attachment/customer confirmation, direct SQL approval/insert
+denial, HTTP approval/export/reference denial and fresh viewer demotion. Distinct
+connection PIDs and pg_blocking_pids prove the waiting writer saw committed role
+revocation. Fresh unpublished run deployment-b11941874e7c47f589efebefaf476dda
+has installed the complete schema from empty, including organizations0002 and
+orders0016; fresh native896 PASS/1026.291s, further runtime/production stages
+running. Real-browser processor preparation repeat exited0
+(processor-browser-final.log): processor intake/link, worker/application replay,
+customer/site confirmation and catalogue selection, conversion403, then explicit
+administrator handoff/frozen identity. First attempt clicked the initially hidden
+conversion control before a reload completed; wait now requires visible enabled
+controls, loaded expected draft fields and readiness. First native
+attempt had incorrect test attachment URL/queued202 response shape; corrected to
+the established API, then both focused journeys passed. Initial host editing
+script stopped at Windows default-text decoding; remaining edits explicitly used
+UTF-8 and diff inspection preserved existing bytes.
+
+Independent unit arithmetic foundation committed locally0038dd9 while the frozen
+processor image runs; no application import or unit-policy table/API yet.
+UNIT_DECIMAL_POLICY.md fixes approved exact ratios, original-field preservation
+and precision/range rejection. Unit math standard-library tests9 PASS/0.019s
+(unit-math-final.log), including12 each→1 case without an approximate inverse,
+repeating precision rejection, overflow, typed positive input and independent
+Decimal context/traps/range. Maintained module lint/format passes. This is not
+product mapping functionality or customer/destination evidence. Unit model
+scaffolding may proceed independently but remains unregistered/unmigrated until
+the processor checkpoint is verified.
+
+Processor fresh run completed exit0 (processor-quality.log): native896/1026.291s,
+order66/227.353s, catalogue115/329.781s, Node130, trusted production browser with
+distinct admin/reviewer/processor/viewer accounts, static/CSP/TLS/CSRF, storage/DB
+outages and recovery, API/proxy recreation, UID and DB hostname rejection. Source
+was frozen before independent unit math/scaffold files; those have separate
+arithmetic proof and are not claimed in896. Source containers stopped, volumes
+retained. Processor browser repeat exit0; failed first click/reload timing retained
+in processor-browser-attempt1.log. Script50 PASS/0.766s and maintained formatting
+221 files PASS. Applied only additive organizations0002/orders0016 to development;
+readiness ok (processor-development-migration.log), no accounts/memberships relabeled
+or fixtures/reset/restore. GitHub connected issue search scoped to this repository
+returned zero issues; no supplied destination contract discovered there. No external
+write/message or destination submission occurred.
+
+Exact next action: commit the verified processor preparation increment and push
+main, then register/wire the unverified product-unit model scaffold with typed
+tenant FKs/forced RLS, explicit ratio confirmation and immutable snapshots. Finish
+approved customer product aliases, exception/team workflows and profile/handoff
+boundaries before final full-scope gates. Complete team assignment/returns required.
 Profile/handoff records, complete support/role matrix and customer evidence remain
 required; previous image-advisory clearance/cold latency blockers remain open.
 

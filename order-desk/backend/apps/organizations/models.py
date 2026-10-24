@@ -10,6 +10,7 @@ from django.db import models
 class MembershipRole(models.TextChoices):
     ADMIN = "admin", "Administrator"
     REVIEWER = "reviewer", "Reviewer"
+    PROCESSOR = "processor", "Processor"
     VIEWER = "viewer", "Viewer"
 
 

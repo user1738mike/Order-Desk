@@ -361,7 +361,7 @@ try {
   assert.deepEqual(exceptions, []); assert.deepEqual(violations, []);
   await evaluate("document.getElementById('logout').click()"); await wait("!document.getElementById('login-panel').hidden");
   assert.equal((await request('/api/v1/workspaces/')).status, 403);
-  for (const role of ['viewer','reviewer']) {
+  for (const role of ['viewer','reviewer','processor']) {
     const account = data.role_accounts[role];
     await evaluate(`location.hash='';document.getElementById('email').value=${JSON.stringify(account.email)};document.getElementById('password').value=${JSON.stringify(account.password)};document.getElementById('login-form').requestSubmit()`);
     await wait("!document.getElementById('desk').hidden && !document.getElementById('workspace').disabled");

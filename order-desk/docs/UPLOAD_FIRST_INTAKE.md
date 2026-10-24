@@ -12,7 +12,8 @@ Choose **Create or link draft**. Create an unresolved draft with optional custom
 text/reference, or choose an existing editable draft from paginated headers.
 This is a one-time association. Linking checks the current aggregate revision;
 it cannot edit another customer's draft fields. Customer text remains unconfirmed
-until the separate customer-account capability is implemented. Do not interpret
+until the operator deliberately confirms the account and required delivery site
+using the draft's customer card. See CUSTOMER_REFERENCE.md. Do not interpret
 filename, text similarity or an email domain as confirmed customer identity.
 
 Use **Review linked draft** for manual entry. Alternatively open CSV/PDF extraction,
@@ -22,6 +23,10 @@ Select source fields and mappings, inspect their provenance, correct and deliber
 apply. Applied receipts retain source digest, parser/result revision, decisions and
 target draft. Saving a source link does not apply proposed values. Applying values
 does not match products, convert, approve or generate an export.
+
+Processors, reviewers and administrators can prepare sources/drafts and confirm
+customer identities. Permanent reference changes remain administrative; conversion
+and final approval retain the separate roles in PROCESSOR_PERMISSIONS.md.
 
 Text-PDF support remains the existing narrow table parser. A scanned PDF, unknown
 layout or invalid quantity has a visible failure and a manual draft-entry path.

@@ -15,7 +15,7 @@ import uuid
 import verify_session_auth as session_auth
 
 CURRENT = "/api/v1/workspaces/current/"
-ROLES = {"admin", "reviewer", "viewer"}
+ROLES = {"admin", "reviewer", "processor", "viewer"}
 
 
 def require(condition: bool, message: str) -> None:

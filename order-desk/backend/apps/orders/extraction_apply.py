@@ -20,7 +20,7 @@ from apps.orders.models import (
     ExtractionJobStatus,
 )
 from apps.orders.revisions import check_revision, draft_revision
-from apps.orders.services import _require_draft_editable, _require_writer
+from apps.orders.services import _require_draft_editable, _require_preparer
 from apps.organizations.transactions import tenant_scope
 
 FIELD_NAMES = {
@@ -225,7 +225,7 @@ def _field_value(name, value):
 
 def apply_extraction(*, actor, organization_id, order_id, document_id, data):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         payload = normalize_request(data() if callable(data) else data)
         if len(_json(payload).encode()) > 950000:
             _invalid("mappings", "The selected request is too large.")

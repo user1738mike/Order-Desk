@@ -2,10 +2,11 @@
 
 Active six-improvement request (24 October): [implementation and acceptance
 matrix](WORKFLOW_IMPLEMENTATION.md), with actual commands/outcomes in
-PROJECT_STATE.md. Upload-first source lifecycle is implemented with migration0015,
-focused native/runtime and actual-backend browser evidence; full fresh-candidate
-gates are running. The generic customer/unit/exception/profile capabilities below
-remain required. [Evaluation tooling/protocol](evaluation/README.md) verifies
+PROJECT_STATE.md. Upload-first and customer-reference slices are verified within
+their documented local scope, including fresh/upgrade, restricted runtime, real
+browser and encrypted recovery evidence. Processor preparation is being verified;
+complete team queues, controlled units/product aliases, exceptions and handoff
+profiles remain required. [Evaluation tooling/protocol](evaluation/README.md) verifies
 synthetic arithmetic only; representative customer outcomes remain blocked.
 
 Current security/release review: [24 October audit](AUDIT_2026-10-24.md).
@@ -28,7 +29,7 @@ BLOCKED, APPROVED DEFERRED. No deferrals have been approved for this request.
 | 3 Upload-first inbox | Implemented: nullable historical order plus constrained immutable incoming source/draft link, request receipts, private inbox/download, duplicate warnings, linked extraction/review/application. Focused native/runtime and browser pass; final fresh gates/evidence in PROJECT_STATE.md. |
 | 4 Operational navigation | VERIFIED for scalar searchable order queue/direct source-draft/documents/approval links, URL filters/reload/history and 50-row pages; received date, assignment and draft search remain MISSING. Evidence in state ledger. |
 | 5 Workspace UI | DEFECTIVE: existing screens/session cancellation present; six coherent queues and source/draft workspace remain incomplete. |
-| 6 Team processing | MISSING: admin/reviewer/viewer only; processor, assignment, reasoned returns and permission matrix pending. |
+| 6 Team processing | VERIFIED processor preparation matrix: source/draft/customer preparation with conversion/final approval/reference boundaries preserved, fresh896/66/115 and real browser/production gates. Assignment and reasoned returns/team queues remain MISSING. See PROCESSOR_PERMISSIONS.md. |
 | 7 Customer directory | VERIFIED local slice: account/site directory, exact approved aliases, create-only CSV, versioned admin receipts, explicit confirmation and frozen snapshots. Fresh893/64/115, Node130, real Chromium, production/restart and customer recovery pass. Location name/destination edits/history currently API-only; see CUSTOMER_REFERENCE.md/PROJECT_STATE.md for scope, evidence and legacy structural exemption. |
 | 8 Units/packs | MISSING: exact quantities and raw units exist; controlled units/product factors require explicit decimal policy. |
 | 9 Approved aliases | MISSING: exact SKU suggestions only; customer directory precedes approved mapping model. |

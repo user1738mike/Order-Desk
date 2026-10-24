@@ -157,6 +157,7 @@ elif action in (
     "cleanup",
     "admin",
     "viewer",
+    "processor",
     "deactivate",
     "reactivate",
     "assert_conversion",
@@ -167,9 +168,9 @@ elif action in (
         with transaction.atomic():
             if action == "revoke":
                 Membership.objects.filter(user_id=data["user"]).update(is_active=False)
-            elif action in ("admin", "viewer", "deactivate", "reactivate"):
+            elif action in ("admin", "viewer", "processor", "deactivate", "reactivate"):
                 Organization.objects.select_for_update().get(pk=data["a"])
-                if action in ("admin", "viewer"):
+                if action in ("admin", "viewer", "processor"):
                     Membership.objects.filter(
                         user_id=data["user"], organization_id=data["a"]
                     ).update(role=action)

@@ -37,7 +37,11 @@ with transaction.atomic():
     Membership.objects.create(user=user, organization=a, role=MembershipRole.ADMIN)
     Membership.objects.create(user=user, organization=b, role=MembershipRole.VIEWER)
     role_accounts = {}
-    for role in (MembershipRole.VIEWER, MembershipRole.REVIEWER):
+    for role in (
+        MembershipRole.VIEWER,
+        MembershipRole.REVIEWER,
+        MembershipRole.PROCESSOR,
+    ):
         password = secrets.token_urlsafe(32)
         member = User.objects.create_user(
             email=f"deployment-{role}-{uuid4().hex}@example.test", password=password

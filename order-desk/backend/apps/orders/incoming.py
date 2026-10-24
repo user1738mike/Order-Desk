@@ -15,7 +15,7 @@ from apps.orders.models import DocumentExtractionJob, DraftOrder, OrderDocument
 from apps.orders.private_documents import staged_document
 from apps.orders.revisions import check_revision
 from apps.orders.serializers import PrivateDocumentSerializer, StrictInputSerializer
-from apps.orders.services import _require_draft_editable, _require_writer
+from apps.orders.services import _require_draft_editable, _require_preparer
 from apps.organizations.transactions import tenant_scope
 
 
@@ -123,12 +123,12 @@ def inbox(organization_id):
 
 def receive(*, actor, organization_id, operation_key, upload):
     with tenant_scope(user=actor, workspace_id=organization_id) as context:
-        _require_writer(context)
+        _require_preparer(context)
     with staged_document(upload()) as staged:
         with tenant_scope(
             user=actor, workspace_id=organization_id, write=True
         ) as context:
-            _require_writer(context)
+            _require_preparer(context)
             previous = OrderDocument.objects.filter(
                 organization_id=organization_id, intake_key=operation_key
             ).first()
@@ -165,7 +165,7 @@ def receive(*, actor, organization_id, operation_key, upload):
 
 def link(*, actor, organization_id, document_id, data):
     with tenant_scope(user=actor, workspace_id=organization_id, write=True) as context:
-        _require_writer(context)
+        _require_preparer(context)
         form = LinkInput(data=data())
         form.is_valid(raise_exception=True)
         values = form.validated_data

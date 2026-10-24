@@ -51,7 +51,7 @@ export class MatchingController {
       this.update({ blocked: true, message: error.message }); if (error instanceof ApiError && error.status === 403) await this.denied(false);
     } finally { if (this.live(version, abort)) this.update({ busy: false }); }
   }
-  canAccept(row) { const s = this.drafts.state; return this.usable() && !this.state.busy && !this.state.blocked && !this.state.uncertain && this.state.revision === s.revision && ['admin', 'reviewer'].includes(s.workspace.role) && s.draft.status === 'draft' && row.state === 'exact' && row.attachment.state === 'none' && row.candidate?.is_active; }
+  canAccept(row) { const s = this.drafts.state; return this.usable() && !this.state.busy && !this.state.blocked && !this.state.uncertain && this.state.revision === s.revision && ['admin', 'reviewer', 'processor'].includes(s.workspace.role) && s.draft.status === 'draft' && row.state === 'exact' && row.attachment.state === 'none' && row.candidate?.is_active; }
   async accept(row) {
     if (!this.canAccept(row)) return;
     const version = this.version; const abort = this.abort = new AbortController(); const s = this.drafts.state; const draftId = s.draftId;
@@ -89,7 +89,7 @@ export function renderMatching(controller) {
     const evidence = document.createElement('p'); evidence.textContent = `exact-sku-v1 · ${row.state.replaceAll('_', ' ')} · outer whitespace trim; case, punctuation and leading zeros preserved. Current attachment: ${row.attachment.state.replaceAll('_', ' ')}.`; article.append(evidence);
     if (row.candidate) { const item = document.createElement('p'); item.textContent = `${row.candidate.sku} · ${row.candidate.description}${row.candidate.description_truncated ? '…' : ''} · ${row.candidate.is_active ? 'Active' : 'Inactive'} · ${row.candidate.id}`; article.append(item); }
     const checks = document.createElement('p'); checks.textContent = 'Units and prices: not modeled in catalogue. Quantity: not assessed. Manual catalogue selection remains available.'; article.append(checks);
-    if (row.state === 'exact' && row.attachment.state === 'none' && ['admin', 'reviewer'].includes(draft.workspace?.role)) { const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Accept exact suggestion'; button.dataset.line = row.line_id; button.disabled = !controller.canAccept(row); button.addEventListener('click', () => controller.accept(row)); article.append(button); }
+    if (row.state === 'exact' && row.attachment.state === 'none' && ['admin', 'reviewer', 'processor'].includes(draft.workspace?.role)) { const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Accept exact suggestion'; button.dataset.line = row.line_id; button.disabled = !controller.canAccept(row); button.addEventListener('click', () => controller.accept(row)); article.append(button); }
     return article;
   }));
 }

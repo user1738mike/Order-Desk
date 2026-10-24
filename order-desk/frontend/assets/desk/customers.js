@@ -143,7 +143,7 @@ export class CustomerController {
       key: confirmation ? body.operation_key : crypto.randomUUID(), workspace: this.state.workspace.id };
     this.update({ operation }); await this.send(operation);
   }
-  canConfirm() { return ['admin', 'reviewer'].includes(this.state.workspace?.role) && this.state.status?.draft_status === 'draft' && Boolean(this.state.candidate) && !this.state.busy && !this.state.pending && !this.state.operation; }
+  canConfirm() { return ['admin', 'reviewer', 'processor'].includes(this.state.workspace?.role) && this.state.status?.draft_status === 'draft' && Boolean(this.state.candidate) && !this.state.busy && !this.state.pending && !this.state.operation; }
   async confirm() {
     if (!this.canConfirm()) return;
     const data = { operation_key: crypto.randomUUID(), customer_id: this.state.account.id,
@@ -273,7 +273,7 @@ export function renderCustomers(controller) {
   $('customer-confirm-current').textContent = status?.decision ? `Recorded: ${status.decision.snapshot.account.code} · ${status.decision.snapshot.account.display_name} · destination ${status.decision.snapshot.account.destination_id || 'not provided'} · ${status.decision.snapshot.location ? `site ${status.decision.snapshot.location.code}` : 'no delivery site'} · confirmed by ${status.decision.actor_id} at ${status.decision.created_at}` : '';
   $('customer-confirm-blockers').replaceChildren(...(status?.blockers ?? []).map(code => node('li', blockers[code]?.[0] ?? code)));
   $('customer-confirm-refresh').disabled = locked;
-  $('customer-confirm-controls').hidden = status?.draft_status === 'converted' || !['admin', 'reviewer'].includes(s.workspace?.role);
+  $('customer-confirm-controls').hidden = status?.draft_status === 'converted' || !['admin', 'reviewer', 'processor'].includes(s.workspace?.role);
   $('customer-confirm-search').disabled = locked; $('customer-confirm-exact').disabled = locked;
   $('customer-confirm-accounts').replaceChildren(...s.rows.filter(row => row.is_active).map(row => button(`${row.code} · ${row.display_name} · destination ${row.destination_id || 'not provided'}`, locked, () => controller.openAccount(row.id))));
   $('customer-confirm-account-page').textContent = `Account page ${s.page} · ${s.count} matches`;

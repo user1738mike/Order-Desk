@@ -39,7 +39,7 @@ export class DraftEditor {
   }
   canEdit(mode = 'header') {
     const s = this.drafts.state;
-    return !s.matchingPending && ['admin', 'reviewer'].includes(s.workspace?.role) && (mode === 'create' || (s.draft?.status === 'draft' && s.revision && !s.loading && !s.converting));
+    return !s.matchingPending && ['admin', 'reviewer', 'processor'].includes(s.workspace?.role) && (mode === 'create' || (s.draft?.status === 'draft' && s.revision && !s.loading && !s.converting));
   }
   begin(mode, line = null) {
     if (!this.canEdit(mode) || this.state.pending) return;
